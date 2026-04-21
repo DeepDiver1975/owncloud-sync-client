@@ -104,6 +104,10 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
                             c.collecting = Collecting::Status;
                             c.propstat_status.clear();
                         }
+                        (n, b"propstat") if n == NS_DAV => {
+                            // Reset propstat_ok at the start of each propstat block.
+                            propstat_ok = true;
+                        }
                         _ => {}
                     }
                 }
@@ -154,7 +158,13 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
                 // When a <D:status> element closes, check if it indicates non-2xx.
                 if local == b"status" {
                     if let Some(ref c) = current {
-                        propstat_ok = c.propstat_status.contains("200");
+                        // HTTP status lines: "HTTP/1.1 2XX ..." — check the status code part.
+                        propstat_ok = c.propstat_status
+                            .split_whitespace()
+                            .nth(1)
+                            .and_then(|code| code.parse::<u16>().ok())
+                            .map(|code| (200..300).contains(&code))
+                            .unwrap_or(false);
                     }
                 }
 
