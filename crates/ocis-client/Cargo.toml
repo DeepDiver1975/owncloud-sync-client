@@ -17,6 +17,9 @@ oauth2 = { workspace = true }
 keyring = { workspace = true }
 quick-xml = { workspace = true }
 url = { workspace = true }
+base64 = "0.22"
+sha2 = "0.10"
+getrandom = "0.2"
 
 [dev-dependencies]
 tokio-test = { workspace = true }
