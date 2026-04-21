@@ -1,10 +1,10 @@
 -- crates/sync-db/migrations/001_initial.sql
 
 CREATE TABLE IF NOT EXISTS schema_version (
-    version INTEGER NOT NULL
+    version INTEGER PRIMARY KEY NOT NULL
 );
 
-INSERT INTO schema_version (version) VALUES (1);
+INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 
 CREATE TABLE IF NOT EXISTS metadata (
     path        TEXT    PRIMARY KEY NOT NULL,
