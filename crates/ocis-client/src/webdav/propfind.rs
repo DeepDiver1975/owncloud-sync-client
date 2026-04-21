@@ -1,7 +1,8 @@
 // crates/ocis-client/src/webdav/propfind.rs
 use chrono::{DateTime, Utc};
 use quick_xml::events::Event;
-use quick_xml::Reader;
+use quick_xml::name::ResolveResult;
+use quick_xml::NsReader;
 
 use crate::error::{OcisError, Result};
 
@@ -39,6 +40,8 @@ struct CurrentEntry {
     resource_type: ResourceType,
     file_id: Option<String>,
     collecting: Collecting,
+    /// Status text from current propstat block.
+    propstat_status: String,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -55,24 +58,31 @@ enum Collecting {
 
 /// Parse a WebDAV PROPFIND multistatus XML body.
 pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
-    let mut reader = Reader::from_str(xml);
+    let mut reader = NsReader::from_str(xml);
     reader.trim_text(true);
 
     let mut entries: Vec<DavEntry> = Vec::new();
     let mut current: Option<CurrentEntry> = None;
     let mut in_response = false;
+    // Whether the current propstat has HTTP 2xx status.
+    let mut propstat_ok = true;
 
     let mut buf = Vec::new();
 
     loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(ref e)) => {
-                let name_bytes: Vec<u8> = e.name().as_ref().to_vec();
-                let (ns, local) = split_name_owned(&name_bytes);
+        match reader.read_resolved_event_into(&mut buf) {
+            Ok((ns, Event::Start(ref e))) => {
+                let ns_bytes = match &ns {
+                    ResolveResult::Bound(ns) => ns.as_ref(),
+                    _ => b"",
+                };
+                let local = e.local_name();
+                let local = local.as_ref();
 
-                if ns == NS_DAV && local == b"response" {
+                if ns_bytes == NS_DAV && local == b"response" {
                     in_response = true;
                     current = Some(CurrentEntry::default());
+                    propstat_ok = true;
                     buf.clear();
                     continue;
                 }
@@ -83,34 +93,42 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
                 }
 
                 if let Some(ref mut c) = current {
-                    match (ns, local) {
-                        (n, l) if n == NS_DAV && l == b"href" => c.collecting = Collecting::Href,
-                        (n, l) if n == NS_DAV && l == b"getetag" => c.collecting = Collecting::Etag,
-                        (n, l) if n == NS_DAV && l == b"getlastmodified" => c.collecting = Collecting::LastModified,
-                        (n, l) if n == NS_DAV && l == b"getcontentlength" => c.collecting = Collecting::ContentLength,
-                        (n, l) if n == NS_DAV && l == b"collection" => c.resource_type = ResourceType::Directory,
-                        (n, l) if n == NS_OC && l == b"fileid" => c.collecting = Collecting::FileId,
-                        (n, l) if n == NS_DAV && l == b"status" => c.collecting = Collecting::Status,
+                    match (ns_bytes, local) {
+                        (n, b"href") if n == NS_DAV => c.collecting = Collecting::Href,
+                        (n, b"getetag") if n == NS_DAV => c.collecting = Collecting::Etag,
+                        (n, b"getlastmodified") if n == NS_DAV => c.collecting = Collecting::LastModified,
+                        (n, b"getcontentlength") if n == NS_DAV => c.collecting = Collecting::ContentLength,
+                        (n, b"collection") if n == NS_DAV => c.resource_type = ResourceType::Directory,
+                        (n, b"fileid") if n == NS_OC => c.collecting = Collecting::FileId,
+                        (n, b"status") if n == NS_DAV => {
+                            c.collecting = Collecting::Status;
+                            c.propstat_status.clear();
+                        }
                         _ => {}
                     }
                 }
             }
 
-            Ok(Event::Empty(ref e)) => {
-                let name_bytes: Vec<u8> = e.name().as_ref().to_vec();
-                let (ns, local) = split_name_owned(&name_bytes);
-                if in_response && ns == NS_DAV && local == b"collection" {
+            Ok((ns, Event::Empty(ref e))) => {
+                let ns_bytes = match &ns {
+                    ResolveResult::Bound(ns) => ns.as_ref(),
+                    _ => b"",
+                };
+                let local = e.local_name();
+                let local = local.as_ref();
+
+                if in_response && ns_bytes == NS_DAV && local == b"collection" {
                     if let Some(ref mut c) = current {
                         c.resource_type = ResourceType::Directory;
                     }
                 }
             }
 
-            Ok(Event::End(ref e)) => {
-                let name_bytes: Vec<u8> = e.name().as_ref().to_vec();
-                let (ns, local) = split_name_owned(&name_bytes);
+            Ok((_ns, Event::End(ref e))) => {
+                let local = e.local_name();
+                let local = local.as_ref();
 
-                if ns == NS_DAV && local == b"response" {
+                if local == b"response" {
                     if let Some(entry) = current.take() {
                         if let Some(href) = entry.href {
                             entries.push(DavEntry {
@@ -133,12 +151,19 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
                     continue;
                 }
 
+                // When a <D:status> element closes, check if it indicates non-2xx.
+                if local == b"status" {
+                    if let Some(ref c) = current {
+                        propstat_ok = c.propstat_status.contains("200");
+                    }
+                }
+
                 if let Some(ref mut c) = current {
                     c.collecting = Collecting::None;
                 }
             }
 
-            Ok(Event::Text(ref e)) => {
+            Ok((_ns, Event::Text(ref e))) => {
                 if !in_response {
                     buf.clear();
                     continue;
@@ -159,24 +184,27 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
 
                     match c.collecting {
                         Collecting::Href => c.href = Some(text),
-                        Collecting::Etag => c.etag = Some(text.trim_matches('"').to_string()),
-                        Collecting::LastModified => {
+                        Collecting::Etag if propstat_ok => {
+                            c.etag = Some(text.trim_matches('"').to_string())
+                        }
+                        Collecting::LastModified if propstat_ok => {
                             if let Ok(dt) = DateTime::parse_from_rfc2822(&text) {
                                 c.last_modified = Some(dt.with_timezone(&Utc));
                             }
                         }
-                        Collecting::ContentLength => {
+                        Collecting::ContentLength if propstat_ok => {
                             if let Ok(n) = text.parse::<u64>() {
                                 c.content_length = Some(n);
                             }
                         }
-                        Collecting::FileId => c.file_id = Some(text),
+                        Collecting::FileId if propstat_ok => c.file_id = Some(text),
+                        Collecting::Status => c.propstat_status = text,
                         _ => {}
                     }
                 }
             }
 
-            Ok(Event::Eof) => break,
+            Ok((_ns, Event::Eof)) => break,
             Err(e) => return Err(OcisError::Parse(format!("XML parse error: {e}"))),
             _ => {}
         }
@@ -185,14 +213,4 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
     }
 
     Ok(entries)
-}
-
-/// Split a Clark-notation element name `{namespace}local` into `(namespace, local)`.
-/// Returns `(b"", name)` if there is no namespace.
-fn split_name_owned(name: &[u8]) -> (&[u8], &[u8]) {
-    if let Some(pos) = name.iter().position(|&b| b == b'}') {
-        (&name[1..pos], &name[pos + 1..])
-    } else {
-        (b"", name)
-    }
 }
