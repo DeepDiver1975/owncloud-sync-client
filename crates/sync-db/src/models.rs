@@ -30,7 +30,7 @@ impl JournalEntry {
         }
     }
 
-    pub fn is_virtual(&self) -> bool {
+    pub fn is_virtual_file(&self) -> bool {
         self.is_virtual != 0
     }
 }
