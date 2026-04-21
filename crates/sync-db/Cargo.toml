@@ -6,7 +6,6 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-tokio = { workspace = true }
 sqlx = { workspace = true }
 serde = { workspace = true }
 uuid = { workspace = true }
