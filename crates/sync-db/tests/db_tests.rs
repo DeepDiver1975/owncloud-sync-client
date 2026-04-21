@@ -46,11 +46,7 @@ async fn test_upsert_and_get_entry() {
     db.upsert_entry(&entry).await.unwrap();
 
     let fetched = db.get_entry("/Documents/hello.txt").await.unwrap();
-    assert!(fetched.is_some());
-    let fetched = fetched.unwrap();
-    assert_eq!(fetched.etag, Some("abc123".to_string()));
-    assert_eq!(fetched.size, Some(42));
-    assert_eq!(fetched.file_id, Some("file-id-001".to_string()));
+    assert_eq!(fetched, Some(entry));
 }
 
 #[tokio::test]
