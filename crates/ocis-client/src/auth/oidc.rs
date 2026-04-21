@@ -72,9 +72,12 @@ impl OidcAuth {
             .parse()
             .map_err(|e: url::ParseError| OcisError::Auth(e.to_string()))?;
 
-        let discovery_url = issuer_url
-            .join(".well-known/openid-configuration")
-            .map_err(|e| OcisError::Auth(e.to_string()))?;
+        let discovery_url: Url = format!(
+            "{}/.well-known/openid-configuration",
+            issuer.trim_end_matches('/')
+        )
+        .parse()
+        .map_err(|e: url::ParseError| OcisError::Auth(e.to_string()))?;
 
         let http = Client::builder()
             .use_rustls_tls()
