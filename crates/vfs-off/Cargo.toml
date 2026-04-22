@@ -1,0 +1,12 @@
+[package]
+name = "vfs-off"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+vfs-core = { path = "../vfs-core" }
+async-trait = { workspace = true }
+camino = { workspace = true }
+thiserror = { workspace = true }

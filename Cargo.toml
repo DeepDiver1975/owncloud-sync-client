@@ -3,6 +3,9 @@ resolver = "2"
 members = [
     "crates/sync-db",
     "crates/ocis-client",
+    "crates/vfs-core",
+    "crates/vfs-off",
+    "crates/sync-engine",
 ]
 
 [workspace.package]
@@ -35,3 +38,9 @@ url = { version = "2.5", features = ["serde"] }
 tokio-test = "0.4"
 wiremock = "0.6"
 tempfile = "3.10"
+# path utilities
+camino = { version = "1.1", features = ["serde1"] }
+# parallelism
+rayon = "1.10"
+# async trait support
+async-trait = "0.1"
