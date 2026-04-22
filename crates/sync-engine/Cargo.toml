@@ -6,9 +6,29 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-vfs-core = { path = "../vfs-core" }
-async-trait = { workspace = true }
-camino = { workspace = true }
-thiserror = { workspace = true }
-serde = { workspace = true }
+# workspace
 tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+camino = { workspace = true }
+reqwest = { workspace = true }
+quick-xml = { workspace = true }
+url = { workspace = true }
+# parallelism
+rayon = { workspace = true }
+# async trait
+async-trait = { workspace = true }
+# local crates
+vfs-core  = { path = "../vfs-core" }
+vfs-off   = { path = "../vfs-off" }
+sync-db   = { path = "../sync-db" }
+ocis-client = { path = "../ocis-client" }
+# tracing
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+wiremock = { workspace = true }
+tempfile = { workspace = true }
