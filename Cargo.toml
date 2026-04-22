@@ -6,6 +6,7 @@ members = [
     "crates/vfs-core",
     "crates/vfs-off",
     "crates/vfs-windows",
+    "crates/vfs-macos",
     "crates/sync-engine",
 ]
 
@@ -26,6 +27,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_millis = "0.1"
+libc = "0.2"
 # utilities
 uuid = { version = "1.8", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }

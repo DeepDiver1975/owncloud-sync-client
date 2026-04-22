@@ -3166,6 +3166,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "vfs-macos"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "camino",
+ "libc",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "vfs-core",
+]
+
+[[package]]
 name = "vfs-off"
 version = "0.1.0"
 dependencies = [
