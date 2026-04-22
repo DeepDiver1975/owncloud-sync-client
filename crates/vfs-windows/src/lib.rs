@@ -11,7 +11,7 @@ pub mod hydration;
 #[cfg(target_os = "windows")]
 pub mod pin;
 #[cfg(target_os = "windows")]
-mod callback;
+pub mod callback;
 #[cfg(target_os = "windows")]
 mod vfs_impl;
 
