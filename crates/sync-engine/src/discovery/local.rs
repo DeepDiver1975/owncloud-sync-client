@@ -20,14 +20,12 @@ pub async fn discover_local(root: &Utf8Path) -> Result<Vec<LocalEntry>> {
 }
 
 fn walk(root: &Utf8Path) -> Result<Vec<LocalEntry>> {
-    use std::sync::Mutex;
-
-    let entries = Mutex::new(Vec::new());
-    walk_dir(root, &entries)?;
-    Ok(entries.into_inner().unwrap())
+    let mut entries = Vec::new();
+    walk_dir(root, &mut entries)?;
+    Ok(entries)
 }
 
-fn walk_dir(dir: &Utf8Path, entries: &std::sync::Mutex<Vec<LocalEntry>>) -> Result<()> {
+fn walk_dir(dir: &Utf8Path, entries: &mut Vec<LocalEntry>) -> Result<()> {
     let read_dir = std::fs::read_dir(dir)?;
 
     let mut subdirs = Vec::new();
@@ -42,7 +40,7 @@ fn walk_dir(dir: &Utf8Path, entries: &std::sync::Mutex<Vec<LocalEntry>>) -> Resu
         } else if meta.is_file() {
             let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
             let inode = meta.ino();
-            entries.lock().unwrap().push(LocalEntry {
+            entries.push(LocalEntry {
                 path,
                 mtime,
                 size: meta.len(),
