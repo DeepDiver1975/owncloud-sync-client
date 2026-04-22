@@ -60,61 +60,59 @@ impl SocketApiServer {
         let (tx, mut broadcast_rx) = mpsc::channel::<String>(64);
         let conn_id = self.broadcast.add_connection(tx);
 
-        let conn = Arc::new(tokio::sync::Mutex::new(conn));
+        // Split into independent read and write halves so the broadcast writer
+        // doesn't block on the read loop and vice versa.
+        let (read_half, write_half) = tokio::io::split(conn);
+        let write_half = Arc::new(tokio::sync::Mutex::new(write_half));
 
         {
             let register_msgs: Vec<String> = {
                 let roots = self.folder_roots.read().unwrap();
                 roots.iter().map(|(root, _)| format!("REGISTER_PATH:{root}\n")).collect()
             };
+            let mut guard = write_half.lock().await;
             for msg in register_msgs {
-                let mut guard = conn.lock().await;
                 if guard.write_all(msg.as_bytes()).await.is_err() {
                     break;
                 }
             }
         }
 
-        let conn_writer = conn.clone();
+        let write_half_broadcast = write_half.clone();
         let write_task = tokio::spawn(async move {
             while let Some(msg) = broadcast_rx.recv().await {
-                let mut guard = conn_writer.lock().await;
+                let mut guard = write_half_broadcast.lock().await;
                 if guard.write_all(msg.as_bytes()).await.is_err() {
                     break;
                 }
             }
         });
 
-        {
-            let mut line = String::new();
-            loop {
-                line.clear();
-                let n = {
-                    let mut guard = conn.lock().await;
-                    let mut reader = BufReader::new(&mut **guard);
-                    match reader.read_line(&mut line).await {
-                        Ok(n) => n,
-                        Err(e) => {
-                            tracing::debug!("read error: {e}");
-                            0
-                        }
-                    }
-                };
+        let mut reader = BufReader::new(read_half);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let n = match reader.read_line(&mut line).await {
+                Ok(n) => n,
+                Err(e) => {
+                    tracing::debug!("read error: {e}");
+                    0
+                }
+            };
 
-                if n == 0 {
+            if n == 0 {
+                break;
+            }
+
+            let trimmed = line.trim_end_matches('\n').trim_end_matches('\r');
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            if let Some(response) = self.dispatch_line(trimmed).await {
+                let mut guard = write_half.lock().await;
+                if guard.write_all(response.as_bytes()).await.is_err() {
                     break;
-                }
-
-                let trimmed = line.trim_end_matches('\n').trim_end_matches('\r');
-                if trimmed.is_empty() {
-                    continue;
-                }
-
-                if let Some(response) = self.dispatch_line(trimmed).await {
-                    let mut guard = conn.lock().await;
-                    if guard.write_all(response.as_bytes()).await.is_err() {
-                        break;
-                    }
                 }
             }
         }
