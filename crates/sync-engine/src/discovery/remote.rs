@@ -1,4 +1,5 @@
 use camino::Utf8PathBuf;
+use std::collections::VecDeque;
 use std::time::SystemTime;
 use url::Url;
 
@@ -10,10 +11,9 @@ use crate::types::RemoteEntry;
 pub async fn discover_remote(space_root: &Url) -> Result<Vec<RemoteEntry>> {
     let client = reqwest::Client::new();
     let mut result = Vec::new();
-    let mut queue = vec![space_root.clone()];
+    let mut queue = VecDeque::from([space_root.clone()]);
 
-    while let Some(url) = queue.first().cloned() {
-        queue.remove(0);
+    while let Some(url) = queue.pop_front() {
 
         let body = r#"<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:" xmlns:OC="http://owncloud.org/ns">
