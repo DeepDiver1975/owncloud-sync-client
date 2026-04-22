@@ -46,6 +46,7 @@ impl WebDavClient {
 
         let resp = req.send().await.map_err(OcisError::Http)?;
         if resp.status() == StatusCode::UNAUTHORIZED {
+            // The caller is expected to refresh the shared token on 401; re-reading picks up the new value.
             let new_token = self.token.read().await.access_token.clone();
             let retry = setup(
                 self.client
@@ -81,7 +82,7 @@ impl WebDavClient {
             })
             .await?;
 
-        if !resp.status().is_success() && resp.status().as_u16() != 207 {
+        if resp.status().as_u16() != 207 {
             return Err(OcisError::WebDav(format!(
                 "PROPFIND failed: {}",
                 resp.status()
