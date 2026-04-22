@@ -5,11 +5,11 @@ pub mod util;
 #[cfg(target_os = "windows")]
 pub mod registration;
 #[cfg(target_os = "windows")]
-mod placeholder;
+pub mod placeholder;
 #[cfg(target_os = "windows")]
-mod hydration;
+pub mod hydration;
 #[cfg(target_os = "windows")]
-mod pin;
+pub mod pin;
 #[cfg(target_os = "windows")]
 mod callback;
 #[cfg(target_os = "windows")]

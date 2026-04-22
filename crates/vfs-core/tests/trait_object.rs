@@ -31,6 +31,7 @@ async fn trait_object_compiles() {
         size: 0,
         etag: String::new(),
         file_id: String::new(),
+        last_modified: std::time::SystemTime::UNIX_EPOCH,
     };
     d.create_placeholder(path, &item).await.unwrap();
     let s = d.status(path).await.unwrap();
