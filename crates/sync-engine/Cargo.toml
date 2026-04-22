@@ -16,8 +16,6 @@ camino = { workspace = true }
 reqwest = { workspace = true }
 quick-xml = { workspace = true }
 url = { workspace = true }
-# parallelism
-rayon = { workspace = true }
 # async trait
 async-trait = { workspace = true }
 # local crates
