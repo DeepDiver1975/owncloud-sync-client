@@ -7,3 +7,4 @@ pub mod webdav;
 
 pub use error::{OcisError, Result};
 pub use graph::{webdav_url_for_space, GraphClient, Space, SpaceQuota};
+pub use tus::{TusClient, TusUpload};
