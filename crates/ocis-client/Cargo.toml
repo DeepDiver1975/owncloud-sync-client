@@ -13,7 +13,6 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
-oauth2 = { workspace = true }
 keyring = { workspace = true }
 quick-xml = { workspace = true }
 url = { workspace = true }
