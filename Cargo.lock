@@ -3150,7 +3150,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "camino",
- "thiserror 1.0.69",
+ "tokio",
  "vfs-core",
 ]
 
