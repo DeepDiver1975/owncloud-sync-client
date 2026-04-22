@@ -5,7 +5,10 @@ struct Dummy;
 
 #[async_trait::async_trait]
 impl Vfs for Dummy {
-    async fn create_placeholder(&self, _path: &Utf8Path, _item: &VfsFileItem) -> Result<(), VfsError> {
+    async fn create_placeholder(&self, _item: &VfsFileItem) -> Result<(), VfsError> {
+        Ok(())
+    }
+    async fn update_placeholder(&self, _item: &VfsFileItem) -> Result<(), VfsError> {
         Ok(())
     }
     async fn hydrate(&self, _path: &Utf8Path) -> Result<(), VfsError> {
@@ -13,6 +16,9 @@ impl Vfs for Dummy {
     }
     async fn dehydrate(&self, _path: &Utf8Path) -> Result<(), VfsError> {
         Ok(())
+    }
+    async fn is_virtual(&self, _path: &Utf8Path) -> Result<bool, VfsError> {
+        Ok(false)
     }
     async fn status(&self, _path: &Utf8Path) -> Result<VfsStatus, VfsError> {
         Ok(VfsStatus::Full)
@@ -33,7 +39,7 @@ async fn trait_object_compiles() {
         file_id: String::new(),
         last_modified: std::time::SystemTime::UNIX_EPOCH,
     };
-    d.create_placeholder(path, &item).await.unwrap();
+    d.create_placeholder(&item).await.unwrap();
     let s = d.status(path).await.unwrap();
     assert_eq!(s, VfsStatus::Full);
 }
