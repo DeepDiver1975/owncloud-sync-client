@@ -10,6 +10,10 @@ pub struct VfsFileItem {
     pub size: u64,
     pub etag: String,
     pub file_id: String,
+    /// Last-modified time used to stamp placeholder metadata.
+    #[serde(with = "serde_millis")]
+    pub last_modified: std::time::SystemTime,
+
 }
 
 /// Hydration state of a VFS entry.

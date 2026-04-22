@@ -8,6 +8,7 @@ fn item(path: &Utf8Path) -> VfsFileItem {
         size: 42,
         etag: "abc".into(),
         file_id: "id1".into(),
+        last_modified: std::time::SystemTime::UNIX_EPOCH,
     }
 }
 
