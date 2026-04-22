@@ -17,26 +17,24 @@ impl VfsOff {
 
 #[async_trait]
 impl Vfs for VfsOff {
-    async fn create_placeholder(
-        &self,
-        _path: &Utf8Path,
-        _item: &VfsFileItem,
-    ) -> Result<(), VfsError> {
+    async fn create_placeholder(&self, _item: &VfsFileItem) -> Result<(), VfsError> {
         Ok(())
     }
-
+    async fn update_placeholder(&self, _item: &VfsFileItem) -> Result<(), VfsError> {
+        Ok(())
+    }
     async fn hydrate(&self, _path: &Utf8Path) -> Result<(), VfsError> {
         Ok(())
     }
-
     async fn dehydrate(&self, _path: &Utf8Path) -> Result<(), VfsError> {
         Ok(())
     }
-
+    async fn is_virtual(&self, _path: &Utf8Path) -> Result<bool, VfsError> {
+        Ok(false)
+    }
     async fn status(&self, _path: &Utf8Path) -> Result<VfsStatus, VfsError> {
         Ok(VfsStatus::Full)
     }
-
     async fn set_pinned(&self, _path: &Utf8Path, _pinned: bool) -> Result<(), VfsError> {
         Ok(())
     }

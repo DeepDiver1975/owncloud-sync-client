@@ -13,7 +13,6 @@ pub struct VfsFileItem {
     /// Last-modified time used to stamp placeholder metadata.
     #[serde(with = "serde_millis")]
     pub last_modified: std::time::SystemTime,
-
 }
 
 /// Hydration state of a VFS entry.
@@ -48,22 +47,25 @@ pub enum VfsError {
 /// Implementations must be `Send + Sync` so they can be shared across tasks.
 #[async_trait]
 pub trait Vfs: Send + Sync {
-    /// Create a placeholder (dehydrated) entry at `path`.
-    async fn create_placeholder(
-        &self,
-        path: &Utf8Path,
-        item: &VfsFileItem,
-    ) -> Result<(), VfsError>;
+    /// Create a dehydrated placeholder for `item`.
+    /// The `item.path` is relative to the sync root.
+    async fn create_placeholder(&self, item: &VfsFileItem) -> Result<(), VfsError>;
 
-    /// Trigger on-demand hydration of a placeholder.
+    /// Update metadata of an existing placeholder.
+    async fn update_placeholder(&self, item: &VfsFileItem) -> Result<(), VfsError>;
+
+    /// Force-hydrate the file at `path`.
     async fn hydrate(&self, path: &Utf8Path) -> Result<(), VfsError>;
 
-    /// Convert a full file back into a placeholder to free disk space.
+    /// Dehydrate the file at `path` back to a placeholder.
     async fn dehydrate(&self, path: &Utf8Path) -> Result<(), VfsError>;
+
+    /// Return `true` if the file at `path` is a virtual placeholder.
+    async fn is_virtual(&self, path: &Utf8Path) -> Result<bool, VfsError>;
 
     /// Return the current [`VfsStatus`] of `path`.
     async fn status(&self, path: &Utf8Path) -> Result<VfsStatus, VfsError>;
 
-    /// Pin or unpin `path` (pinned files are never automatically dehydrated).
+    /// Pin or unpin `path`.
     async fn set_pinned(&self, path: &Utf8Path, pinned: bool) -> Result<(), VfsError>;
 }

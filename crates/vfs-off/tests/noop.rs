@@ -17,10 +17,14 @@ async fn all_methods_return_ok() {
     let vfs = VfsOff::new();
     let p = Utf8Path::new("/tmp/foo.txt");
 
-    vfs.create_placeholder(p, &item(p)).await.unwrap();
+    vfs.create_placeholder(&item(p)).await.unwrap();
+    vfs.update_placeholder(&item(p)).await.unwrap();
     vfs.hydrate(p).await.unwrap();
     vfs.dehydrate(p).await.unwrap();
     vfs.set_pinned(p, true).await.unwrap();
+
+    let virtual_flag = vfs.is_virtual(p).await.unwrap();
+    assert!(!virtual_flag);
 
     let s = vfs.status(p).await.unwrap();
     assert_eq!(s, VfsStatus::Full);
