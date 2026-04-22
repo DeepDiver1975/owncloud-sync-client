@@ -1,0 +1,20 @@
+[package]
+name = "vfs-windows"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { workspace = true }
+
+[dependencies]
+vfs-core  = { path = "../vfs-core" }
+camino    = { workspace = true }
+thiserror = { workspace = true }
+tokio     = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = { workspace = true }

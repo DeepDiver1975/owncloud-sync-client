@@ -5,6 +5,7 @@ members = [
     "crates/ocis-client",
     "crates/vfs-core",
     "crates/vfs-off",
+    "crates/vfs-windows",
     "crates/sync-engine",
 ]
 
@@ -44,3 +45,11 @@ camino = { version = "1.1", features = ["serde1"] }
 rayon = "1.10"
 # async trait support
 async-trait = "0.1"
+# Windows CloudFiles API
+windows = { version = "0.52", features = [
+    "Win32_Storage_CloudFilters",
+    "Win32_System_Com",
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+] }
