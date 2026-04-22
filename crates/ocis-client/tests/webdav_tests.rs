@@ -90,6 +90,7 @@ async fn test_propfind_retries_on_401() {
 
     Mock::given(method("PROPFIND"))
         .and(path("/dav/spaces/personal/"))
+        .and(header("Authorization", "Bearer refreshed-token"))
         .respond_with(
             ResponseTemplate::new(207)
                 .set_body_raw(PROPFIND_RESPONSE, "application/xml; charset=utf-8"),
@@ -143,10 +144,12 @@ async fn test_mkcol_creates_directory() {
 #[tokio::test]
 async fn test_move_sets_destination_header() {
     let server = MockServer::start().await;
+    let expected_destination = format!("{}/dav/spaces/personal/new.txt", server.uri());
 
     Mock::given(method("MOVE"))
         .and(path("/dav/spaces/personal/old.txt"))
         .and(header("Overwrite", "T"))
+        .and(header("Destination", expected_destination.as_str()))
         .respond_with(ResponseTemplate::new(201))
         .mount(&server)
         .await;
