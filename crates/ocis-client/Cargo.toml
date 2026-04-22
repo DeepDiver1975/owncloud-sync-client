@@ -23,5 +23,6 @@ sha2 = "0.10"
 getrandom = "0.2"
 
 [dev-dependencies]
+tokio = { workspace = true }
 tokio-test = { workspace = true }
 wiremock = { workspace = true }
