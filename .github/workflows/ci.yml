@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Main workspace — Linux (canonical CI gate)
+  # ---------------------------------------------------------------------------
+  test-linux:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+  # ---------------------------------------------------------------------------
+  # Main workspace — macOS (catches platform-specific compilation issues)
+  # ---------------------------------------------------------------------------
+  test-macos:
+    name: Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace
+
+  # ---------------------------------------------------------------------------
+  # Windows shell-integration sub-workspace
+  # Tests that run on any host (menu_builder unit tests) always execute.
+  # COM/IPC tests are #[ignore]-tagged and skipped automatically.
+  # ---------------------------------------------------------------------------
+  test-windows-subworkspace:
+    name: Test Windows sub-workspace (cross-platform subset)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: shell-integration/windows
+
+      - name: Test (non-Windows subset)
+        run: cargo test --manifest-path shell-integration/windows/Cargo.toml --workspace
+
+  # ---------------------------------------------------------------------------
+  # macOS Swift extensions — build + XCTest
+  # ---------------------------------------------------------------------------
+  test-swift:
+    name: Test Swift extensions (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build + test FinderSync
+        run: |
+          xcodebuild test \
+            -project shell-integration/macos/FinderSync/FinderSync.xcodeproj \
+            -scheme FinderSync \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+        continue-on-error: true  # Xcode project not yet created; remove once project exists
+
+      - name: Build + test FileProvider
+        run: |
+          xcodebuild test \
+            -project shell-integration/macos/FileProvider/FileProvider.xcodeproj \
+            -scheme FileProvider \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+        continue-on-error: true  # Xcode project not yet created; remove once project exists
