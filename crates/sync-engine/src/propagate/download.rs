@@ -22,7 +22,10 @@ pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
         .get(req.remote_url.as_str())
         .send()
         .await
-        .map_err(|e| SyncError::Http { status: 0, message: e.to_string() })?;
+        .map_err(|e| SyncError::Http {
+            status: 0,
+            message: e.to_string(),
+        })?;
 
     let status = resp.status().as_u16();
     if status != 200 {
@@ -55,20 +58,22 @@ pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
 
     let tmp_path = req.local_dest.with_extension("tmp");
     {
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| SyncError::Http { status: 0, message: e.to_string() })?;
+        let bytes = resp.bytes().await.map_err(|e| SyncError::Http {
+            status: 0,
+            message: e.to_string(),
+        })?;
 
         let mut file = tokio::fs::File::create(&tmp_path).await?;
         file.write_all(&bytes).await?;
         file.flush().await?;
     }
 
-    tokio::fs::rename(&tmp_path, &req.local_dest).await.map_err(|e| {
-        let _ = std::fs::remove_file(&tmp_path);
-        e
-    })?;
+    tokio::fs::rename(&tmp_path, &req.local_dest)
+        .await
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&tmp_path);
+            e
+        })?;
 
     Ok(server_etag)
 }

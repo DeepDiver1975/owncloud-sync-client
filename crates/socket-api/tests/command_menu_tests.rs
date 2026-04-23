@@ -1,9 +1,9 @@
 use camino::Utf8PathBuf;
-use socket_api::commands::menu::{handle_get_strings, handle_get_menu_items};
+use socket_api::commands::menu::{handle_get_menu_items, handle_get_strings};
 use socket_api::status_resolver::StatusResolver;
-use sync_engine::state::{FileStatus, SyncState};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use sync_engine::state::{FileStatus, SyncState};
 use uuid::Uuid;
 
 fn make_resolver_with_file(root: &str, file_path: &str, status: FileStatus) -> StatusResolver {
@@ -29,38 +29,56 @@ fn make_empty_resolver() -> StatusResolver {
 #[test]
 fn get_strings_contains_share_menu_title() {
     let resp = handle_get_strings();
-    assert!(resp.contains("SHARE_MENU_TITLE"), "GET_STRINGS should contain SHARE_MENU_TITLE");
+    assert!(
+        resp.contains("SHARE_MENU_TITLE"),
+        "GET_STRINGS should contain SHARE_MENU_TITLE"
+    );
 }
 
 #[test]
 fn get_strings_starts_with_get_strings_prefix() {
     let resp = handle_get_strings();
-    assert!(resp.starts_with("GET_STRINGS:"), "should start with GET_STRINGS:");
+    assert!(
+        resp.starts_with("GET_STRINGS:"),
+        "should start with GET_STRINGS:"
+    );
 }
 
 #[test]
 fn get_strings_ends_with_newline() {
     let resp = handle_get_strings();
-    assert!(resp.ends_with('\n'), "GET_STRINGS response must end with newline");
+    assert!(
+        resp.ends_with('\n'),
+        "GET_STRINGS response must end with newline"
+    );
 }
 
 #[test]
 fn get_strings_contains_make_available() {
     let resp = handle_get_strings();
-    assert!(resp.contains("MAKE_AVAILABLE"), "should contain MAKE_AVAILABLE key");
+    assert!(
+        resp.contains("MAKE_AVAILABLE"),
+        "should contain MAKE_AVAILABLE key"
+    );
 }
 
 #[test]
 fn get_strings_contains_make_online_only() {
     let resp = handle_get_strings();
-    assert!(resp.contains("MAKE_ONLINE_ONLY"), "should contain MAKE_ONLINE_ONLY key");
+    assert!(
+        resp.contains("MAKE_ONLINE_ONLY"),
+        "should contain MAKE_ONLINE_ONLY key"
+    );
 }
 
 #[test]
 fn get_menu_items_path_not_in_sync_folder_returns_empty() {
     let resolver = make_empty_resolver();
     let resp = handle_get_menu_items("/not/synced/file.txt", &resolver);
-    assert!(resp.starts_with("GET_MENU_ITEMS:"), "should start with GET_MENU_ITEMS:");
+    assert!(
+        resp.starts_with("GET_MENU_ITEMS:"),
+        "should start with GET_MENU_ITEMS:"
+    );
     assert!(resp.ends_with('\n'));
 }
 
@@ -68,14 +86,20 @@ fn get_menu_items_path_not_in_sync_folder_returns_empty() {
 fn get_menu_items_synced_file_includes_share_item() {
     let resolver = make_resolver_with_file("/sync", "/sync/doc.pdf", FileStatus::Ok);
     let resp = handle_get_menu_items("/sync/doc.pdf", &resolver);
-    assert!(resp.contains("SHARE"), "menu for a synced file should include SHARE item");
+    assert!(
+        resp.contains("SHARE"),
+        "menu for a synced file should include SHARE item"
+    );
 }
 
 #[test]
 fn get_menu_items_synced_file_includes_copy_link_item() {
     let resolver = make_resolver_with_file("/sync", "/sync/doc.pdf", FileStatus::Ok);
     let resp = handle_get_menu_items("/sync/doc.pdf", &resolver);
-    assert!(resp.contains("COPY_PRIVATE_LINK"), "menu for a synced file should include COPY_PRIVATE_LINK item");
+    assert!(
+        resp.contains("COPY_PRIVATE_LINK"),
+        "menu for a synced file should include COPY_PRIVATE_LINK item"
+    );
 }
 
 #[test]

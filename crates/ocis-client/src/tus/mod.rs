@@ -98,11 +98,7 @@ impl TusClient {
     ///
     /// PATCH to `upload.upload_url` with `data` bytes starting at `upload.offset`.
     /// On success `upload.offset` is advanced by the server-reported offset.
-    pub async fn upload_chunk(
-        &self,
-        upload: &mut TusUpload,
-        data: &[u8],
-    ) -> Result<()> {
+    pub async fn upload_chunk(&self, upload: &mut TusUpload, data: &[u8]) -> Result<()> {
         let token = self.token.read().await.access_token.clone();
 
         let resp = self

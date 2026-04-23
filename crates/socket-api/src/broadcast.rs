@@ -22,7 +22,10 @@ impl BroadcastSender {
 
     pub fn add_connection(&self, tx: mpsc::Sender<String>) -> Uuid {
         let id = Uuid::new_v4();
-        self.connections.lock().unwrap().push(ConnectionHandle { tx, id });
+        self.connections
+            .lock()
+            .unwrap()
+            .push(ConnectionHandle { tx, id });
         id
     }
 
@@ -61,7 +64,10 @@ impl BroadcastSender {
         }
 
         if !dead_ids.is_empty() {
-            self.connections.lock().unwrap().retain(|h| !dead_ids.contains(&h.id));
+            self.connections
+                .lock()
+                .unwrap()
+                .retain(|h| !dead_ids.contains(&h.id));
         }
     }
 }

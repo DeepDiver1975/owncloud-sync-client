@@ -66,10 +66,14 @@ impl DaemonConnection {
                     }
                     Ok(_) => {
                         let trimmed = line.trim();
-                        if trimmed.is_empty() { continue; }
+                        if trimmed.is_empty() {
+                            continue;
+                        }
                         match serde_json::from_str::<DaemonEvent>(trimmed) {
                             Ok(event) => {
-                                if event_tx.send(event).await.is_err() { break; }
+                                if event_tx.send(event).await.is_err() {
+                                    break;
+                                }
                             }
                             Err(e) => {
                                 tracing::warn!("failed to parse daemon event: {e}");

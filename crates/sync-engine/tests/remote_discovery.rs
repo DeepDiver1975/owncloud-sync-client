@@ -41,10 +41,7 @@ async fn discovers_files_from_propfind() {
 
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/space1.*"))
-        .respond_with(
-            ResponseTemplate::new(207)
-                .set_body_string(propfind_response_root()),
-        )
+        .respond_with(ResponseTemplate::new(207).set_body_string(propfind_response_root()))
         .mount(&server)
         .await;
 

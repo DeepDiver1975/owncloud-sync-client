@@ -54,8 +54,7 @@ mod tests {
 
         let updated = make_item("update_me.txt", 2048, "file-id-002");
         let full_path = root.join("update_me.txt");
-        update_placeholder(&full_path, &updated)
-            .expect("update_placeholder should succeed");
+        update_placeholder(&full_path, &updated).expect("update_placeholder should succeed");
 
         unregister_sync_root(root).unwrap();
     }

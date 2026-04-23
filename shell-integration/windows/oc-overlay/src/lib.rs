@@ -10,7 +10,7 @@ mod icons;
 mod registration;
 
 use std::sync::atomic::{AtomicI32, Ordering};
-use windows::core::{implement, IUnknown, GUID, HRESULT, PCWSTR, PWSTR};
+use windows::core::{implement, ComInterface, IUnknown, GUID, HRESULT, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
     CLASS_E_NOAGGREGATION, E_FAIL, E_POINTER, HINSTANCE, HMODULE, S_FALSE, S_OK,
 };
@@ -20,6 +20,7 @@ use windows::Win32::UI::Shell::{
     IShellIconOverlayIdentifier, IShellIconOverlayIdentifier_Impl, ISIOI_ICONFILE, ISIOI_ICONINDEX,
 };
 
+#[cfg(windows)]
 use oc_ipc::PipeConnection;
 
 // ---------------------------------------------------------------------------
@@ -69,7 +70,7 @@ static DLL_REF_COUNT: AtomicI32 = AtomicI32::new(0);
 
 // SAFETY: Written once under the loader lock during DLL_PROCESS_ATTACH;
 // read-only thereafter. Single-writer guarantee is upheld by the OS loader.
-static mut DLL_HINSTANCE: HINSTANCE = HINSTANCE(std::ptr::null_mut());
+static mut DLL_HINSTANCE: HINSTANCE = HINSTANCE(0);
 
 // ---------------------------------------------------------------------------
 // DllMain

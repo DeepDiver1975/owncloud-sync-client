@@ -6,8 +6,8 @@ use std::time::SystemTime;
 use windows::core::HSTRING;
 use windows::Win32::Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE};
 use windows::Win32::Storage::CloudFilters::{
-    CfCreatePlaceholders, CfUpdatePlaceholder, CF_CREATE_FLAG_NONE,
-    CF_FS_METADATA, CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC, CF_PLACEHOLDER_CREATE_INFO,
+    CfCreatePlaceholders, CfUpdatePlaceholder, CF_CREATE_FLAG_NONE, CF_FS_METADATA,
+    CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC, CF_PLACEHOLDER_CREATE_INFO,
     CF_UPDATE_FLAG_MARK_IN_SYNC,
 };
 use windows::Win32::Storage::FileSystem::{
@@ -25,9 +25,7 @@ use crate::error::{Result, VfsWindowsError};
 fn system_time_to_filetime(t: SystemTime) -> FILETIME {
     // Duration from 1601-01-01 to 1970-01-01 in 100-ns intervals.
     const EPOCH_DIFF_100NS: u64 = 116_444_736_000_000_000;
-    let since_unix = t
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
+    let since_unix = t.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
     let intervals = EPOCH_DIFF_100NS
         + since_unix.as_secs() * 10_000_000
         + since_unix.subsec_nanos() as u64 / 100;
@@ -48,12 +46,9 @@ fn system_time_to_filetime(t: SystemTime) -> FILETIME {
 pub fn create_placeholder(root: &Utf8Path, item: &VfsFileItem) -> Result<()> {
     let identity = item.file_id.as_bytes();
 
-    let filename = item
-        .path
-        .file_name()
-        .ok_or_else(|| VfsWindowsError::StringConversion(
-            format!("path has no filename: {}", item.path),
-        ))?;
+    let filename = item.path.file_name().ok_or_else(|| {
+        VfsWindowsError::StringConversion(format!("path has no filename: {}", item.path))
+    })?;
     let filename_wide = HSTRING::from(filename);
 
     let last_write = system_time_to_filetime(item.last_modified);

@@ -1,16 +1,16 @@
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use uuid::Uuid;
-use anyhow::{bail, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum DaemonCommand {
     Subscribe,
     TriggerSync { folder_id: Uuid },
-    PauseFolder  { folder_id: Uuid },
+    PauseFolder { folder_id: Uuid },
     ResumeFolder { folder_id: Uuid },
-    AddAccount   { url: String },
+    AddAccount { url: String },
     RemoveAccount { account_id: Uuid },
     Quit,
 }
@@ -19,11 +19,26 @@ pub enum DaemonCommand {
 #[serde(tag = "type")]
 pub enum DaemonEvent {
     Ready,
-    SyncStarted   { folder_id: Uuid },
-    SyncProgress  { folder_id: Uuid, done: u64, total: u64 },
-    SyncFinished  { folder_id: Uuid, errors: Vec<String> },
-    FileStatusChanged  { path: String, status: String },
-    AccountStateChanged { account_id: Uuid, state: String },
+    SyncStarted {
+        folder_id: Uuid,
+    },
+    SyncProgress {
+        folder_id: Uuid,
+        done: u64,
+        total: u64,
+    },
+    SyncFinished {
+        folder_id: Uuid,
+        errors: Vec<String>,
+    },
+    FileStatusChanged {
+        path: String,
+        status: String,
+    },
+    AccountStateChanged {
+        account_id: Uuid,
+        state: String,
+    },
 }
 
 pub async fn write_message<W: AsyncWrite + Unpin>(w: &mut W, event: &DaemonEvent) -> Result<()> {
@@ -78,35 +93,54 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn roundtrip_subscribe() { roundtrip(DaemonCommand::Subscribe).await; }
+    async fn roundtrip_subscribe() {
+        roundtrip(DaemonCommand::Subscribe).await;
+    }
 
     #[tokio::test]
     async fn roundtrip_trigger_sync() {
-        roundtrip(DaemonCommand::TriggerSync { folder_id: Uuid::new_v4() }).await;
+        roundtrip(DaemonCommand::TriggerSync {
+            folder_id: Uuid::new_v4(),
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn roundtrip_pause_folder() {
-        roundtrip(DaemonCommand::PauseFolder { folder_id: Uuid::new_v4() }).await;
+        roundtrip(DaemonCommand::PauseFolder {
+            folder_id: Uuid::new_v4(),
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn roundtrip_resume_folder() {
-        roundtrip(DaemonCommand::ResumeFolder { folder_id: Uuid::new_v4() }).await;
+        roundtrip(DaemonCommand::ResumeFolder {
+            folder_id: Uuid::new_v4(),
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn roundtrip_add_account() {
-        roundtrip(DaemonCommand::AddAccount { url: "https://ocis.example.com".into() }).await;
+        roundtrip(DaemonCommand::AddAccount {
+            url: "https://ocis.example.com".into(),
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn roundtrip_remove_account() {
-        roundtrip(DaemonCommand::RemoveAccount { account_id: Uuid::new_v4() }).await;
+        roundtrip(DaemonCommand::RemoveAccount {
+            account_id: Uuid::new_v4(),
+        })
+        .await;
     }
 
     #[tokio::test]
-    async fn roundtrip_quit() { roundtrip(DaemonCommand::Quit).await; }
+    async fn roundtrip_quit() {
+        roundtrip(DaemonCommand::Quit).await;
+    }
 
     #[tokio::test]
     async fn event_write_read_roundtrip() {

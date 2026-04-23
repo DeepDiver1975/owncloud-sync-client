@@ -62,9 +62,11 @@ impl UnixTransport {
 #[async_trait::async_trait]
 impl Transport for UnixTransport {
     async fn accept(&self) -> Result<Connection> {
-        let (stream, _addr) = self.listener.accept().await.map_err(|e| {
-            SocketApiError::Transport(format!("accept failed: {e}"))
-        })?;
+        let (stream, _addr) = self
+            .listener
+            .accept()
+            .await
+            .map_err(|e| SocketApiError::Transport(format!("accept failed: {e}")))?;
         Ok(Box::new(stream))
     }
 }

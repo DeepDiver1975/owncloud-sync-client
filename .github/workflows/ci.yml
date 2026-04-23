@@ -1,9 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches: [main, "feature/**"]
   pull_request:
+  push:
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -58,12 +58,12 @@ jobs:
         run: cargo test --workspace
 
   # ---------------------------------------------------------------------------
-  # Windows shell-integration sub-workspace
-  # Tests that run on any host (menu_builder unit tests) always execute.
-  # COM/IPC tests are #[ignore]-tagged and skipped automatically.
+  # Windows shell-integration — cross-platform subset only.
+  # oc-contextmenu contains pure-Rust menu_builder tests that run on any host.
+  # oc-overlay and oc-ipc require a Windows host and are not tested here.
   # ---------------------------------------------------------------------------
-  test-windows-subworkspace:
-    name: Test Windows sub-workspace (cross-platform subset)
+  test-windows-contextmenu:
+    name: Test oc-contextmenu (cross-platform)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,8 +76,8 @@ jobs:
         with:
           workspaces: shell-integration/windows
 
-      - name: Test (non-Windows subset)
-        run: cargo test --manifest-path shell-integration/windows/Cargo.toml --workspace
+      - name: Test oc-contextmenu
+        run: cargo test --manifest-path shell-integration/windows/Cargo.toml -p oc-contextmenu
 
   # ---------------------------------------------------------------------------
   # macOS Swift extensions — build + XCTest
@@ -94,7 +94,7 @@ jobs:
             -project shell-integration/macos/FinderSync/FinderSync.xcodeproj \
             -scheme FinderSync \
             -destination 'platform=macOS' \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
         continue-on-error: true  # Xcode project not yet created; remove once project exists
 
       - name: Build + test FileProvider
@@ -103,5 +103,5 @@ jobs:
             -project shell-integration/macos/FileProvider/FileProvider.xcodeproj \
             -scheme FileProvider \
             -destination 'platform=macOS' \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
         continue-on-error: true  # Xcode project not yet created; remove once project exists

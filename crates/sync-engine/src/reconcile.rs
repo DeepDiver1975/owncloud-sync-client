@@ -1,6 +1,4 @@
-use crate::types::{
-    ConflictStrategy, LocalEntry, RemoteEntry, SyncInstruction,
-};
+use crate::types::{ConflictStrategy, LocalEntry, RemoteEntry, SyncInstruction};
 
 /// A minimal journal baseline: the etag and size recorded after the last
 /// successful sync of this path.
@@ -30,12 +28,12 @@ pub fn reconcile(
 
             match (local_changed, remote_changed) {
                 (false, false) => SyncInstruction::Ignore,
-                (true, false)  => SyncInstruction::Upload,
-                (false, true)  => SyncInstruction::Download,
-                (true, true)   => match strategy {
-                    ConflictStrategy::KeepBoth   => SyncInstruction::Conflict,
+                (true, false) => SyncInstruction::Upload,
+                (false, true) => SyncInstruction::Download,
+                (true, true) => match strategy {
+                    ConflictStrategy::KeepBoth => SyncInstruction::Conflict,
                     ConflictStrategy::KeepRemote => SyncInstruction::Download,
-                    ConflictStrategy::KeepLocal  => SyncInstruction::Upload,
+                    ConflictStrategy::KeepLocal => SyncInstruction::Upload,
                 },
             }
         }

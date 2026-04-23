@@ -144,7 +144,11 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
             }
         }
 
-        DaemonEvent::SyncProgress { folder_id, done, total } => {
+        DaemonEvent::SyncProgress {
+            folder_id,
+            done,
+            total,
+        } => {
             if let Some(folder) = find_folder_mut(app, folder_id) {
                 folder.progress = Some((done, total));
             }

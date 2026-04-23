@@ -41,10 +41,7 @@ async fn engine_downloads_new_remote_file() {
 
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/s1.*"))
-        .respond_with(
-            ResponseTemplate::new(207)
-                .set_body_string(propfind_one_file(&server.uri())),
-        )
+        .respond_with(ResponseTemplate::new(207).set_body_string(propfind_one_file(&server.uri())))
         .mount(&server)
         .await;
 
@@ -61,8 +58,7 @@ async fn engine_downloads_new_remote_file() {
 
     let dir = TempDir::new().unwrap();
     let local_root = Utf8Path::from_path(dir.path()).unwrap().to_owned();
-    let space_root =
-        Url::parse(&format!("{}/dav/spaces/s1/", server.uri())).unwrap();
+    let space_root = Url::parse(&format!("{}/dav/spaces/s1/", server.uri())).unwrap();
 
     let cfg = EngineConfig {
         folder_id: Uuid::new_v4(),
@@ -104,9 +100,7 @@ async fn engine_uploads_new_local_file() {
 
     Mock::given(method("PUT"))
         .and(path("/dav/spaces/s2/local.txt"))
-        .respond_with(
-            ResponseTemplate::new(201).insert_header("etag", r#""up_etag""#),
-        )
+        .respond_with(ResponseTemplate::new(201).insert_header("etag", r#""up_etag""#))
         .expect(1)
         .mount(&server)
         .await;
@@ -117,8 +111,7 @@ async fn engine_uploads_new_local_file() {
     let mut f = std::fs::File::create(dir.path().join("local.txt")).unwrap();
     f.write_all(b"local data").unwrap();
 
-    let space_root =
-        Url::parse(&format!("{}/dav/spaces/s2/", server.uri())).unwrap();
+    let space_root = Url::parse(&format!("{}/dav/spaces/s2/", server.uri())).unwrap();
 
     let cfg = EngineConfig {
         folder_id: Uuid::new_v4(),

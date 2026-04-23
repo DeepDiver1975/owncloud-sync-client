@@ -5,10 +5,10 @@ mod integration {
     use socket_api::server::SocketApiServer;
     use socket_api::transport::unix::UnixTransport;
     use socket_api::transport::Transport;
-    use sync_engine::state::SyncState;
     use std::collections::HashMap;
     use std::sync::{Arc, RwLock};
     use std::time::Duration;
+    use sync_engine::state::SyncState;
     use tempfile::TempDir;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use tokio::net::UnixStream;
@@ -17,13 +17,16 @@ mod integration {
 
     async fn start_server(
         dir: &TempDir,
-    ) -> (Arc<SocketApiServer>, Arc<BroadcastSender>, std::path::PathBuf) {
+    ) -> (
+        Arc<SocketApiServer>,
+        Arc<BroadcastSender>,
+        std::path::PathBuf,
+    ) {
         let socket_path = dir.path().join("test.sock");
 
         let sync_states: Arc<RwLock<HashMap<Uuid, SyncState>>> =
             Arc::new(RwLock::new(HashMap::new()));
-        let folder_roots: Arc<RwLock<Vec<(Utf8PathBuf, Uuid)>>> =
-            Arc::new(RwLock::new(vec![]));
+        let folder_roots: Arc<RwLock<Vec<(Utf8PathBuf, Uuid)>>> = Arc::new(RwLock::new(vec![]));
         let vfs: Arc<dyn vfs_core::Vfs> = Arc::new(VfsOff::new());
 
         let server = Arc::new(SocketApiServer::new(sync_states, folder_roots, vfs));
@@ -32,7 +35,9 @@ mod integration {
         let transport = UnixTransport::bind(&socket_path).await.unwrap();
         let server_clone = server.clone();
         tokio::spawn(async move {
-            let _ = server_clone.run(Box::new(transport) as Box<dyn Transport>).await;
+            let _ = server_clone
+                .run(Box::new(transport) as Box<dyn Transport>)
+                .await;
         });
 
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -42,7 +47,10 @@ mod integration {
 
     async fn send_command(socket_path: &std::path::Path, cmd: &str) -> String {
         let mut stream = UnixStream::connect(socket_path).await.unwrap();
-        stream.write_all(format!("{cmd}\n").as_bytes()).await.unwrap();
+        stream
+            .write_all(format!("{cmd}\n").as_bytes())
+            .await
+            .unwrap();
 
         let mut reader = BufReader::new(&mut stream);
         let mut response = String::new();

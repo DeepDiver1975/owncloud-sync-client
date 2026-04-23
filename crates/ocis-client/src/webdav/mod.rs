@@ -27,7 +27,11 @@ impl WebDavClient {
             .use_rustls_tls()
             .build()
             .expect("build reqwest client");
-        Self { base_url, client, token }
+        Self {
+            base_url,
+            client,
+            token,
+        }
     }
 
     /// Issue a request, retrying once on 401 with the latest token value.
@@ -48,11 +52,7 @@ impl WebDavClient {
         if resp.status() == StatusCode::UNAUTHORIZED {
             // The caller is expected to refresh the shared token on 401; re-reading picks up the new value.
             let new_token = self.token.read().await.access_token.clone();
-            let retry = setup(
-                self.client
-                    .request(method, url)
-                    .bearer_auth(&new_token),
-            );
+            let retry = setup(self.client.request(method, url).bearer_auth(&new_token));
             return retry.send().await.map_err(OcisError::Http);
         }
 
@@ -105,12 +105,7 @@ impl WebDavClient {
     }
 
     /// PUT — upload a file body.
-    pub async fn put(
-        &self,
-        path: &str,
-        body: Vec<u8>,
-        content_type: &str,
-    ) -> Result<()> {
+    pub async fn put(&self, path: &str, body: Vec<u8>, content_type: &str) -> Result<()> {
         let url = self.base_url.join(path).map_err(OcisError::Url)?;
         let len = body.len() as u64;
 
@@ -147,12 +142,7 @@ impl WebDavClient {
     }
 
     /// MOVE — rename or move a resource.
-    pub async fn move_(
-        &self,
-        source: &str,
-        destination: &str,
-        overwrite: bool,
-    ) -> Result<()> {
+    pub async fn move_(&self, source: &str, destination: &str, overwrite: bool) -> Result<()> {
         let url = self.base_url.join(source).map_err(OcisError::Url)?;
         let dest_url = self.base_url.join(destination).map_err(OcisError::Url)?;
         let overwrite_value = if overwrite { "T" } else { "F" };

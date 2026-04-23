@@ -87,9 +87,7 @@ impl SyncEngine {
 
         // Phase 3: Propagate
         let mut join_set: JoinSet<Result<()>> = JoinSet::new();
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(
-            self.cfg.max_parallel_transfers,
-        ));
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(self.cfg.max_parallel_transfers));
 
         for (rel_path, instruction) in instructions {
             let local_path = self.cfg.local_root.join(&rel_path);
@@ -124,10 +122,7 @@ impl SyncEngine {
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
-                                s.set_file_status(
-                                    rel_clone,
-                                    FileStatus::Error(e.to_string()),
-                                );
+                                s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
                                 Err(e)
                             }
                         }
@@ -160,10 +155,7 @@ impl SyncEngine {
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
-                                s.set_file_status(
-                                    rel_clone,
-                                    FileStatus::Error(e.to_string()),
-                                );
+                                s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
                                 Err(e)
                             }
                         }

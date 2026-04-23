@@ -23,10 +23,7 @@ impl OwnCloudFileManager {
         }
     }
 
-    async fn get_menu_items(
-        &self,
-        path: String,
-    ) -> zbus::fdo::Result<Vec<(String, String, bool)>> {
+    async fn get_menu_items(&self, path: String) -> zbus::fdo::Result<Vec<(String, String, bool)>> {
         let mut client = match SocketClient::connect_path(&self.socket_path).await {
             Ok(c) => c,
             Err(_) => return Ok(vec![]),
@@ -37,11 +34,7 @@ impl OwnCloudFileManager {
         }
     }
 
-    async fn execute_command(
-        &self,
-        command: String,
-        paths: Vec<String>,
-    ) -> zbus::fdo::Result<()> {
+    async fn execute_command(&self, command: String, paths: Vec<String>) -> zbus::fdo::Result<()> {
         let mut client = match SocketClient::connect_path(&self.socket_path).await {
             Ok(c) => c,
             Err(_) => return Ok(()),
@@ -58,8 +51,5 @@ impl OwnCloudFileManager {
     ) -> zbus::Result<()>;
 
     #[zbus(signal)]
-    pub async fn path_registered(
-        ctx: &zbus::SignalContext<'_>,
-        path: String,
-    ) -> zbus::Result<()>;
+    pub async fn path_registered(ctx: &zbus::SignalContext<'_>, path: String) -> zbus::Result<()>;
 }

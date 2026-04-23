@@ -1,15 +1,12 @@
 use std::sync::Arc;
 use std::time::Duration;
+use tempfile::tempdir;
 use tokio::net::UnixStream;
 use tokio::sync::mpsc;
-use tempfile::tempdir;
 use uuid::Uuid;
 
+use daemon::gui_ipc::protocol::{read_event, write_command, DaemonCommand, DaemonEvent};
 use daemon::gui_ipc::GuiIpcServer;
-use daemon::gui_ipc::protocol::{
-    DaemonCommand, DaemonEvent,
-    write_command, read_event,
-};
 
 async fn connect_client(socket_path: &std::path::Path) -> UnixStream {
     for _ in 0..20 {
@@ -39,20 +36,28 @@ async fn subscribe_receives_ready_and_sync_started() {
 
     let stream_a = connect_client(&socket_path).await;
     let (mut read_a, mut write_a) = stream_a.into_split();
-    write_command(&mut write_a, &DaemonCommand::Subscribe).await.unwrap();
+    write_command(&mut write_a, &DaemonCommand::Subscribe)
+        .await
+        .unwrap();
 
     let stream_b = connect_client(&socket_path).await;
     let (mut read_b, mut write_b) = stream_b.into_split();
-    write_command(&mut write_b, &DaemonCommand::Subscribe).await.unwrap();
+    write_command(&mut write_b, &DaemonCommand::Subscribe)
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     ipc.broadcast(DaemonEvent::Ready);
 
     let evt_a = tokio::time::timeout(Duration::from_secs(1), read_event(&mut read_a))
-        .await.expect("timeout on client A").unwrap();
+        .await
+        .expect("timeout on client A")
+        .unwrap();
     let evt_b = tokio::time::timeout(Duration::from_secs(1), read_event(&mut read_b))
-        .await.expect("timeout on client B").unwrap();
+        .await
+        .expect("timeout on client B")
+        .unwrap();
 
     assert_eq!(evt_a, DaemonEvent::Ready);
     assert_eq!(evt_b, DaemonEvent::Ready);
@@ -68,12 +73,18 @@ async fn subscribe_receives_ready_and_sync_started() {
         }
     });
 
-    write_command(&mut write_a, &DaemonCommand::TriggerSync { folder_id }).await.unwrap();
+    write_command(&mut write_a, &DaemonCommand::TriggerSync { folder_id })
+        .await
+        .unwrap();
 
     let evt_a2 = tokio::time::timeout(Duration::from_secs(1), read_event(&mut read_a))
-        .await.expect("timeout on client A SyncStarted").unwrap();
+        .await
+        .expect("timeout on client A SyncStarted")
+        .unwrap();
     let evt_b2 = tokio::time::timeout(Duration::from_secs(1), read_event(&mut read_b))
-        .await.expect("timeout on client B SyncStarted").unwrap();
+        .await
+        .expect("timeout on client B SyncStarted")
+        .unwrap();
 
     assert_eq!(evt_a2, DaemonEvent::SyncStarted { folder_id });
     assert_eq!(evt_b2, DaemonEvent::SyncStarted { folder_id });
@@ -100,10 +111,7 @@ async fn non_subscribed_client_does_not_receive_events() {
 
     ipc.broadcast(DaemonEvent::Ready);
 
-    let result = tokio::time::timeout(
-        Duration::from_millis(200),
-        read_event(&mut reader),
-    ).await;
+    let result = tokio::time::timeout(Duration::from_millis(200), read_event(&mut reader)).await;
 
     assert!(result.is_err(), "expected timeout but got a message");
 }

@@ -13,8 +13,14 @@ async fn two_connections_both_receive_status_changed() {
 
     broadcaster.status_changed("OK", "/foo/bar.txt").await;
 
-    let msg1 = rx1.recv().await.expect("connection 1 should receive message");
-    let msg2 = rx2.recv().await.expect("connection 2 should receive message");
+    let msg1 = rx1
+        .recv()
+        .await
+        .expect("connection 1 should receive message");
+    let msg2 = rx2
+        .recv()
+        .await
+        .expect("connection 2 should receive message");
 
     assert_eq!(msg1, "STATUS:OK:/foo/bar.txt\n");
     assert_eq!(msg2, "STATUS:OK:/foo/bar.txt\n");
@@ -37,7 +43,10 @@ async fn removed_connection_does_not_receive() {
     let msg2 = rx2.recv().await.expect("connection 2 should receive");
     assert_eq!(msg2, "STATUS:SYNC:/a/b.txt\n");
 
-    assert!(rx1.try_recv().is_err(), "removed connection must not receive");
+    assert!(
+        rx1.try_recv().is_err(),
+        "removed connection must not receive"
+    );
 }
 
 #[tokio::test]

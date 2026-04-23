@@ -24,11 +24,7 @@ async fn downloads_file_atomically() {
     let dest = Utf8Path::from_path(dir.path()).unwrap().join("notes.txt");
 
     let req = DownloadRequest {
-        remote_url: Url::parse(&format!(
-            "{}/dav/spaces/space1/notes.txt",
-            server.uri()
-        ))
-        .unwrap(),
+        remote_url: Url::parse(&format!("{}/dav/spaces/space1/notes.txt", server.uri())).unwrap(),
         local_dest: dest.clone(),
         expected_etag: None,
     };
@@ -60,11 +56,7 @@ async fn fails_on_etag_mismatch() {
     let dest = Utf8Path::from_path(dir.path()).unwrap().join("stale.txt");
 
     let req = DownloadRequest {
-        remote_url: Url::parse(&format!(
-            "{}/dav/spaces/space1/stale.txt",
-            server.uri()
-        ))
-        .unwrap(),
+        remote_url: Url::parse(&format!("{}/dav/spaces/space1/stale.txt", server.uri())).unwrap(),
         local_dest: dest.clone(),
         expected_etag: Some("expected_different_etag".into()),
     };

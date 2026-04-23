@@ -32,10 +32,10 @@ async fn upload_put(req: UploadRequest) -> Result<String> {
         builder = builder.header("OC-Checksum", format!("SHA256:{cs}"));
     }
 
-    let resp = builder
-        .send()
-        .await
-        .map_err(|e| SyncError::Http { status: 0, message: e.to_string() })?;
+    let resp = builder.send().await.map_err(|e| SyncError::Http {
+        status: 0,
+        message: e.to_string(),
+    })?;
 
     let status = resp.status().as_u16();
     if status != 200 && status != 201 && status != 204 {
@@ -65,7 +65,10 @@ async fn upload_tus(req: UploadRequest) -> Result<String> {
         .header("Content-Length", "0")
         .send()
         .await
-        .map_err(|e| SyncError::Http { status: 0, message: e.to_string() })?;
+        .map_err(|e| SyncError::Http {
+            status: 0,
+            message: e.to_string(),
+        })?;
 
     let status = create_resp.status().as_u16();
     if status != 201 {
@@ -87,7 +90,13 @@ async fn upload_tus(req: UploadRequest) -> Result<String> {
     } else {
         let host = req.remote_url.host_str().unwrap_or("");
         match req.remote_url.port() {
-            Some(port) => format!("{}://{}:{}{}", req.remote_url.scheme(), host, port, location),
+            Some(port) => format!(
+                "{}://{}:{}{}",
+                req.remote_url.scheme(),
+                host,
+                port,
+                location
+            ),
             None => format!("{}://{}{}", req.remote_url.scheme(), host, location),
         }
     };
@@ -103,7 +112,10 @@ async fn upload_tus(req: UploadRequest) -> Result<String> {
         .body(bytes)
         .send()
         .await
-        .map_err(|e| SyncError::Http { status: 0, message: e.to_string() })?;
+        .map_err(|e| SyncError::Http {
+            status: 0,
+            message: e.to_string(),
+        })?;
 
     let patch_status = patch_resp.status().as_u16();
     if patch_status != 204 && patch_status != 200 {

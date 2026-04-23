@@ -4,15 +4,20 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct FolderScheduleState {
-    pub paused:    bool,
-    pub running:   bool,
-    pub pending:   bool,
+    pub paused: bool,
+    pub running: bool,
+    pub pending: bool,
     pub last_sync: Option<SystemTime>,
 }
 
 impl Default for FolderScheduleState {
     fn default() -> Self {
-        Self { paused: false, running: false, pending: false, last_sync: None }
+        Self {
+            paused: false,
+            running: false,
+            pending: false,
+            last_sync: None,
+        }
     }
 }
 
@@ -58,7 +63,7 @@ impl SyncScheduler {
 
     pub fn finish_sync(&mut self, folder_id: Uuid) {
         if let Some(state) = self.folders.get_mut(&folder_id) {
-            state.running  = false;
+            state.running = false;
             state.last_sync = Some(SystemTime::now());
         }
     }

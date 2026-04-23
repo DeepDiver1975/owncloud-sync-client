@@ -157,7 +157,11 @@ async fn test_move_sets_destination_header() {
     let base_url = format!("{}/", server.uri()).parse().unwrap();
     let client = WebDavClient::new(base_url, dummy_token());
     client
-        .move_("dav/spaces/personal/old.txt", "dav/spaces/personal/new.txt", true)
+        .move_(
+            "dav/spaces/personal/old.txt",
+            "dav/spaces/personal/new.txt",
+            true,
+        )
         .await
         .unwrap();
 }

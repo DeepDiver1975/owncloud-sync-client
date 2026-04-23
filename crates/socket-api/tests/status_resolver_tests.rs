@@ -1,15 +1,11 @@
 use camino::Utf8PathBuf;
 use socket_api::status_resolver::StatusResolver;
-use sync_engine::state::{FileStatus, SyncState};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use sync_engine::state::{FileStatus, SyncState};
 use uuid::Uuid;
 
-fn make_resolver_with_folder(
-    root: &str,
-    file_path: &str,
-    status: FileStatus,
-) -> StatusResolver {
+fn make_resolver_with_folder(root: &str, file_path: &str, status: FileStatus) -> StatusResolver {
     let folder_id = Uuid::new_v4();
     let mut state = SyncState::new(folder_id);
     state.set_file_status(Utf8PathBuf::from(file_path), status);
@@ -36,11 +32,7 @@ fn path_not_in_any_folder_returns_none() {
 
 #[test]
 fn file_with_ok_status_returns_ok() {
-    let resolver = make_resolver_with_folder(
-        "/sync/root",
-        "/sync/root/file.txt",
-        FileStatus::Ok,
-    );
+    let resolver = make_resolver_with_folder("/sync/root", "/sync/root/file.txt", FileStatus::Ok);
     assert_eq!(resolver.resolve_file("/sync/root/file.txt"), "OK");
 }
 
@@ -66,11 +58,8 @@ fn file_with_error_status_returns_error() {
 
 #[test]
 fn file_with_excluded_status_returns_excluded() {
-    let resolver = make_resolver_with_folder(
-        "/sync/root",
-        "/sync/root/.hidden",
-        FileStatus::Excluded,
-    );
+    let resolver =
+        make_resolver_with_folder("/sync/root", "/sync/root/.hidden", FileStatus::Excluded);
     assert_eq!(resolver.resolve_file("/sync/root/.hidden"), "EXCLUDED");
 }
 

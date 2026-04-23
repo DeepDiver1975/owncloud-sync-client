@@ -14,9 +14,7 @@ pub fn sync_status_view(accounts: &[AccountView]) -> Element<Message> {
         return empty_state_view();
     }
 
-    let mut col = Column::new()
-        .padding(PADDING)
-        .spacing(SPACING as u16 * 2);
+    let mut col = Column::new().padding(PADDING).spacing(SPACING as u16 * 2);
 
     for account in accounts {
         col = col.push(account_section(account));
@@ -58,9 +56,7 @@ fn account_section(account: &AccountView) -> Element<Message> {
         folders_col = folders_col.push(folder_row(folder));
     }
 
-    column![header, folders_col]
-        .spacing(SPACING)
-        .into()
+    column![header, folders_col].spacing(SPACING).into()
 }
 
 fn folder_row(folder: &crate::model::FolderView) -> Element<Message> {
@@ -154,6 +150,9 @@ mod tests {
         let long = "/home/user/very/deeply/nested/path/that/exceeds/the/limit/file.txt";
         let result = truncate_path(long, 40);
         assert!(result.len() <= 41, "truncated path too long: {result}");
-        assert!(result.contains('…'), "truncated path should contain ellipsis");
+        assert!(
+            result.contains('…'),
+            "truncated path should contain ellipsis"
+        );
     }
 }

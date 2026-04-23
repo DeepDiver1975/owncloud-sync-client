@@ -45,15 +45,13 @@ impl VfsWindows {
         provider_name: &str,
         hydration_tx: mpsc::Sender<HydrationRequest>,
     ) -> Result<Self, VfsError> {
-        register_sync_root(&root, provider_name, "1.0.0")
-            .map_err(VfsError::from)?;
+        register_sync_root(&root, provider_name, "1.0.0").map_err(VfsError::from)?;
 
         let ctx = Arc::new(HydrationCallbackContext {
             tx: hydration_tx.clone(),
         });
 
-        let callback_key = register_hydration_callback(&root, ctx)
-            .map_err(VfsError::from)?;
+        let callback_key = register_hydration_callback(&root, ctx).map_err(VfsError::from)?;
 
         Ok(Self {
             root,
@@ -98,46 +96,36 @@ impl Vfs for VfsWindows {
 
     async fn hydrate(&self, path: &Utf8Path) -> Result<(), VfsError> {
         let path = path.to_owned();
-        tokio::task::spawn_blocking(move || {
-            hydration::hydrate(&path).map_err(VfsError::from)
-        })
-        .await
-        .map_err(|e| VfsError::Backend(e.to_string()))?
+        tokio::task::spawn_blocking(move || hydration::hydrate(&path).map_err(VfsError::from))
+            .await
+            .map_err(|e| VfsError::Backend(e.to_string()))?
     }
 
     async fn dehydrate(&self, path: &Utf8Path) -> Result<(), VfsError> {
         let path = path.to_owned();
-        tokio::task::spawn_blocking(move || {
-            hydration::dehydrate(&path).map_err(VfsError::from)
-        })
-        .await
-        .map_err(|e| VfsError::Backend(e.to_string()))?
+        tokio::task::spawn_blocking(move || hydration::dehydrate(&path).map_err(VfsError::from))
+            .await
+            .map_err(|e| VfsError::Backend(e.to_string()))?
     }
 
     async fn is_virtual(&self, path: &Utf8Path) -> Result<bool, VfsError> {
         let path = path.to_owned();
-        tokio::task::spawn_blocking(move || {
-            hydration::is_virtual(&path).map_err(VfsError::from)
-        })
-        .await
-        .map_err(|e| VfsError::Backend(e.to_string()))?
+        tokio::task::spawn_blocking(move || hydration::is_virtual(&path).map_err(VfsError::from))
+            .await
+            .map_err(|e| VfsError::Backend(e.to_string()))?
     }
 
     async fn status(&self, path: &Utf8Path) -> Result<VfsStatus, VfsError> {
         let path = path.to_owned();
-        tokio::task::spawn_blocking(move || {
-            hydration::status(&path).map_err(VfsError::from)
-        })
-        .await
-        .map_err(|e| VfsError::Backend(e.to_string()))?
+        tokio::task::spawn_blocking(move || hydration::status(&path).map_err(VfsError::from))
+            .await
+            .map_err(|e| VfsError::Backend(e.to_string()))?
     }
 
     async fn set_pinned(&self, path: &Utf8Path, pinned: bool) -> Result<(), VfsError> {
         let path = path.to_owned();
-        tokio::task::spawn_blocking(move || {
-            pin::set_pinned(&path, pinned).map_err(VfsError::from)
-        })
-        .await
-        .map_err(|e| VfsError::Backend(e.to_string()))?
+        tokio::task::spawn_blocking(move || pin::set_pinned(&path, pinned).map_err(VfsError::from))
+            .await
+            .map_err(|e| VfsError::Backend(e.to_string()))?
     }
 }

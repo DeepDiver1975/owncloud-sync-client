@@ -13,10 +13,12 @@ pub async fn discover_local(root: &Utf8Path) -> Result<Vec<LocalEntry>> {
     let root = root.to_owned();
     tokio::task::spawn_blocking(move || walk(&root))
         .await
-        .map_err(|e| crate::error::SyncError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            e.to_string(),
-        )))?
+        .map_err(|e| {
+            crate::error::SyncError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ))
+        })?
 }
 
 fn walk(root: &Utf8Path) -> Result<Vec<LocalEntry>> {

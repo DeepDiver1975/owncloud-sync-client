@@ -3,12 +3,12 @@ fn main() {}
 
 #[cfg(target_os = "windows")]
 mod tests {
-    use std::sync::Arc;
     use camino::{Utf8Path, Utf8PathBuf};
+    use std::sync::Arc;
     use tokio::sync::mpsc;
     use vfs_windows::callback::{
-        HydrationCallbackContext, HydrationRequest, RawCallbackInfo,
-        register_hydration_callback, unregister_hydration_callback,
+        register_hydration_callback, unregister_hydration_callback, HydrationCallbackContext,
+        HydrationRequest, RawCallbackInfo,
     };
     use vfs_windows::registration::{register_sync_root, unregister_sync_root};
 

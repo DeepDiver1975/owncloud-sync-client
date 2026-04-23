@@ -13,7 +13,17 @@ mod tests {
     #[test]
     fn to_wide_null_ascii() {
         let wide = to_wide_null("hello");
-        assert_eq!(wide, &[b'h' as u16, b'e' as u16, b'l' as u16, b'l' as u16, b'o' as u16, 0]);
+        assert_eq!(
+            wide,
+            &[
+                b'h' as u16,
+                b'e' as u16,
+                b'l' as u16,
+                b'l' as u16,
+                b'o' as u16,
+                0
+            ]
+        );
     }
 
     #[test]

@@ -59,8 +59,7 @@ async fn test_list_spaces_parses_json() {
         .and(path("/graph/v1.0/me/drives"))
         .and(header("Authorization", "Bearer test-token"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_raw(LIST_SPACES_RESPONSE, "application/json"),
+            ResponseTemplate::new(200).set_body_raw(LIST_SPACES_RESPONSE, "application/json"),
         )
         .mount(&server)
         .await;
@@ -91,8 +90,7 @@ async fn test_get_space_by_id() {
     Mock::given(method("GET"))
         .and(path("/graph/v1.0/drives/storage-personal-abc123"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_raw(GET_SPACE_RESPONSE, "application/json"),
+            ResponseTemplate::new(200).set_body_raw(GET_SPACE_RESPONSE, "application/json"),
         )
         .mount(&server)
         .await;
