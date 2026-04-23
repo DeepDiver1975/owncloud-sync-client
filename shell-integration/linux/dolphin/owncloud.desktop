@@ -1,0 +1,29 @@
+# Install to: ~/.local/share/kservices5/ServiceMenus/owncloud.desktop
+
+[Desktop Entry]
+Type=Service
+ServiceTypes=KonqPopupMenu/Plugin
+MimeType=all/all;
+Actions=owncloud_share;owncloud_copy_link;owncloud_make_available;owncloud_make_online_only;
+X-KDE-Priority=TopLevel
+X-KDE-Submenu=ownCloud
+
+[Desktop Action owncloud_share]
+Name=Share...
+Icon=owncloud
+Exec=oc-dbus-service execute-command SHARE %F
+
+[Desktop Action owncloud_copy_link]
+Name=Copy link
+Icon=edit-copy
+Exec=oc-dbus-service execute-command COPY_PRIVATE_LINK %F
+
+[Desktop Action owncloud_make_available]
+Name=Make available locally
+Icon=folder-sync
+Exec=oc-dbus-service execute-command MAKE_AVAILABLE_LOCALLY %F
+
+[Desktop Action owncloud_make_online_only]
+Name=Make online only
+Icon=folder-cloud
+Exec=oc-dbus-service execute-command MAKE_ONLINE_ONLY %F
