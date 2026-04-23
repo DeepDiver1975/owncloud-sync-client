@@ -3776,6 +3776,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "oc-dbus-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbus 4.4.0",
+]
+
+[[package]]
 name = "ocis-client"
 version = "0.1.0"
 dependencies = [
