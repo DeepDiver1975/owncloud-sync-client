@@ -2,6 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 
+fn write_lock<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
+    lock.write().unwrap_or_else(|e| e.into_inner())
+}
+
 use camino::Utf8PathBuf;
 use tokio::task::JoinSet;
 use url::Url;
@@ -37,7 +41,7 @@ impl SyncEngine {
 
     pub async fn run_sync(&self) -> Result<()> {
         {
-            let mut s = self.state.write().unwrap();
+            let mut s = write_lock(&self.state);
             s.status = FolderStatus::Syncing;
         }
 
@@ -104,7 +108,7 @@ impl SyncEngine {
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
                         {
-                            let mut s = state.write().unwrap();
+                            let mut s = write_lock(&state);
                             s.set_file_status(rel_clone.clone(), FileStatus::Syncing);
                         }
                         let req = DownloadRequest {
@@ -114,12 +118,12 @@ impl SyncEngine {
                         };
                         match propagate_download(req).await {
                             Ok(_etag) => {
-                                let mut s = state.write().unwrap();
+                                let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
                                 Ok(())
                             }
                             Err(e) => {
-                                let mut s = state.write().unwrap();
+                                let mut s = write_lock(&state);
                                 s.set_file_status(
                                     rel_clone,
                                     FileStatus::Error(e.to_string()),
@@ -134,7 +138,7 @@ impl SyncEngine {
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
                         {
-                            let mut s = state.write().unwrap();
+                            let mut s = write_lock(&state);
                             s.set_file_status(rel_clone.clone(), FileStatus::Syncing);
                         }
                         let size = tokio::fs::metadata(&local_path)
@@ -150,12 +154,12 @@ impl SyncEngine {
                         };
                         match propagate_upload(req).await {
                             Ok(_etag) => {
-                                let mut s = state.write().unwrap();
+                                let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
                                 Ok(())
                             }
                             Err(e) => {
-                                let mut s = state.write().unwrap();
+                                let mut s = write_lock(&state);
                                 s.set_file_status(
                                     rel_clone,
                                     FileStatus::Error(e.to_string()),
@@ -186,7 +190,7 @@ impl SyncEngine {
         }
 
         {
-            let mut s = self.state.write().unwrap();
+            let mut s = write_lock(&self.state);
             if had_error {
                 s.status = FolderStatus::Error;
             } else {

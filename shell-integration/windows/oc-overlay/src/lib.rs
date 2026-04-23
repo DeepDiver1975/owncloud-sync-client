@@ -10,12 +10,12 @@ mod icons;
 mod registration;
 
 use std::sync::atomic::{AtomicI32, Ordering};
-use windows::core::{implement, IUnknown, IUnknownImpl, GUID, HRESULT, PCWSTR, PWSTR};
+use windows::core::{implement, IUnknown, GUID, HRESULT, PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
-    CLASS_E_NOAGGREGATION, E_FAIL, E_POINTER, HINSTANCE, S_FALSE, S_OK,
+    CLASS_E_NOAGGREGATION, E_FAIL, E_POINTER, HINSTANCE, HMODULE, S_FALSE, S_OK,
 };
-use windows::Win32::Storage::FileSystem::GetModuleFileNameW;
 use windows::Win32::System::Com::{IClassFactory, IClassFactory_Impl};
+use windows::Win32::System::LibraryLoader::GetModuleFileNameW;
 use windows::Win32::UI::Shell::{
     IShellIconOverlayIdentifier, IShellIconOverlayIdentifier_Impl, ISIOI_ICONFILE, ISIOI_ICONINDEX,
 };
@@ -62,12 +62,14 @@ pub const CLSID_OC_OVERLAY_EXCLUDED: GUID = GUID {
 };
 
 // ---------------------------------------------------------------------------
-// DLL reference count
+// DLL reference count and instance handle
 // ---------------------------------------------------------------------------
 
 static DLL_REF_COUNT: AtomicI32 = AtomicI32::new(0);
 
-static mut DLL_HINSTANCE: HINSTANCE = HINSTANCE(0);
+// SAFETY: Written once under the loader lock during DLL_PROCESS_ATTACH;
+// read-only thereafter. Single-writer guarantee is upheld by the OS loader.
+static mut DLL_HINSTANCE: HINSTANCE = HINSTANCE(std::ptr::null_mut());
 
 // ---------------------------------------------------------------------------
 // DllMain
@@ -81,7 +83,6 @@ pub extern "system" fn DllMain(
 ) -> i32 {
     const DLL_PROCESS_ATTACH: u32 = 1;
     if reason == DLL_PROCESS_ATTACH {
-        // SAFETY: Written once under the loader lock during DLL attach.
         unsafe { DLL_HINSTANCE = hinstance };
     }
     1
@@ -105,16 +106,16 @@ pub unsafe extern "system" fn DllGetClassObject(
     let clsid = unsafe { &*rclsid };
     let iid = unsafe { &*riid };
 
-    let factory: windows::core::IUnknown = match *clsid {
-        CLSID_OC_OVERLAY_OK => ClassFactory::<OcOverlayOk>::new().into(),
-        CLSID_OC_OVERLAY_SYNC => ClassFactory::<OcOverlaySync>::new().into(),
-        CLSID_OC_OVERLAY_WARNING => ClassFactory::<OcOverlayWarning>::new().into(),
-        CLSID_OC_OVERLAY_ERROR => ClassFactory::<OcOverlayError>::new().into(),
-        CLSID_OC_OVERLAY_EXCLUDED => ClassFactory::<OcOverlayExcluded>::new().into(),
+    let factory: IUnknown = match *clsid {
+        CLSID_OC_OVERLAY_OK => ClassFactoryOk.into(),
+        CLSID_OC_OVERLAY_SYNC => ClassFactorySync.into(),
+        CLSID_OC_OVERLAY_WARNING => ClassFactoryWarning.into(),
+        CLSID_OC_OVERLAY_ERROR => ClassFactoryError.into(),
+        CLSID_OC_OVERLAY_EXCLUDED => ClassFactoryExcluded.into(),
         _ => return HRESULT(0x8004_0154_u32 as i32),
     };
 
-    factory.query(iid, ppv)
+    unsafe { factory.query(iid, ppv) }
 }
 
 #[no_mangle]
@@ -143,63 +144,50 @@ pub extern "system" fn DllUnregisterServer() -> HRESULT {
 }
 
 // ---------------------------------------------------------------------------
-// Generic class factory
+// Concrete class factories (one per overlay type — avoids RuntimeName bound)
 // ---------------------------------------------------------------------------
 
-#[implement(IClassFactory)]
-struct ClassFactory<T: Default + 'static + windows::core::RuntimeName> {
-    _phantom: std::marker::PhantomData<T>,
-}
+macro_rules! impl_factory {
+    ($factory:ident, $overlay:ty) => {
+        #[implement(IClassFactory)]
+        struct $factory;
 
-impl<T: Default + 'static + windows::core::RuntimeName> ClassFactory<T> {
-    fn new() -> Self {
-        DLL_REF_COUNT.fetch_add(1, Ordering::SeqCst);
-        ClassFactory {
-            _phantom: std::marker::PhantomData,
+        impl IClassFactory_Impl for $factory {
+            fn CreateInstance(
+                &self,
+                outer: Option<&IUnknown>,
+                iid: *const GUID,
+                ppv: *mut *mut std::ffi::c_void,
+            ) -> windows::core::Result<()> {
+                if outer.is_some() {
+                    return Err(CLASS_E_NOAGGREGATION.into());
+                }
+                DLL_REF_COUNT.fetch_add(1, Ordering::SeqCst);
+                let handler: IShellIconOverlayIdentifier = <$overlay>::default().into();
+                // SAFETY: COM-contract pointers validated by the caller.
+                unsafe { handler.query(iid, ppv).ok() }
+            }
+
+            fn LockServer(
+                &self,
+                lock: windows::Win32::Foundation::BOOL,
+            ) -> windows::core::Result<()> {
+                if lock.as_bool() {
+                    DLL_REF_COUNT.fetch_add(1, Ordering::SeqCst);
+                } else {
+                    DLL_REF_COUNT.fetch_sub(1, Ordering::SeqCst);
+                }
+                Ok(())
+            }
         }
-    }
+    };
 }
 
-impl<T> Drop for ClassFactory<T>
-where
-    T: Default + 'static + windows::core::RuntimeName,
-{
-    fn drop(&mut self) {
-        DLL_REF_COUNT.fetch_sub(1, Ordering::SeqCst);
-    }
-}
-
-impl<T> IClassFactory_Impl for ClassFactory<T>
-where
-    T: Default
-        + 'static
-        + windows::core::RuntimeName
-        + IShellIconOverlayIdentifier_Impl
-        + IUnknownImpl,
-{
-    fn CreateInstance(
-        &self,
-        outer: Option<&IUnknown>,
-        iid: *const GUID,
-        ppv: *mut *mut std::ffi::c_void,
-    ) -> windows::core::Result<()> {
-        if outer.is_some() {
-            return Err(CLASS_E_NOAGGREGATION.into());
-        }
-        let handler: IShellIconOverlayIdentifier = T::default().into();
-        // SAFETY: COM-contract pointers validated by the runtime.
-        unsafe { handler.query(iid, ppv).ok() }
-    }
-
-    fn LockServer(&self, lock: windows::Win32::Foundation::BOOL) -> windows::core::Result<()> {
-        if lock.as_bool() {
-            DLL_REF_COUNT.fetch_add(1, Ordering::SeqCst);
-        } else {
-            DLL_REF_COUNT.fetch_sub(1, Ordering::SeqCst);
-        }
-        Ok(())
-    }
-}
+impl_factory!(ClassFactoryOk, OcOverlayOk);
+impl_factory!(ClassFactorySync, OcOverlaySync);
+impl_factory!(ClassFactoryWarning, OcOverlayWarning);
+impl_factory!(ClassFactoryError, OcOverlayError);
+impl_factory!(ClassFactoryExcluded, OcOverlayExcluded);
 
 // ---------------------------------------------------------------------------
 // Overlay handler structs
@@ -271,11 +259,18 @@ unsafe fn pcwstr_to_string(ptr: PCWSTR) -> Option<String> {
 unsafe fn write_wide_str(buf: PWSTR, cchmax: i32, text: &str) {
     let encoded: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
     let len = encoded.len().min(cchmax as usize);
-    // SAFETY: caller guarantees `buf` is valid for `cchmax` wide chars.
     unsafe {
         std::ptr::copy_nonoverlapping(encoded.as_ptr(), buf.0, len);
     }
 }
+
+// ---------------------------------------------------------------------------
+// IShellIconOverlayIdentifier_Impl — one macro covers all five structs.
+//
+// GetPriority returns i32 directly (windows 0.52 out-param → return-value
+// conversion). Lower number = higher priority in Explorer.
+// Priority: Error=1 (highest), Sync=2, Warning=3, OK=4, Excluded=5 (lowest)
+// ---------------------------------------------------------------------------
 
 macro_rules! impl_overlay {
     ($ty:ty, $tag:literal, $icon_idx:expr, $priority:expr) => {
@@ -309,10 +304,13 @@ macro_rules! impl_overlay {
                     return Err(E_POINTER.into());
                 }
                 let mut path_buf = vec![0u16; cchmax as usize];
-                // SAFETY: `DLL_HINSTANCE` is read-only after DllMain.
-                // `path_buf` is a valid mutable slice of `cchmax` wide chars.
                 unsafe {
-                    GetModuleFileNameW(DLL_HINSTANCE, &mut path_buf);
+                    // SAFETY: DLL_HINSTANCE is read-only after DllMain.
+                    // HMODULE and HINSTANCE are layout-compatible (both *mut c_void).
+                    GetModuleFileNameW(
+                        HMODULE(DLL_HINSTANCE.0),
+                        &mut path_buf,
+                    );
                     write_wide_str(
                         pwsziconfile,
                         cchmax,
@@ -324,19 +322,13 @@ macro_rules! impl_overlay {
                 Ok(())
             }
 
-            fn GetPriority(&self, ppriority: *mut i32) -> windows::core::Result<()> {
-                if ppriority.is_null() {
-                    return Err(E_POINTER.into());
-                }
-                // SAFETY: COM-contract pointer; Explorer never passes null.
-                unsafe { *ppriority = $priority };
-                Ok(())
+            fn GetPriority(&self) -> windows::core::Result<i32> {
+                Ok($priority)
             }
         }
     };
 }
 
-// Priority: Error=1 (highest), Sync=2, Warning=3, OK=4, Excluded=5 (lowest)
 impl_overlay!(OcOverlayOk, "OK", 0, 4);
 impl_overlay!(OcOverlaySync, "SYNC", 1, 2);
 impl_overlay!(OcOverlayWarning, "WARNING", 2, 3);
