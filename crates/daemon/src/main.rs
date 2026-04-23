@@ -1,3 +1,166 @@
-fn main() {
-    // TODO: implement startup in Task 10
+use std::sync::Arc;
+use std::time::Duration;
+use anyhow::Result;
+use tokio::sync::mpsc;
+use tokio::time::interval;
+use tracing::{error, info};
+
+mod config;
+mod lock;
+mod paths;
+mod watcher;
+mod scheduler;
+mod vfs_factory;
+mod folder_manager;
+mod gui_ipc;
+
+use config::AppConfig;
+use folder_manager::FolderManager;
+use gui_ipc::{GuiIpcServer, protocol::DaemonCommand, protocol::DaemonEvent};
+use gui_ipc::handler::{handle_command, ShouldQuit};
+use lock::{LockFile, LockError};
+use scheduler::SyncScheduler;
+use socket_api::server::SocketApiServer;
+use socket_api::transport::unix::UnixTransport;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive("daemon=info".parse()?)
+        )
+        .init();
+
+    // Acquire exclusive lock to prevent multiple daemon instances.
+    let lock_path = paths::platform_lock_path();
+    let _lock = match LockFile::acquire(&lock_path) {
+        Ok(l) => l,
+        Err(LockError::AlreadyRunning) => {
+            eprintln!("ocsyncd is already running (lock: {})", lock_path.display());
+            std::process::exit(1);
+        }
+        Err(LockError::Io(e)) => {
+            eprintln!("Failed to acquire lock at {}: {e}", lock_path.display());
+            std::process::exit(1);
+        }
+    };
+    info!("Lock acquired: {}", lock_path.display());
+
+    let config_path = paths::platform_config_dir().join("owncloud.toml");
+    let mut config = AppConfig::load_or_default(&config_path)?;
+    info!("Config loaded from {}", config_path.display());
+
+    let poll_secs = config.general.poll_interval_secs;
+
+    let all_folders: Vec<_> = config.account.iter()
+        .flat_map(|a| a.folder.clone())
+        .collect();
+    let folder_manager = FolderManager::init_sync(&all_folders, &config.account)?;
+    info!("FolderManager: {} folders", folder_manager.folders.len());
+
+    let sync_states  = folder_manager.sync_states();
+    let folder_roots = folder_manager.folder_roots();
+    let shared_vfs   = folder_manager.shared_vfs();
+    let socket_api   = Arc::new(SocketApiServer::new(sync_states, folder_roots, shared_vfs));
+
+    let (gui_ipc, _initial_rx) = GuiIpcServer::new();
+
+    let folder_ids: Vec<_> = folder_manager.folders.keys().cloned().collect();
+    let mut scheduler = SyncScheduler::new(folder_ids.clone());
+
+    // Spawn SocketApiServer.
+    let socket_api_clone = Arc::clone(&socket_api);
+    tokio::spawn(async move {
+        let transport = match UnixTransport::bind(
+            &UnixTransport::default_path()
+        ).await {
+            Ok(t) => t,
+            Err(e) => { error!("socket-api bind error: {e}"); return; }
+        };
+        if let Err(e) = socket_api_clone.run(Box::new(transport)).await {
+            error!("SocketApiServer error: {e}");
+        }
+    });
+
+    // Spawn GuiIpcServer.
+    let (cmd_tx, mut cmd_rx) = mpsc::channel::<DaemonCommand>(64);
+    let gui_ipc_clone = Arc::clone(&gui_ipc);
+    let gui_socket_path = paths::platform_gui_socket_path();
+    tokio::spawn(async move {
+        if let Err(e) = gui_ipc_clone.run(&gui_socket_path, cmd_tx).await {
+            error!("GuiIpcServer error: {e}");
+        }
+    });
+
+    gui_ipc.broadcast(DaemonEvent::Ready);
+
+    // Spawn remote poll loop — sends TriggerSync periodically.
+    let folder_ids_poll = folder_ids.clone();
+    let (poll_tx, mut poll_rx) = mpsc::channel::<DaemonCommand>(64);
+    tokio::spawn(async move {
+        let mut ticker = interval(Duration::from_secs(poll_secs));
+        ticker.tick().await; // skip first immediate tick
+        loop {
+            ticker.tick().await;
+            for id in &folder_ids_poll {
+                let _ = poll_tx.send(DaemonCommand::TriggerSync { folder_id: *id }).await;
+            }
+        }
+    });
+
+    // Main loop.
+    let mut scheduler_tick = interval(Duration::from_millis(100));
+    info!("ocsyncd ready");
+
+    loop {
+        tokio::select! {
+            Some(cmd) = cmd_rx.recv() => {
+                match handle_command(
+                    cmd,
+                    &mut scheduler,
+                    &folder_manager,
+                    &gui_ipc,
+                    &mut config,
+                    &config_path,
+                ).await {
+                    Ok(ShouldQuit::Yes) => {
+                        info!("Quit command received; shutting down");
+                        break;
+                    }
+                    Ok(ShouldQuit::No) => {}
+                    Err(e) => error!("handle_command error: {e}"),
+                }
+            }
+
+            Some(cmd) = poll_rx.recv() => {
+                if let DaemonCommand::TriggerSync { folder_id } = cmd {
+                    scheduler.request_sync(folder_id);
+                }
+            }
+
+            _ = scheduler_tick.tick() => {
+                for folder_id in scheduler.ready_to_run() {
+                    scheduler.start_sync(folder_id);
+                    gui_ipc.broadcast(DaemonEvent::SyncStarted { folder_id });
+
+                    let engine = folder_manager.get_engine(folder_id).cloned();
+                    let ipc = Arc::clone(&gui_ipc);
+                    tokio::spawn(async move {
+                        if let Some(engine) = engine {
+                            let errors = match engine.run_sync().await {
+                                Ok(_) => vec![],
+                                Err(e) => vec![e.to_string()],
+                            };
+                            ipc.broadcast(DaemonEvent::SyncFinished { folder_id, errors });
+                        }
+                    });
+                    scheduler.finish_sync(folder_id);
+                }
+            }
+        }
+    }
+
+    info!("ocsyncd exiting");
+    Ok(())
 }
