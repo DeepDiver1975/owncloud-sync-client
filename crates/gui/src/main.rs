@@ -16,8 +16,7 @@ const SOCKET_PATH: &str = "/tmp/ocsyncd.sock";
 fn main() -> iced::Result {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -83,14 +82,9 @@ impl IcedApp {
 
     fn view(&self) -> Element<Message> {
         let content: Element<Message> = match &self.app.active_view {
-            View::SyncStatus => {
-                gui::views::sync_status::sync_status_view(&self.app.accounts)
-            }
+            View::SyncStatus => gui::views::sync_status::sync_status_view(&self.app.accounts),
             View::AddAccount { url_input, error } => {
-                gui::views::add_account::add_account_view(
-                    url_input,
-                    error.as_deref(),
-                )
+                gui::views::add_account::add_account_view(url_input, error.as_deref())
             }
             View::AccountSettings(account_id) => {
                 if let Some(account) = self.app.accounts.iter().find(|a| &a.id == account_id) {
@@ -102,9 +96,7 @@ impl IcedApp {
                         .into()
                 }
             }
-            View::GeneralSettings => {
-                gui::views::general_settings::general_settings_view()
-            }
+            View::GeneralSettings => gui::views::general_settings::general_settings_view(),
         };
 
         let nav = row![

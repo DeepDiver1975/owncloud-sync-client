@@ -9,7 +9,10 @@ fn parse_status_line_ok() {
 #[test]
 fn parse_status_line_with_colon_in_path() {
     let result = parse_status_line("STATUS:SYNC:/home/user/my:file.txt");
-    assert_eq!(result, Some(("SYNC".into(), "/home/user/my:file.txt".into())));
+    assert_eq!(
+        result,
+        Some(("SYNC".into(), "/home/user/my:file.txt".into()))
+    );
 }
 
 #[test]
@@ -31,7 +34,14 @@ fn parse_menu_items_two_entries() {
     let items = parse_menu_items_line(line);
     assert_eq!(items.len(), 2);
     assert_eq!(items[0], ("Share".into(), "SHARE".into(), true));
-    assert_eq!(items[1], ("Make Available".into(), "MAKE_AVAILABLE_LOCALLY".into(), false));
+    assert_eq!(
+        items[1],
+        (
+            "Make Available".into(),
+            "MAKE_AVAILABLE_LOCALLY".into(),
+            false
+        )
+    );
 }
 
 #[test]

@@ -1,14 +1,14 @@
 pub mod handler;
 pub mod protocol;
 
+use anyhow::Result;
 use std::path::Path;
 use std::sync::Arc;
-use anyhow::Result;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 
-use protocol::{DaemonCommand, DaemonEvent, read_message, write_message};
+use protocol::{read_message, write_message, DaemonCommand, DaemonEvent};
 
 const BROADCAST_CAPACITY: usize = 256;
 

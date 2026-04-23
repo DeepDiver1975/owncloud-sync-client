@@ -1,4 +1,4 @@
-use socket_api::commands::share::{handle_share, handle_copy_private_link};
+use socket_api::commands::share::{handle_copy_private_link, handle_share};
 use socket_api::commands::v2::handle_v2_get_client_icon;
 
 #[test]
@@ -23,7 +23,10 @@ fn copy_private_link_returns_ok_response() {
 #[test]
 fn copy_private_link_response_format() {
     let resp = handle_copy_private_link("/any/path");
-    assert!(resp.starts_with("COPY_PRIVATE_LINK:OK:"), "should start with COPY_PRIVATE_LINK:OK:");
+    assert!(
+        resp.starts_with("COPY_PRIVATE_LINK:OK:"),
+        "should start with COPY_PRIVATE_LINK:OK:"
+    );
     assert!(resp.ends_with('\n'));
 }
 
@@ -31,8 +34,14 @@ fn copy_private_link_response_format() {
 fn v2_get_client_icon_parses_id_and_returns_result() {
     let body = r#"{"id":"42","arguments":{}}"#;
     let resp = handle_v2_get_client_icon(body);
-    assert!(resp.contains(r#""id":"42""#), "response should echo the request id");
-    assert!(resp.contains(r#""icon":"#), "response should contain icon field");
+    assert!(
+        resp.contains(r#""id":"42""#),
+        "response should echo the request id"
+    );
+    assert!(
+        resp.contains(r#""icon":"#),
+        "response should contain icon field"
+    );
 }
 
 #[test]

@@ -1,6 +1,4 @@
-use sync_engine::propagate::ops::{
-    delete_remote, mkdir_remote, rename_remote,
-};
+use sync_engine::propagate::ops::{delete_remote, mkdir_remote, rename_remote};
 use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -16,8 +14,7 @@ async fn delete_remote_sends_delete() {
         .mount(&server)
         .await;
 
-    let url =
-        Url::parse(&format!("{}/dav/spaces/space1/old.txt", server.uri())).unwrap();
+    let url = Url::parse(&format!("{}/dav/spaces/space1/old.txt", server.uri())).unwrap();
     delete_remote(&url).await.unwrap();
     server.verify().await;
 }
@@ -33,8 +30,7 @@ async fn mkdir_remote_sends_mkcol() {
         .mount(&server)
         .await;
 
-    let url =
-        Url::parse(&format!("{}/dav/spaces/space1/newdir/", server.uri())).unwrap();
+    let url = Url::parse(&format!("{}/dav/spaces/space1/newdir/", server.uri())).unwrap();
     mkdir_remote(&url).await.unwrap();
     server.verify().await;
 }
@@ -50,20 +46,18 @@ async fn rename_remote_sends_move() {
         .mount(&server)
         .await;
 
-    let from =
-        Url::parse(&format!("{}/dav/spaces/space1/a.txt", server.uri())).unwrap();
-    let to =
-        Url::parse(&format!("{}/dav/spaces/space1/b.txt", server.uri())).unwrap();
+    let from = Url::parse(&format!("{}/dav/spaces/space1/a.txt", server.uri())).unwrap();
+    let to = Url::parse(&format!("{}/dav/spaces/space1/b.txt", server.uri())).unwrap();
     rename_remote(&from, &to).await.unwrap();
     server.verify().await;
 }
 
 #[tokio::test]
 async fn delete_local_removes_file() {
-    use sync_engine::propagate::ops::delete_local;
     use camino::Utf8Path;
-    use tempfile::NamedTempFile;
     use std::io::Write;
+    use sync_engine::propagate::ops::delete_local;
+    use tempfile::NamedTempFile;
 
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(b"data").unwrap();

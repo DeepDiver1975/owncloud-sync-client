@@ -16,7 +16,10 @@ impl StatusResolver {
         sync_states: Arc<RwLock<HashMap<Uuid, SyncState>>>,
         folder_roots: Arc<RwLock<Vec<(Utf8PathBuf, Uuid)>>>,
     ) -> Self {
-        Self { sync_states, folder_roots }
+        Self {
+            sync_states,
+            folder_roots,
+        }
     }
 
     pub fn resolve_file(&self, path: &str) -> &'static str {
@@ -88,5 +91,9 @@ fn worse_status(a: &'static str, b: &'static str) -> &'static str {
             _ => 0,
         }
     }
-    if priority(b) > priority(a) { b } else { a }
+    if priority(b) > priority(a) {
+        b
+    } else {
+        a
+    }
 }

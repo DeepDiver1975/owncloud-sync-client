@@ -96,9 +96,15 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
                     match (ns_bytes, local) {
                         (n, b"href") if n == NS_DAV => c.collecting = Collecting::Href,
                         (n, b"getetag") if n == NS_DAV => c.collecting = Collecting::Etag,
-                        (n, b"getlastmodified") if n == NS_DAV => c.collecting = Collecting::LastModified,
-                        (n, b"getcontentlength") if n == NS_DAV => c.collecting = Collecting::ContentLength,
-                        (n, b"collection") if n == NS_DAV => c.resource_type = ResourceType::Directory,
+                        (n, b"getlastmodified") if n == NS_DAV => {
+                            c.collecting = Collecting::LastModified
+                        }
+                        (n, b"getcontentlength") if n == NS_DAV => {
+                            c.collecting = Collecting::ContentLength
+                        }
+                        (n, b"collection") if n == NS_DAV => {
+                            c.resource_type = ResourceType::Directory
+                        }
                         (n, b"fileid") if n == NS_OC => c.collecting = Collecting::FileId,
                         (n, b"status") if n == NS_DAV => {
                             c.collecting = Collecting::Status;
@@ -159,7 +165,8 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
                 if local == b"status" {
                     if let Some(ref c) = current {
                         // HTTP status lines: "HTTP/1.1 2XX ..." — check the status code part.
-                        propstat_ok = c.propstat_status
+                        propstat_ok = c
+                            .propstat_status
                             .split_whitespace()
                             .nth(1)
                             .and_then(|code| code.parse::<u16>().ok())

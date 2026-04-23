@@ -34,8 +34,12 @@ fn sync_instruction_variants() {
     let _dn = SyncInstruction::Download;
     let _dl = SyncInstruction::DeleteLocal;
     let _dr = SyncInstruction::DeleteRemote;
-    let _rl = SyncInstruction::RenameLocal { to: Utf8PathBuf::from("/b") };
-    let _rr = SyncInstruction::RenameRemote { to: Utf8PathBuf::from("/c") };
+    let _rl = SyncInstruction::RenameLocal {
+        to: Utf8PathBuf::from("/b"),
+    };
+    let _rr = SyncInstruction::RenameRemote {
+        to: Utf8PathBuf::from("/c"),
+    };
     let _co = SyncInstruction::Conflict;
     let _um = SyncInstruction::UpdateMetadata;
     let _ig = SyncInstruction::Ignore;

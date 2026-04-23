@@ -1,5 +1,5 @@
-use vfs_core::{Vfs, VfsError, VfsFileItem, VfsStatus};
 use camino::Utf8Path;
+use vfs_core::{Vfs, VfsError, VfsFileItem, VfsStatus};
 
 struct Dummy;
 

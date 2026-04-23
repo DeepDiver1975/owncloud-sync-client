@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use camino::Utf8Path;
+use std::sync::Arc;
 use thiserror::Error;
 use vfs_core::Vfs;
 use vfs_off::VfsOff;
@@ -22,29 +22,31 @@ pub fn create_vfs(mode: &str, root: &Utf8Path) -> Result<Arc<dyn Vfs>, DaemonErr
             #[cfg(target_os = "windows")]
             {
                 use vfs_windows::VfsWindows;
-                let vfs = VfsWindows::new(root)
-                    .map_err(|e| DaemonError::VfsInit(e.to_string()))?;
+                let vfs = VfsWindows::new(root).map_err(|e| DaemonError::VfsInit(e.to_string()))?;
                 Ok(Arc::new(vfs))
             }
             #[cfg(not(target_os = "windows"))]
             {
                 let _ = root;
-                Err(DaemonError::VfsNotSupported("windows_cf requires Windows".into()))
+                Err(DaemonError::VfsNotSupported(
+                    "windows_cf requires Windows".into(),
+                ))
             }
         }
 
         "macos_fp" => {
             #[cfg(target_os = "macos")]
             {
-                use vfs_macos::VfsMacos;
-                let vfs = VfsMacos::new(root)
-                    .map_err(|e| DaemonError::VfsInit(e.to_string()))?;
+                use vfs_macos::VfsMacOs;
+                let vfs = VfsMacOs::new(root).map_err(|e| DaemonError::VfsInit(e.to_string()))?;
                 Ok(Arc::new(vfs))
             }
             #[cfg(not(target_os = "macos"))]
             {
                 let _ = root;
-                Err(DaemonError::VfsNotSupported("macos_fp requires macOS".into()))
+                Err(DaemonError::VfsNotSupported(
+                    "macos_fp requires macOS".into(),
+                ))
             }
         }
 

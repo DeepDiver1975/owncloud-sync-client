@@ -14,7 +14,6 @@ pub async fn discover_remote(space_root: &Url) -> Result<Vec<RemoteEntry>> {
     let mut queue = VecDeque::from([space_root.clone()]);
 
     while let Some(url) = queue.pop_front() {
-
         let body = r#"<?xml version="1.0" encoding="utf-8"?>
 <D:propfind xmlns:D="DAV:" xmlns:OC="http://owncloud.org/ns">
   <D:prop>
@@ -28,13 +27,19 @@ pub async fn discover_remote(space_root: &Url) -> Result<Vec<RemoteEntry>> {
 </D:propfind>"#;
 
         let resp = client
-            .request(reqwest::Method::from_bytes(b"PROPFIND").unwrap(), url.as_str())
+            .request(
+                reqwest::Method::from_bytes(b"PROPFIND").unwrap(),
+                url.as_str(),
+            )
             .header("Depth", "1")
             .header("Content-Type", "application/xml")
             .body(body)
             .send()
             .await
-            .map_err(|e| SyncError::Http { status: 0, message: e.to_string() })?;
+            .map_err(|e| SyncError::Http {
+                status: 0,
+                message: e.to_string(),
+            })?;
 
         if resp.status().as_u16() != 207 {
             return Err(SyncError::Http {
@@ -43,10 +48,10 @@ pub async fn discover_remote(space_root: &Url) -> Result<Vec<RemoteEntry>> {
             });
         }
 
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| SyncError::Http { status: 0, message: e.to_string() })?;
+        let text = resp.text().await.map_err(|e| SyncError::Http {
+            status: 0,
+            message: e.to_string(),
+        })?;
 
         let (files, dirs) = parse_propfind(&text, space_root)?;
         result.extend(files);
@@ -56,10 +61,7 @@ pub async fn discover_remote(space_root: &Url) -> Result<Vec<RemoteEntry>> {
     Ok(result)
 }
 
-fn parse_propfind(
-    xml: &str,
-    space_root: &Url,
-) -> Result<(Vec<RemoteEntry>, Vec<Url>)> {
+fn parse_propfind(xml: &str, space_root: &Url) -> Result<(Vec<RemoteEntry>, Vec<Url>)> {
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
 
@@ -115,21 +117,30 @@ fn parse_propfind(
             }
             Ok(Event::Text(ref e)) => {
                 let text = e.unescape().unwrap_or_default().into_owned();
-                if in_href { href = text.clone(); }
-                if in_etag { etag = text.trim_matches('"').to_string(); }
-                if in_length { size = text.parse().unwrap_or(0); }
-                if in_fileid { file_id = text.clone(); }
+                if in_href {
+                    href = text.clone();
+                }
+                if in_etag {
+                    etag = text.trim_matches('"').to_string();
+                }
+                if in_length {
+                    size = text.parse().unwrap_or(0);
+                }
+                if in_fileid {
+                    file_id = text.clone();
+                }
                 in_href = false;
                 in_etag = false;
                 in_length = false;
                 in_fileid = false;
             }
             Ok(Event::End(ref e)) => {
-                let name = std::str::from_utf8(e.local_name().into_inner())
-                    .unwrap_or("");
+                let name = std::str::from_utf8(e.local_name().into_inner()).unwrap_or("");
                 if name == "response" && in_response {
                     in_response = false;
-                    if href.is_empty() { continue; }
+                    if href.is_empty() {
+                        continue;
+                    }
 
                     let root_path = space_root.path().trim_end_matches('/');
                     let rel = href

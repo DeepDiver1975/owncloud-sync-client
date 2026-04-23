@@ -1,11 +1,9 @@
 use camino::Utf8PathBuf;
-use socket_api::commands::status::{
-    handle_retrieve_file_status, handle_retrieve_folder_status,
-};
+use socket_api::commands::status::{handle_retrieve_file_status, handle_retrieve_folder_status};
 use socket_api::status_resolver::StatusResolver;
-use sync_engine::state::{FileStatus, SyncState};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use sync_engine::state::{FileStatus, SyncState};
 use uuid::Uuid;
 
 fn make_resolver(root: &str, file_path: &str, status: FileStatus) -> StatusResolver {

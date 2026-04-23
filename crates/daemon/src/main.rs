@@ -1,24 +1,24 @@
+use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
-use anyhow::Result;
 use tokio::sync::mpsc;
 use tokio::time::interval;
 use tracing::{error, info};
 
 mod config;
-mod lock;
-mod paths;
-mod watcher;
-mod scheduler;
-mod vfs_factory;
 mod folder_manager;
 mod gui_ipc;
+mod lock;
+mod paths;
+mod scheduler;
+mod vfs_factory;
+mod watcher;
 
 use config::AppConfig;
 use folder_manager::FolderManager;
-use gui_ipc::{GuiIpcServer, protocol::DaemonCommand, protocol::DaemonEvent};
 use gui_ipc::handler::{handle_command, ShouldQuit};
-use lock::{LockFile, LockError};
+use gui_ipc::{protocol::DaemonCommand, protocol::DaemonEvent, GuiIpcServer};
+use lock::{LockError, LockFile};
 use scheduler::SyncScheduler;
 use socket_api::server::SocketApiServer;
 use socket_api::transport::unix::UnixTransport;
@@ -27,8 +27,7 @@ use socket_api::transport::unix::UnixTransport;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("daemon=info".parse()?)
+            tracing_subscriber::EnvFilter::from_default_env().add_directive("daemon=info".parse()?),
         )
         .init();
 
@@ -53,16 +52,18 @@ async fn main() -> Result<()> {
 
     let poll_secs = config.general.poll_interval_secs;
 
-    let all_folders: Vec<_> = config.account.iter()
+    let all_folders: Vec<_> = config
+        .account
+        .iter()
         .flat_map(|a| a.folder.clone())
         .collect();
     let folder_manager = FolderManager::init_sync(&all_folders, &config.account)?;
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
-    let sync_states  = folder_manager.sync_states();
+    let sync_states = folder_manager.sync_states();
     let folder_roots = folder_manager.folder_roots();
-    let shared_vfs   = folder_manager.shared_vfs();
-    let socket_api   = Arc::new(SocketApiServer::new(sync_states, folder_roots, shared_vfs));
+    let shared_vfs = folder_manager.shared_vfs();
+    let socket_api = Arc::new(SocketApiServer::new(sync_states, folder_roots, shared_vfs));
 
     let (gui_ipc, _initial_rx) = GuiIpcServer::new();
 
@@ -72,11 +73,12 @@ async fn main() -> Result<()> {
     // Spawn SocketApiServer.
     let socket_api_clone = Arc::clone(&socket_api);
     tokio::spawn(async move {
-        let transport = match UnixTransport::bind(
-            &UnixTransport::default_path()
-        ).await {
+        let transport = match UnixTransport::bind(&UnixTransport::default_path()).await {
             Ok(t) => t,
-            Err(e) => { error!("socket-api bind error: {e}"); return; }
+            Err(e) => {
+                error!("socket-api bind error: {e}");
+                return;
+            }
         };
         if let Err(e) = socket_api_clone.run(Box::new(transport)).await {
             error!("SocketApiServer error: {e}");
@@ -104,7 +106,9 @@ async fn main() -> Result<()> {
         loop {
             ticker.tick().await;
             for id in &folder_ids_poll {
-                let _ = poll_tx.send(DaemonCommand::TriggerSync { folder_id: *id }).await;
+                let _ = poll_tx
+                    .send(DaemonCommand::TriggerSync { folder_id: *id })
+                    .await;
             }
         }
     });

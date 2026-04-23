@@ -83,7 +83,11 @@ impl GraphClient {
             .use_rustls_tls()
             .build()
             .expect("build reqwest client");
-        Self { base_url, client, token }
+        Self {
+            base_url,
+            client,
+            token,
+        }
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {

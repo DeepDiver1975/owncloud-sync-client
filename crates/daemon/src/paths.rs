@@ -2,26 +2,42 @@ use std::path::PathBuf;
 
 pub fn platform_config_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
-    { dirs::config_dir().expect("APPDATA not set").join("ownCloud") }
+    {
+        dirs::config_dir()
+            .expect("APPDATA not set")
+            .join("ownCloud")
+    }
 
     #[cfg(target_os = "macos")]
-    { dirs::config_dir().expect("home dir unavailable").join("ownCloud") }
+    {
+        dirs::config_dir()
+            .expect("home dir unavailable")
+            .join("ownCloud")
+    }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    { dirs::config_dir().expect("config dir unavailable").join("owncloud") }
+    {
+        dirs::config_dir()
+            .expect("config dir unavailable")
+            .join("owncloud")
+    }
 }
 
 pub fn platform_lock_path() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        dirs::data_local_dir().expect("LOCALAPPDATA not set")
-            .join("ownCloud").join("ocsyncd.lock")
+        dirs::data_local_dir()
+            .expect("LOCALAPPDATA not set")
+            .join("ownCloud")
+            .join("ocsyncd.lock")
     }
 
     #[cfg(target_os = "macos")]
     {
-        dirs::config_dir().expect("home dir unavailable")
-            .join("ownCloud").join("ocsyncd.lock")
+        dirs::config_dir()
+            .expect("home dir unavailable")
+            .join("ownCloud")
+            .join("ocsyncd.lock")
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -29,7 +45,8 @@ pub fn platform_lock_path() -> PathBuf {
         std::env::var("XDG_RUNTIME_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| std::env::temp_dir())
-            .join("owncloud").join("ocsyncd.lock")
+            .join("owncloud")
+            .join("ocsyncd.lock")
     }
 }
 
@@ -42,8 +59,10 @@ pub fn platform_gui_socket_path() -> PathBuf {
 
     #[cfg(target_os = "macos")]
     {
-        dirs::config_dir().expect("home dir unavailable")
-            .join("ownCloud").join("daemon-gui.sock")
+        dirs::config_dir()
+            .expect("home dir unavailable")
+            .join("ownCloud")
+            .join("daemon-gui.sock")
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -51,7 +70,8 @@ pub fn platform_gui_socket_path() -> PathBuf {
         std::env::var("XDG_RUNTIME_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| std::env::temp_dir())
-            .join("owncloud").join("daemon-gui.sock")
+            .join("owncloud")
+            .join("daemon-gui.sock")
     }
 }
 

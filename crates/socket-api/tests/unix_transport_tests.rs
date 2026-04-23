@@ -38,8 +38,14 @@ mod unix_tests {
         let socket_path = dir.path().join("drop_test.sock");
         {
             let _transport = UnixTransport::bind(&socket_path).await.unwrap();
-            assert!(socket_path.exists(), "socket file should exist while transport is alive");
+            assert!(
+                socket_path.exists(),
+                "socket file should exist while transport is alive"
+            );
         }
-        assert!(!socket_path.exists(), "socket file should be removed on drop");
+        assert!(
+            !socket_path.exists(),
+            "socket file should be removed on drop"
+        );
     }
 }

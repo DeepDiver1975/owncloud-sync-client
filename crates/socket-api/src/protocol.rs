@@ -43,7 +43,9 @@ pub fn parse_command(line: &str) -> Result<Command> {
                     "GET_MENU_ITEMS requires a non-empty path argument".into(),
                 ));
             }
-            Ok(Command::GetMenuItems { path: args.to_string() })
+            Ok(Command::GetMenuItems {
+                path: args.to_string(),
+            })
         }
 
         "RETRIEVE_FILE_STATUS" => {
@@ -52,7 +54,9 @@ pub fn parse_command(line: &str) -> Result<Command> {
                     "RETRIEVE_FILE_STATUS requires a path argument".into(),
                 ));
             }
-            Ok(Command::RetrieveFileStatus { path: args.to_string() })
+            Ok(Command::RetrieveFileStatus {
+                path: args.to_string(),
+            })
         }
 
         "RETRIEVE_FOLDER_STATUS" => {
@@ -61,7 +65,9 @@ pub fn parse_command(line: &str) -> Result<Command> {
                     "RETRIEVE_FOLDER_STATUS requires a path argument".into(),
                 ));
             }
-            Ok(Command::RetrieveFolderStatus { path: args.to_string() })
+            Ok(Command::RetrieveFolderStatus {
+                path: args.to_string(),
+            })
         }
 
         "SHARE" => {
@@ -70,7 +76,9 @@ pub fn parse_command(line: &str) -> Result<Command> {
                     "SHARE requires a path argument".into(),
                 ));
             }
-            Ok(Command::Share { path: args.to_string() })
+            Ok(Command::Share {
+                path: args.to_string(),
+            })
         }
 
         "MAKE_AVAILABLE_LOCALLY" => {
@@ -99,10 +107,14 @@ pub fn parse_command(line: &str) -> Result<Command> {
                     "COPY_PRIVATE_LINK requires a path argument".into(),
                 ));
             }
-            Ok(Command::CopyPrivateLink { path: args.to_string() })
+            Ok(Command::CopyPrivateLink {
+                path: args.to_string(),
+            })
         }
 
-        other => Err(SocketApiError::Protocol(format!("unknown command: {other:?}"))),
+        other => Err(SocketApiError::Protocol(format!(
+            "unknown command: {other:?}"
+        ))),
     }
 }
 

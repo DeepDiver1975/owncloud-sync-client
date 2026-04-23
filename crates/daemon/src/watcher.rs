@@ -1,6 +1,6 @@
-use std::path::Path;
 use anyhow::Result;
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
+use std::path::Path;
 use tokio::sync::mpsc;
 
 pub struct FolderWatcher {
@@ -18,7 +18,10 @@ impl FolderWatcher {
 
         watcher.watch(path, RecursiveMode::Recursive)?;
 
-        Ok(Self { _watcher: watcher, rx })
+        Ok(Self {
+            _watcher: watcher,
+            rx,
+        })
     }
 
     pub async fn next_event(&mut self) -> Option<Event> {
@@ -36,9 +39,9 @@ impl FolderWatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use notify::EventKind;
     use std::time::Duration;
     use tempfile::tempdir;
-    use notify::EventKind;
 
     #[tokio::test]
     async fn detects_file_create() {
@@ -75,10 +78,11 @@ mod tests {
             .expect("timeout waiting for modify event")
             .expect("channel closed");
 
-        let is_relevant = matches!(
-            event.kind,
-            EventKind::Create(_) | EventKind::Modify(_)
+        let is_relevant = matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_));
+        assert!(
+            is_relevant,
+            "expected Create/Modify event, got {:?}",
+            event.kind
         );
-        assert!(is_relevant, "expected Create/Modify event, got {:?}", event.kind);
     }
 }

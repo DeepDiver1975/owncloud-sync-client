@@ -1,6 +1,6 @@
+use fs2::FileExt;
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
-use fs2::FileExt;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -21,7 +21,11 @@ impl LockFile {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let file = OpenOptions::new().read(true).write(true).create(true).open(path)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)?;
         file.try_lock_exclusive().map_err(|e| {
             if e.kind() == std::io::ErrorKind::WouldBlock {
                 LockError::AlreadyRunning
@@ -29,7 +33,10 @@ impl LockFile {
                 LockError::Io(e)
             }
         })?;
-        Ok(LockFile { path: path.to_owned(), _file: file })
+        Ok(LockFile {
+            path: path.to_owned(),
+            _file: file,
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -64,7 +71,12 @@ mod tests {
         let path = dir.path().join("daemon.lock");
         let _lock = LockFile::acquire(&path).unwrap();
         use std::fs::OpenOptions;
-        let f2 = OpenOptions::new().read(true).write(true).create(true).open(&path).unwrap();
+        let f2 = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)
+            .unwrap();
         let result = f2.try_lock_exclusive();
         #[cfg(not(target_os = "linux"))]
         assert!(result.is_err(), "expected lock conflict");

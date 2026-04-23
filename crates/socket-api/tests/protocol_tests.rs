@@ -1,5 +1,5 @@
-use socket_api::protocol::{parse_command, format_response, Command};
 use socket_api::error::SocketApiError;
+use socket_api::protocol::{format_response, parse_command, Command};
 
 #[test]
 fn parse_version() {
@@ -155,7 +155,12 @@ fn format_response_no_parts() {
 fn format_response_get_strings_uses_field_sep() {
     let resp = format_response(
         "GET_STRINGS",
-        &["SHARE_MENU_TITLE", "Share", "OPEN_PRIVATE_LINK", "Open in browser"],
+        &[
+            "SHARE_MENU_TITLE",
+            "Share",
+            "OPEN_PRIVATE_LINK",
+            "Open in browser",
+        ],
     );
     assert_eq!(
         resp,

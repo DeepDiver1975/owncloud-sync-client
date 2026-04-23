@@ -27,7 +27,10 @@ async fn discovers_files_recursively() {
     assert!(names.contains(&"b.txt"), "missing b.txt");
     assert!(names.contains(&"c.txt"), "missing c.txt");
 
-    let a = entries.iter().find(|e| e.path.file_name() == Some("a.txt")).unwrap();
+    let a = entries
+        .iter()
+        .find(|e| e.path.file_name() == Some("a.txt"))
+        .unwrap();
     assert_eq!(a.size, 10);
 }
 

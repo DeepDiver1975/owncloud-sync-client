@@ -37,9 +37,16 @@ pub fn account_settings_view(account: &AccountView) -> Element<Message> {
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding(PADDING / 2);
 
-    let col = column![title, url_label, folders_title, folders_col, remove_btn, back_btn]
-        .spacing(SPACING)
-        .max_width(480);
+    let col = column![
+        title,
+        url_label,
+        folders_title,
+        folders_col,
+        remove_btn,
+        back_btn
+    ]
+    .spacing(SPACING)
+    .max_width(480);
 
     container(col)
         .width(Length::Fill)

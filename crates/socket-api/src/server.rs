@@ -34,7 +34,12 @@ impl SocketApiServer {
     ) -> Self {
         let resolver = Arc::new(StatusResolver::new(sync_states, folder_roots.clone()));
         let broadcast = Arc::new(BroadcastSender::new());
-        Self { resolver, broadcast, vfs, folder_roots }
+        Self {
+            resolver,
+            broadcast,
+            vfs,
+            folder_roots,
+        }
     }
 
     pub fn broadcast(&self) -> Arc<BroadcastSender> {
@@ -43,9 +48,10 @@ impl SocketApiServer {
 
     pub async fn run(self: Arc<Self>, transport: Box<dyn Transport>) -> Result<()> {
         loop {
-            let conn = transport.accept().await.map_err(|e| {
-                SocketApiError::Transport(format!("accept error: {e}"))
-            })?;
+            let conn = transport
+                .accept()
+                .await
+                .map_err(|e| SocketApiError::Transport(format!("accept error: {e}")))?;
 
             let server = self.clone();
             tokio::spawn(async move {
@@ -68,7 +74,10 @@ impl SocketApiServer {
         {
             let register_msgs: Vec<String> = {
                 let roots = self.folder_roots.read().unwrap();
-                roots.iter().map(|(root, _)| format!("REGISTER_PATH:{root}\n")).collect()
+                roots
+                    .iter()
+                    .map(|(root, _)| format!("REGISTER_PATH:{root}\n"))
+                    .collect()
             };
             let mut guard = write_half.lock().await;
             for msg in register_msgs {
@@ -136,8 +145,12 @@ impl SocketApiServer {
             Command::Version => "VERSION:1.1\n".to_string(),
             Command::GetStrings => handle_get_strings(),
             Command::GetMenuItems { path } => handle_get_menu_items(&path, &self.resolver),
-            Command::RetrieveFileStatus { path } => handle_retrieve_file_status(&path, &self.resolver),
-            Command::RetrieveFolderStatus { path } => handle_retrieve_folder_status(&path, &self.resolver),
+            Command::RetrieveFileStatus { path } => {
+                handle_retrieve_file_status(&path, &self.resolver)
+            }
+            Command::RetrieveFolderStatus { path } => {
+                handle_retrieve_folder_status(&path, &self.resolver)
+            }
             Command::Share { path } => handle_share(&path),
             Command::CopyPrivateLink { path } => handle_copy_private_link(&path),
             Command::MakeAvailableLocally { paths } => {

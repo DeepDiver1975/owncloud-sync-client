@@ -1,5 +1,5 @@
-use gui::model::{AccountView, FolderStatus, FolderView, View};
 use gui::app::App;
+use gui::model::{AccountView, FolderStatus, FolderView, View};
 use uuid::Uuid;
 
 #[test]

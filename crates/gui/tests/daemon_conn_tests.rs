@@ -49,13 +49,10 @@ async fn events_received_from_daemon() {
     let json = serde_json::to_string(&event).unwrap() + "\n";
     write_half.write_all(json.as_bytes()).await.expect("write");
 
-    let received = tokio::time::timeout(
-        std::time::Duration::from_secs(1),
-        event_rx.recv(),
-    )
-    .await
-    .expect("timeout")
-    .expect("event");
+    let received = tokio::time::timeout(std::time::Duration::from_secs(1), event_rx.recv())
+        .await
+        .expect("timeout")
+        .expect("event");
 
     assert!(matches!(received, DaemonEvent::Ready));
 

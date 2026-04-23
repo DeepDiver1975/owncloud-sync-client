@@ -11,9 +11,7 @@ async fn small_file_uses_plain_put() {
 
     Mock::given(method("PUT"))
         .and(path("/dav/spaces/space1/hello.txt"))
-        .respond_with(
-            ResponseTemplate::new(201).insert_header("etag", r#""newetag""#),
-        )
+        .respond_with(ResponseTemplate::new(201).insert_header("etag", r#""newetag""#))
         .expect(1)
         .mount(&server)
         .await;
@@ -24,11 +22,7 @@ async fn small_file_uses_plain_put() {
 
     let req = UploadRequest {
         local_path: camino::Utf8Path::from_path(tmp.path()).unwrap().to_owned(),
-        remote_url: Url::parse(&format!(
-            "{}/dav/spaces/space1/hello.txt",
-            server.uri()
-        ))
-        .unwrap(),
+        remote_url: Url::parse(&format!("{}/dav/spaces/space1/hello.txt", server.uri())).unwrap(),
         size: 5,
         checksum: None,
         tus_threshold: 1024 * 1024 * 5,
@@ -46,10 +40,7 @@ async fn large_file_uses_tus_protocol() {
 
     Mock::given(method("POST"))
         .and(path("/tus/upload"))
-        .respond_with(
-            ResponseTemplate::new(201)
-                .insert_header("location", "/tus/upload/abc123"),
-        )
+        .respond_with(ResponseTemplate::new(201).insert_header("location", "/tus/upload/abc123"))
         .expect(1)
         .mount(&server)
         .await;

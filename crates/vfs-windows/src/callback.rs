@@ -9,12 +9,12 @@ use std::sync::Arc;
 use camino::Utf8PathBuf;
 use tokio::sync::mpsc;
 
+use windows::core::HSTRING;
 use windows::Win32::Storage::CloudFilters::{
     CfConnectSyncRoot, CfDisconnectSyncRoot, CF_CALLBACK, CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS,
     CF_CALLBACK_REGISTRATION, CF_CALLBACK_TYPE_FETCH_DATA, CF_CALLBACK_TYPE_NONE,
     CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE,
 };
-use windows::core::HSTRING;
 
 use crate::error::{Result, VfsWindowsError};
 

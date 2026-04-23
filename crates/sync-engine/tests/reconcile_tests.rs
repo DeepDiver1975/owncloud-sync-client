@@ -5,11 +5,21 @@ use std::time::{Duration, SystemTime};
 use sync_engine::reconcile::reconcile;
 use sync_engine::types::*;
 
-fn path(s: &str) -> Utf8PathBuf { Utf8PathBuf::from(s) }
-fn t(secs: u64) -> SystemTime { SystemTime::UNIX_EPOCH + Duration::from_secs(secs) }
+fn path(s: &str) -> Utf8PathBuf {
+    Utf8PathBuf::from(s)
+}
+fn t(secs: u64) -> SystemTime {
+    SystemTime::UNIX_EPOCH + Duration::from_secs(secs)
+}
 
 fn local(size: u64, mtime: SystemTime) -> LocalEntry {
-    LocalEntry { path: path("/a.txt"), mtime, size, inode: 1, is_virtual: false }
+    LocalEntry {
+        path: path("/a.txt"),
+        mtime,
+        size,
+        inode: 1,
+        is_virtual: false,
+    }
 }
 
 fn remote(size: u64, etag: &str, mtime: SystemTime) -> RemoteEntry {
@@ -36,13 +46,23 @@ fn no_local_no_remote_no_journal() {
 
 #[test]
 fn local_only_no_journal() {
-    let instr = reconcile(Some(local(10, t(1))), None, None, ConflictStrategy::KeepBoth);
+    let instr = reconcile(
+        Some(local(10, t(1))),
+        None,
+        None,
+        ConflictStrategy::KeepBoth,
+    );
     assert_eq!(instr, SyncInstruction::Upload);
 }
 
 #[test]
 fn remote_only_no_journal() {
-    let instr = reconcile(None, Some(remote(10, "e1", t(1))), None, ConflictStrategy::KeepBoth);
+    let instr = reconcile(
+        None,
+        Some(remote(10, "e1", t(1))),
+        None,
+        ConflictStrategy::KeepBoth,
+    );
     assert_eq!(instr, SyncInstruction::Download);
 }
 

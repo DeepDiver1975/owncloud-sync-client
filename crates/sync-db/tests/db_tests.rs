@@ -5,9 +5,7 @@ use tempfile::tempdir;
 async fn open_temp_db() -> (SyncJournalDb, tempfile::TempDir) {
     let dir = tempdir().expect("create tempdir");
     let db_path = dir.path().join("test.db");
-    let db = SyncJournalDb::open(&db_path)
-        .await
-        .expect("open db");
+    let db = SyncJournalDb::open(&db_path).await.expect("open db");
     (db, dir)
 }
 
@@ -96,7 +94,9 @@ async fn test_list_entries_ordered() {
     let (db, _dir) = open_temp_db().await;
 
     for name in &["z.txt", "a.txt", "m.txt"] {
-        db.upsert_entry(&JournalEntry::new(format!("/{name}"))).await.unwrap();
+        db.upsert_entry(&JournalEntry::new(format!("/{name}")))
+            .await
+            .unwrap();
     }
 
     let entries = db.list_entries().await.unwrap();

@@ -1,8 +1,8 @@
 use camino::Utf8PathBuf;
 use socket_api::server::SocketApiServer;
-use sync_engine::state::SyncState;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use sync_engine::state::SyncState;
 use uuid::Uuid;
 use vfs_off::VfsOff;
 
@@ -12,9 +12,10 @@ fn make_server() -> Arc<SocketApiServer> {
     let mut states = HashMap::new();
     states.insert(folder_id, state);
     let sync_states = Arc::new(RwLock::new(states));
-    let folder_roots = Arc::new(RwLock::new(vec![
-        (Utf8PathBuf::from("/sync/root"), folder_id),
-    ]));
+    let folder_roots = Arc::new(RwLock::new(vec![(
+        Utf8PathBuf::from("/sync/root"),
+        folder_id,
+    )]));
     let vfs: Arc<dyn vfs_core::Vfs> = Arc::new(VfsOff::new());
 
     Arc::new(SocketApiServer::new(sync_states, folder_roots, vfs))
@@ -82,5 +83,8 @@ async fn dispatch_make_available_locally_returns_ok() {
 async fn dispatch_unknown_command_returns_none() {
     let server = make_server();
     let resp = server.dispatch_line("UNKNOWN_COMMAND:arg").await;
-    assert!(resp.is_none(), "unknown command should return None (silently ignored)");
+    assert!(
+        resp.is_none(),
+        "unknown command should return None (silently ignored)"
+    );
 }

@@ -18,11 +18,11 @@
 
 #[cfg(target_os = "windows")]
 mod tests {
-    use std::time::SystemTime;
     use camino::{Utf8Path, Utf8PathBuf};
+    use std::time::SystemTime;
     use tokio::sync::mpsc;
     use vfs_core::{Vfs, VfsFileItem, VfsStatus};
-    use vfs_windows::{VfsWindows, HydrationRequest};
+    use vfs_windows::{HydrationRequest, VfsWindows};
 
     fn make_item(name: &str, size: u64, file_id: &str) -> VfsFileItem {
         VfsFileItem {
@@ -64,10 +64,7 @@ mod tests {
             .expect("is_virtual should succeed");
         assert!(virtual_flag, "newly created placeholder must be virtual");
 
-        let s = vfs
-            .status(&file_path)
-            .await
-            .expect("status should succeed");
+        let s = vfs.status(&file_path).await.expect("status should succeed");
         assert_eq!(
             s,
             VfsStatus::Placeholder,
@@ -129,8 +126,12 @@ mod tests {
         vfs.create_placeholder(&item).await.unwrap();
 
         let file = root.join("pin_test.txt");
-        vfs.set_pinned(&file, true).await.expect("pin should succeed");
-        vfs.set_pinned(&file, false).await.expect("unpin should succeed");
+        vfs.set_pinned(&file, true)
+            .await
+            .expect("pin should succeed");
+        vfs.set_pinned(&file, false)
+            .await
+            .expect("unpin should succeed");
 
         drop(vfs);
     }

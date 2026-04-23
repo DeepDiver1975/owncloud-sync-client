@@ -1,22 +1,22 @@
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use anyhow::Result;
 use camino::Utf8PathBuf;
-use uuid::Uuid;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use url::Url;
+use uuid::Uuid;
 
+use crate::config::{AccountConfig, FolderConfig};
+use crate::vfs_factory::create_vfs;
+use crate::watcher::FolderWatcher;
 use sync_engine::engine::{EngineConfig, SyncEngine};
 use sync_engine::state::SyncState;
 use sync_engine::types::ConflictStrategy;
 use vfs_core::Vfs;
-use crate::config::{AccountConfig, FolderConfig};
-use crate::vfs_factory::create_vfs;
-use crate::watcher::FolderWatcher;
 
 pub struct ManagedFolder {
-    pub config:  FolderConfig,
-    pub engine:  Arc<SyncEngine>,
-    pub vfs:     Arc<dyn Vfs>,
+    pub config: FolderConfig,
+    pub engine: Arc<SyncEngine>,
+    pub vfs: Arc<dyn Vfs>,
     pub watcher: FolderWatcher,
 }
 
@@ -45,7 +45,9 @@ impl FolderManager {
             let vfs = create_vfs(&fc.vfs_mode, &root)
                 .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
 
-            let server_url = account.map(|a| a.url.as_str()).unwrap_or("http://localhost");
+            let server_url = account
+                .map(|a| a.url.as_str())
+                .unwrap_or("http://localhost");
             let space_root = Url::parse(&format!("{}/dav/spaces/{}", server_url, fc.space_id))
                 .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown").unwrap());
 
@@ -62,7 +64,12 @@ impl FolderManager {
             states.insert(fc.id, SyncState::new(fc.id));
             folders.insert(
                 fc.id,
-                ManagedFolder { config: fc.clone(), engine: Arc::new(engine), vfs, watcher },
+                ManagedFolder {
+                    config: fc.clone(),
+                    engine: Arc::new(engine),
+                    vfs,
+                    watcher,
+                },
             );
         }
 
@@ -90,7 +97,8 @@ impl FolderManager {
 
     /// (local_root, folder_id) pairs for SocketApiServer path dispatch.
     pub fn folder_roots(&self) -> Arc<RwLock<Vec<(Utf8PathBuf, Uuid)>>> {
-        let pairs: Vec<_> = self.folders
+        let pairs: Vec<_> = self
+            .folders
             .iter()
             .map(|(id, mf)| (Utf8PathBuf::from(&mf.config.local_path), *id))
             .collect();

@@ -1,8 +1,6 @@
-use std::sync::Arc;
 use socket_api::broadcast::BroadcastSender;
-use socket_api::commands::vfs_cmds::{
-    handle_make_available_locally, handle_make_online_only,
-};
+use socket_api::commands::vfs_cmds::{handle_make_available_locally, handle_make_online_only};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use vfs_off::VfsOff;
 
@@ -44,8 +42,14 @@ async fn make_available_locally_broadcasts_status_for_each_path() {
     let msg1 = rx.recv().await.expect("first broadcast missing");
     let msg2 = rx.recv().await.expect("second broadcast missing");
 
-    assert!(msg1.starts_with("STATUS:"), "expected STATUS broadcast, got: {msg1}");
-    assert!(msg2.starts_with("STATUS:"), "expected STATUS broadcast, got: {msg2}");
+    assert!(
+        msg1.starts_with("STATUS:"),
+        "expected STATUS broadcast, got: {msg1}"
+    );
+    assert!(
+        msg2.starts_with("STATUS:"),
+        "expected STATUS broadcast, got: {msg2}"
+    );
 }
 
 #[tokio::test]
@@ -61,5 +65,8 @@ async fn make_online_only_broadcasts_status_for_each_path() {
     handle_make_online_only(paths, vfs, &broadcaster).await;
 
     let msg = rx.recv().await.expect("broadcast missing");
-    assert!(msg.starts_with("STATUS:"), "expected STATUS broadcast, got: {msg}");
+    assert!(
+        msg.starts_with("STATUS:"),
+        "expected STATUS broadcast, got: {msg}"
+    );
 }

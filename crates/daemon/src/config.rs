@@ -1,7 +1,7 @@
-use std::path::Path;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AppConfig {
@@ -21,9 +21,15 @@ pub struct GeneralConfig {
     pub poll_interval_secs: u64,
 }
 
-fn default_log_level() -> String { "info".to_string() }
-fn default_true() -> bool { true }
-fn default_poll_interval() -> u64 { 30 }
+fn default_log_level() -> String {
+    "info".to_string()
+}
+fn default_true() -> bool {
+    true
+}
+fn default_poll_interval() -> u64 {
+    30
+}
 
 impl Default for GeneralConfig {
     fn default() -> Self {
@@ -59,7 +65,9 @@ pub struct FolderConfig {
     pub paused: bool,
 }
 
-fn default_vfs_mode() -> String { "off".to_string() }
+fn default_vfs_mode() -> String {
+    "off".to_string()
+}
 
 impl AppConfig {
     pub fn load(path: &Path) -> Result<Self> {
@@ -70,7 +78,10 @@ impl AppConfig {
 
     pub fn load_or_default(path: &Path) -> Result<Self> {
         if !path.exists() {
-            return Ok(AppConfig { general: GeneralConfig::default(), account: vec![] });
+            return Ok(AppConfig {
+                general: GeneralConfig::default(),
+                account: vec![],
+            });
         }
         Self::load(path)
     }

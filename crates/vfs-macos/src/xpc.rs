@@ -35,16 +35,9 @@ mod imp {
             count: libc::size_t,
         ) -> XpcObject;
 
-        fn xpc_dictionary_set_value(
-            dict: XpcObject,
-            key: *const libc::c_char,
-            value: XpcObject,
-        );
+        fn xpc_dictionary_set_value(dict: XpcObject, key: *const libc::c_char, value: XpcObject);
 
-        fn xpc_dictionary_get_value(
-            dict: XpcObject,
-            key: *const libc::c_char,
-        ) -> XpcObject;
+        fn xpc_dictionary_get_value(dict: XpcObject, key: *const libc::c_char) -> XpcObject;
 
         fn xpc_data_create(bytes: *const c_void, length: libc::size_t) -> XpcObject;
         fn xpc_data_get_bytes_ptr(data: XpcObject) -> *const c_void;
@@ -95,9 +88,8 @@ mod imp {
                 .map_err(|e| VfsMacOsError::Protocol(format!("serialize command: {e}")))?;
 
             // Safety: json_bytes is a valid slice; length matches the pointer.
-            let data_obj = unsafe {
-                xpc_data_create(json_bytes.as_ptr() as *const c_void, json_bytes.len())
-            };
+            let data_obj =
+                unsafe { xpc_data_create(json_bytes.as_ptr() as *const c_void, json_bytes.len()) };
             if data_obj.is_null() {
                 return Err(VfsMacOsError::Xpc(
                     "xpc_data_create returned NULL".to_string(),
@@ -105,8 +97,7 @@ mod imp {
             }
 
             // Safety: xpc_dictionary_create with count=0 produces an empty mutable dict.
-            let msg_dict =
-                unsafe { xpc_dictionary_create(std::ptr::null(), std::ptr::null(), 0) };
+            let msg_dict = unsafe { xpc_dictionary_create(std::ptr::null(), std::ptr::null(), 0) };
             if msg_dict.is_null() {
                 // Safety: data_obj is a valid XPC object created above.
                 unsafe { xpc_release(data_obj) };
@@ -122,9 +113,8 @@ mod imp {
             unsafe { xpc_release(data_obj) };
 
             // Safety: self.conn and msg_dict are valid non-null XPC objects.
-            let reply_obj = unsafe {
-                xpc_connection_send_message_with_reply_sync(self.conn, msg_dict)
-            };
+            let reply_obj =
+                unsafe { xpc_connection_send_message_with_reply_sync(self.conn, msg_dict) };
             // Safety: msg_dict is no longer needed after the send.
             unsafe { xpc_release(msg_dict) };
 
@@ -136,8 +126,7 @@ mod imp {
 
             let key_reply = CString::new("reply").unwrap();
             // Safety: reply_obj is a valid XPC dict; get_value borrows without ownership.
-            let reply_data =
-                unsafe { xpc_dictionary_get_value(reply_obj, key_reply.as_ptr()) };
+            let reply_data = unsafe { xpc_dictionary_get_value(reply_obj, key_reply.as_ptr()) };
 
             if reply_data.is_null() {
                 // Safety: reply_obj is owned by us and must be released.
@@ -186,9 +175,8 @@ mod imp {
         #[test]
         #[ignore = "requires macOS + running FileProvider extension"]
         fn test_connect_and_ping() {
-            let conn =
-                XpcConnection::connect("org.owncloud.owncloud-sync.fileprovider-xpc")
-                    .expect("connect");
+            let conn = XpcConnection::connect("org.owncloud.owncloud-sync.fileprovider-xpc")
+                .expect("connect");
             let cmd = XpcCommand::IsVirtual {
                 path: "test.txt".to_string(),
             };
