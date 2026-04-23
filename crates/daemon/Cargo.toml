@@ -29,6 +29,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 fs2          = "0.4"
 dirs         = "5"
 camino       = { version = "1", features = ["serde1"] }
+url          = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 vfs-windows  = { path = "../vfs-windows" }
