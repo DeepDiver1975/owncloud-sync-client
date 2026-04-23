@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
@@ -5,6 +7,10 @@ use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use crate::daemon_conn::DaemonConnection;
 use crate::model::{AccountView, FolderStatus, FolderView, View};
 use crate::tray::TrayHandle;
+
+/// Carrier for the event receiver produced by `DaemonConnection::connect`.
+/// Wrapped in Arc<Mutex<Option<...>>> so that `Message` can derive Clone.
+pub type EventRxCarrier = Arc<Mutex<Option<mpsc::Receiver<DaemonEvent>>>>;
 
 #[derive(Debug, Clone)]
 pub struct App {
@@ -41,6 +47,7 @@ pub enum Message {
     RemoveAccount(Uuid),
     OpenFolder(String),
     Quit,
+    DaemonConnected(Option<(DaemonConnection, EventRxCarrier)>),
 }
 
 pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
@@ -121,6 +128,8 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             app.daemon.send(DaemonCommand::Quit);
             iced::exit()
         }
+
+        Message::DaemonConnected(_) => iced::Task::none(),
     }
 }
 
