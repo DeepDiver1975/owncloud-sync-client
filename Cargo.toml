@@ -9,6 +9,7 @@ members = [
     "crates/vfs-macos",
     "crates/sync-engine",
     "crates/socket-api",
+    "crates/daemon",
 ]
 
 [workspace.package]

@@ -1,0 +1,42 @@
+[package]
+name = "daemon"
+version = "0.1.0"
+edition = "2021"
+default-run = "ocsyncd"
+
+[[bin]]
+name = "ocsyncd"
+path = "src/main.rs"
+
+[dependencies]
+ocis-client  = { path = "../ocis-client" }
+sync-db      = { path = "../sync-db" }
+vfs-core     = { path = "../vfs-core" }
+vfs-off      = { path = "../vfs-off" }
+sync-engine  = { path = "../sync-engine" }
+socket-api   = { path = "../socket-api" }
+
+tokio        = { version = "1", features = ["full"] }
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+toml         = "0.8"
+notify       = "6"
+uuid         = { version = "1", features = ["v4", "serde"] }
+thiserror    = "1"
+anyhow       = "1"
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+fs2          = "0.4"
+dirs         = "5"
+camino       = { version = "1", features = ["serde1"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+vfs-windows  = { path = "../vfs-windows" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+vfs-macos    = { path = "../vfs-macos" }
+
+[dev-dependencies]
+tempfile     = "3"
+tokio        = { version = "1", features = ["full"] }
+wiremock     = "0.6"
