@@ -11,6 +11,7 @@ members = [
     "crates/socket-api",
     "crates/daemon",
     "crates/gui",
+    "shell-integration/linux/oc-dbus-service",
 ]
 
 [workspace.package]
