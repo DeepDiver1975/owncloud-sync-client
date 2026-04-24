@@ -1,6 +1,5 @@
 use anyhow::Result;
 use std::path::Path;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use super::protocol::{DaemonCommand, DaemonEvent};

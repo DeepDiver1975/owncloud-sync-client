@@ -9,16 +9,11 @@ use crate::error::{OcisError, Result};
 const NS_DAV: &[u8] = b"DAV:";
 const NS_OC: &[u8] = b"http://owncloud.org/ns";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ResourceType {
+    #[default]
     File,
     Directory,
-}
-
-impl Default for ResourceType {
-    fn default() -> Self {
-        ResourceType::File
-    }
 }
 
 #[derive(Debug, Clone)]
