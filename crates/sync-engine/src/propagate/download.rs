@@ -70,9 +70,8 @@ pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
 
     tokio::fs::rename(&tmp_path, &req.local_dest)
         .await
-        .map_err(|e| {
+        .inspect_err(|_e| {
             let _ = std::fs::remove_file(&tmp_path);
-            e
         })?;
 
     Ok(server_etag)
