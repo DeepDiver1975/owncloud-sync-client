@@ -39,7 +39,10 @@ async fn engine_downloads_new_remote_file() {
 
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/s1.*"))
-        .respond_with(ResponseTemplate::new(207).set_body_string(propfind_one_file(&server.uri()).to_string()))
+        .respond_with(
+            ResponseTemplate::new(207)
+                .set_body_string(propfind_one_file(&server.uri()).to_string()),
+        )
         .mount(&server)
         .await;
 
