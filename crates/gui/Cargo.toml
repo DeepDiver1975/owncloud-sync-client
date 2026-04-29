@@ -14,7 +14,6 @@ iced = { version = "0.13", features = ["tokio"] }
 tray-icon = { version = "0.19", optional = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
-serde_json = { workspace = true }
 uuid = { workspace = true }
 anyhow = "1"
 thiserror = { workspace = true }
