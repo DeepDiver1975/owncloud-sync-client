@@ -6,7 +6,7 @@ fn all_variants_exist() {
         status: 404,
         message: "not found".into(),
     };
-    let _: SyncError = SyncError::Io(std::io::Error::new(std::io::ErrorKind::Other, "test"));
+    let _: SyncError = SyncError::Io(std::io::Error::other("test"));
     let _: SyncError = SyncError::Db("db error".into());
     let _: SyncError = SyncError::Vfs("vfs error".into());
     let _: SyncError = SyncError::Parse("parse error".into());

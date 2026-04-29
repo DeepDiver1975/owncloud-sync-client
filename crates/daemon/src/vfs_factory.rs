@@ -63,7 +63,8 @@ mod tests {
 
     fn temp_utf8_path() -> Utf8PathBuf {
         let dir = tempdir().unwrap();
-        Utf8PathBuf::from(dir.into_path().to_string_lossy().into_owned())
+        let path = dir.keep();
+        Utf8PathBuf::from(path.to_string_lossy().into_owned())
     }
 
     #[test]

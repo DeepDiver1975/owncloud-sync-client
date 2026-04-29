@@ -9,12 +9,12 @@ use crate::model::{AccountView, FolderStatus, View};
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
 
-pub fn sync_status_view(accounts: &[AccountView]) -> Element<Message> {
+pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
     if accounts.is_empty() {
         return empty_state_view();
     }
 
-    let mut col = Column::new().padding(PADDING).spacing(SPACING as u16 * 2);
+    let mut col = Column::new().padding(PADDING).spacing(SPACING * 2);
 
     for account in accounts {
         col = col.push(account_section(account));
@@ -48,7 +48,7 @@ fn empty_state_view() -> Element<'static, Message> {
         .into()
 }
 
-fn account_section(account: &AccountView) -> Element<Message> {
+fn account_section(account: &AccountView) -> Element<'_, Message> {
     let header = text(&account.url).size(16);
 
     let mut folders_col = Column::new().spacing(SPACING);
@@ -59,7 +59,7 @@ fn account_section(account: &AccountView) -> Element<Message> {
     column![header, folders_col].spacing(SPACING).into()
 }
 
-fn folder_row(folder: &crate::model::FolderView) -> Element<Message> {
+fn folder_row(folder: &crate::model::FolderView) -> Element<'_, Message> {
     let status_sym = status_symbol(&folder.status);
 
     let name_and_path = column![
@@ -69,7 +69,7 @@ fn folder_row(folder: &crate::model::FolderView) -> Element<Message> {
     .spacing(2);
 
     let progress_text: Element<Message> = if let Some((done, total)) = folder.progress {
-        let pct = if total > 0 { done * 100 / total } else { 0 };
+        let pct = done.checked_div(total).unwrap_or(0) * 100;
         text(format!("{pct}%")).size(12).into()
     } else {
         text("").size(12).into()
@@ -100,7 +100,7 @@ fn status_symbol(status: &FolderStatus) -> Element<'static, Message> {
     text(label).size(16).into()
 }
 
-fn folder_action_buttons(folder: &crate::model::FolderView) -> Element<Message> {
+fn folder_action_buttons(folder: &crate::model::FolderView) -> Element<'_, Message> {
     let folder_id = folder.id;
     let local_path = folder.local_path.clone();
 

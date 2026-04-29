@@ -55,7 +55,7 @@ fn parse_menu_items_single_entry() {
     let line = "GET_MENU_ITEMS:/bar\x1eShare:SHARE:enabled\n";
     let items = parse_menu_items_line(line);
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0].2, true);
+    assert!(items[0].2);
 }
 
 #[tokio::test]

@@ -9,7 +9,7 @@ use crate::model::{AccountView, View};
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
 
-pub fn account_settings_view(account: &AccountView) -> Element<Message> {
+pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
     let title = text("Account Settings").size(22);
     let url_label = text(format!("Server: {}", account.url)).size(14);
     let folders_title = text("Synced folders:").size(16);
@@ -51,6 +51,6 @@ pub fn account_settings_view(account: &AccountView) -> Element<Message> {
     container(col)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(PADDING as u16 * 2)
+        .padding(PADDING * 2)
         .into()
 }

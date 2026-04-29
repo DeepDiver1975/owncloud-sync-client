@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod app;
 pub mod daemon_conn;
 pub mod model;

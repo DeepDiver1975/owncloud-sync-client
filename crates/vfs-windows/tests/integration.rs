@@ -139,4 +139,5 @@ mod tests {
 
 /// On non-Windows platforms this module is empty; it must still compile.
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 fn placeholder_compilation_guard() {}

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod config;
 pub mod folder_manager;
 pub mod gui_ipc;

@@ -179,7 +179,7 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
     iced::Task::none()
 }
 
-fn find_folder_mut<'a>(app: &'a mut App, folder_id: Uuid) -> Option<&'a mut FolderView> {
+fn find_folder_mut(app: &mut App, folder_id: Uuid) -> Option<&mut FolderView> {
     app.accounts
         .iter_mut()
         .flat_map(|a| a.folders.iter_mut())

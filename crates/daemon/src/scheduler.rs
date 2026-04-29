@@ -2,23 +2,12 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FolderScheduleState {
     pub paused: bool,
     pub running: bool,
     pub pending: bool,
     pub last_sync: Option<SystemTime>,
-}
-
-impl Default for FolderScheduleState {
-    fn default() -> Self {
-        Self {
-            paused: false,
-            running: false,
-            pending: false,
-            last_sync: None,
-        }
-    }
 }
 
 pub struct SyncScheduler {

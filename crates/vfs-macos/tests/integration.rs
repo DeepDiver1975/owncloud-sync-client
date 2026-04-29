@@ -5,6 +5,7 @@
 
 #[cfg(test)]
 mod integration {
+    #[cfg(target_os = "macos")]
     use camino::Utf8PathBuf;
 
     #[cfg(target_os = "macos")]

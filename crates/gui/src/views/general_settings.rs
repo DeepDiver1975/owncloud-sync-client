@@ -24,6 +24,6 @@ pub fn general_settings_view() -> Element<'static, Message> {
     container(col)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(PADDING as u16 * 2)
+        .padding(PADDING * 2)
         .into()
 }

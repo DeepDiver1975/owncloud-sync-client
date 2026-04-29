@@ -24,7 +24,7 @@ fn make_app_with_folder(folder_id: Uuid) -> App {
 #[test]
 fn navigate_to_changes_active_view() {
     let mut app = App::default();
-    update(
+    let _ = update(
         &mut app,
         Message::NavigateTo(View::AddAccount {
             url_input: String::new(),
@@ -38,20 +38,22 @@ fn navigate_to_changes_active_view() {
 fn toggle_window_flips_visibility() {
     let mut app = App::default();
     assert!(app.window_visible);
-    update(&mut app, Message::ToggleWindow);
+    let _ = update(&mut app, Message::ToggleWindow);
     assert!(!app.window_visible);
-    update(&mut app, Message::ToggleWindow);
+    let _ = update(&mut app, Message::ToggleWindow);
     assert!(app.window_visible);
 }
 
 #[test]
 fn add_account_url_changed_updates_input() {
-    let mut app = App::default();
-    app.active_view = View::AddAccount {
-        url_input: String::new(),
-        error: None,
+    let mut app = App {
+        active_view: View::AddAccount {
+            url_input: String::new(),
+            error: None,
+        },
+        ..App::default()
     };
-    update(
+    let _ = update(
         &mut app,
         Message::AddAccountUrlChanged("https://cloud.test".to_string()),
     );
@@ -64,12 +66,14 @@ fn add_account_url_changed_updates_input() {
 
 #[test]
 fn add_account_submit_empty_url_sets_error() {
-    let mut app = App::default();
-    app.active_view = View::AddAccount {
-        url_input: String::new(),
-        error: None,
+    let mut app = App {
+        active_view: View::AddAccount {
+            url_input: String::new(),
+            error: None,
+        },
+        ..App::default()
     };
-    update(&mut app, Message::AddAccountSubmit);
+    let _ = update(&mut app, Message::AddAccountSubmit);
     if let View::AddAccount { error, .. } = &app.active_view {
         assert!(error.is_some());
     } else {
@@ -81,7 +85,7 @@ fn add_account_submit_empty_url_sets_error() {
 fn daemon_event_sync_started_sets_syncing() {
     let folder_id = Uuid::new_v4();
     let mut app = make_app_with_folder(folder_id);
-    update(
+    let _ = update(
         &mut app,
         Message::DaemonEvent(DaemonEvent::SyncStarted { folder_id }),
     );
@@ -94,7 +98,7 @@ fn daemon_event_sync_finished_no_errors_sets_idle() {
     let folder_id = Uuid::new_v4();
     let mut app = make_app_with_folder(folder_id);
     app.accounts[0].folders[0].status = FolderStatus::Syncing;
-    update(
+    let _ = update(
         &mut app,
         Message::DaemonEvent(DaemonEvent::SyncFinished {
             folder_id,
@@ -109,7 +113,7 @@ fn daemon_event_sync_finished_no_errors_sets_idle() {
 fn daemon_event_sync_finished_with_errors_sets_error_status() {
     let folder_id = Uuid::new_v4();
     let mut app = make_app_with_folder(folder_id);
-    update(
+    let _ = update(
         &mut app,
         Message::DaemonEvent(DaemonEvent::SyncFinished {
             folder_id,
@@ -125,7 +129,7 @@ fn daemon_event_sync_finished_with_errors_sets_error_status() {
 fn pause_folder_sets_paused_status() {
     let folder_id = Uuid::new_v4();
     let mut app = make_app_with_folder(folder_id);
-    update(&mut app, Message::PauseFolder(folder_id));
+    let _ = update(&mut app, Message::PauseFolder(folder_id));
     let folder = &app.accounts[0].folders[0];
     assert!(matches!(folder.status, FolderStatus::Paused));
 }
@@ -135,7 +139,7 @@ fn resume_folder_sets_idle_status() {
     let folder_id = Uuid::new_v4();
     let mut app = make_app_with_folder(folder_id);
     app.accounts[0].folders[0].status = FolderStatus::Paused;
-    update(&mut app, Message::ResumeFolder(folder_id));
+    let _ = update(&mut app, Message::ResumeFolder(folder_id));
     let folder = &app.accounts[0].folders[0];
     assert!(matches!(folder.status, FolderStatus::Idle));
 }
@@ -151,7 +155,7 @@ fn remove_account_removes_from_accounts_and_navigates_home() {
         folders: vec![],
     });
     app.active_view = View::AccountSettings(account_id);
-    update(&mut app, Message::RemoveAccount(account_id));
+    let _ = update(&mut app, Message::RemoveAccount(account_id));
     assert!(app.accounts.is_empty());
     assert!(matches!(app.active_view, View::SyncStatus));
 }

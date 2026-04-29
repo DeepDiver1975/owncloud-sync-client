@@ -25,6 +25,7 @@ impl LockFile {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(path)?;
         file.try_lock_exclusive().map_err(|e| {
             if e.kind() == std::io::ErrorKind::WouldBlock {
@@ -75,6 +76,7 @@ mod tests {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&path)
             .unwrap();
         let result = f2.try_lock_exclusive();

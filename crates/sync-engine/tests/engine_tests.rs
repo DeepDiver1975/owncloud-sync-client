@@ -8,9 +8,8 @@ use uuid::Uuid;
 use wiremock::matchers::{method, path, path_regex};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-fn propfind_one_file(server_uri: &str) -> String {
-    format!(
-        r#"<?xml version="1.0" encoding="utf-8"?>
+fn propfind_one_file(_server_uri: &str) -> &'static str {
+    r#"<?xml version="1.0" encoding="utf-8"?>
 <D:multistatus xmlns:D="DAV:" xmlns:OC="http://owncloud.org/ns">
   <D:response>
     <D:href>/dav/spaces/s1/</D:href>
@@ -32,7 +31,6 @@ fn propfind_one_file(server_uri: &str) -> String {
     </D:propstat>
   </D:response>
 </D:multistatus>"#
-    )
 }
 
 #[tokio::test]
@@ -41,7 +39,7 @@ async fn engine_downloads_new_remote_file() {
 
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/s1.*"))
-        .respond_with(ResponseTemplate::new(207).set_body_string(propfind_one_file(&server.uri())))
+        .respond_with(ResponseTemplate::new(207).set_body_string(propfind_one_file(&server.uri()).to_string()))
         .mount(&server)
         .await;
 

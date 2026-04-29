@@ -80,7 +80,7 @@ impl IcedApp {
         update(&mut self.app, message)
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         let content: Element<Message> = match &self.app.active_view {
             View::SyncStatus => gui::views::sync_status::sync_status_view(&self.app.accounts),
             View::AddAccount { url_input, error } => {

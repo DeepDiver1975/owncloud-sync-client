@@ -46,6 +46,6 @@ pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Eleme
         .height(Length::Fill)
         .center_x(Length::Fill)
         .center_y(Length::Fill)
-        .padding(PADDING as u16 * 2)
+        .padding(PADDING * 2)
         .into()
 }
