@@ -50,12 +50,15 @@ impl DaemonConnection {
                         }
                     }
                     Err(e) => {
-                        let is_disconnect = e.downcast_ref::<std::io::Error>()
-                            .map(|io_err| matches!(
-                                io_err.kind(),
-                                std::io::ErrorKind::UnexpectedEof
-                                    | std::io::ErrorKind::ConnectionReset
-                            ))
+                        let is_disconnect = e
+                            .downcast_ref::<std::io::Error>()
+                            .map(|io_err| {
+                                matches!(
+                                    io_err.kind(),
+                                    std::io::ErrorKind::UnexpectedEof
+                                        | std::io::ErrorKind::ConnectionReset
+                                )
+                            })
                             .unwrap_or(false);
                         if is_disconnect {
                             tracing::info!("daemon closed connection");
