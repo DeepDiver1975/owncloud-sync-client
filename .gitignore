@@ -1,1 +1,4 @@
 .worktrees/
+target/
+doc/
+docs/superpowers/

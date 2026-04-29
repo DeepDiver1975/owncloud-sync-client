@@ -1,0 +1,16 @@
+[package]
+name = "vfs-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+camino = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_millis = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -1,0 +1,3 @@
+[workspace]
+members = ["oc-ipc", "oc-overlay", "oc-contextmenu"]
+resolver = "2"
