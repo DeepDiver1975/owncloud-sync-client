@@ -1,0 +1,15 @@
+services:
+  ocis:
+    image: owncloud/ocis:latest
+    environment:
+      OCIS_INSECURE: "true"
+      OCIS_LOG_LEVEL: error
+      IDM_ADMIN_PASSWORD: admin
+      PROXY_HTTP_ADDR: 0.0.0.0:9200
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "https://localhost:9200/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
