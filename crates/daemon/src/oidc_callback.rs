@@ -14,6 +14,7 @@ const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
 const SUCCESS_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 58\r\nConnection: close\r\n\r\n<html><body>Sign-in complete. You can close this tab.</body></html>";
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_callback(
     listener: TcpListener,
     oidc: OidcAuth,
@@ -58,6 +59,7 @@ pub async fn run_callback(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_callback(
     listener: TcpListener,
     oidc: OidcAuth,
@@ -120,7 +122,7 @@ async fn handle_callback(
     Ok(())
 }
 
-fn extract_query_param<'a>(request: &'a str, param: &str) -> Option<String> {
+fn extract_query_param(request: &str, param: &str) -> Option<String> {
     let first_line = request.lines().next()?;
     // e.g. "GET /callback?code=abc&state=xyz HTTP/1.1"
     let path = first_line.split_whitespace().nth(1)?;
