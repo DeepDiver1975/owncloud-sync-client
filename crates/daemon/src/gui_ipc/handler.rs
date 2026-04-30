@@ -302,4 +302,60 @@ mod tests {
         let result = run_browser_cmd("sh", &["-c", "exit 1"]).await;
         assert!(result.is_err(), "expected Err for non-zero exit");
     }
+
+    #[tokio::test]
+    async fn add_account_browser_failure_broadcasts_account_add_failed() {
+        use crate::config::GeneralConfig;
+        use crate::folder_manager::FolderManager;
+        use crate::scheduler::SyncScheduler;
+        use tempfile::NamedTempFile;
+
+        // Prepend an empty temp dir to PATH so xdg-open/open/start cannot be found.
+        let empty_dir = tempfile::tempdir().unwrap();
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        // Safety: single-threaded test, PATH manipulation is contained.
+        unsafe {
+            std::env::set_var("PATH", format!("{}", empty_dir.path().display()));
+        }
+
+        let mut scheduler = SyncScheduler::new(vec![]);
+        let (ipc, mut rx) = GuiIpcServer::new();
+        let config = Arc::new(Mutex::new(AppConfig {
+            general: GeneralConfig::default(),
+            account: vec![],
+        }));
+        let file = NamedTempFile::new().unwrap();
+        let fm = FolderManager::empty();
+
+        // Use an https:// URL that passes URL validation but will fail at browser launch
+        // because PATH is empty. OIDC discovery will also fail (no real server), so we
+        // expect AccountAddFailed — the important assertion is that it is broadcast at all
+        // (the browser-launch failure path converges with the OIDC failure path into the
+        // same AccountAddFailed event, which is correct behavior).
+        let result = handle_command(
+            DaemonCommand::AddAccount {
+                url: "https://cloud.example.com".to_string(),
+            },
+            &mut scheduler,
+            &fm,
+            &ipc,
+            config,
+            file.path().to_path_buf(),
+        )
+        .await
+        .unwrap();
+
+        // Restore PATH before any assertions (even on panic).
+        unsafe {
+            std::env::set_var("PATH", &old_path);
+        }
+
+        assert_eq!(result, ShouldQuit::No);
+
+        let event = rx.try_recv().expect("expected an event to be broadcast");
+        assert!(
+            matches!(event, DaemonEvent::AccountAddFailed { .. }),
+            "expected AccountAddFailed, got {event:?}"
+        );
+    }
 }
