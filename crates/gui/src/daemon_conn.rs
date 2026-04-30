@@ -23,11 +23,21 @@ impl DaemonConnection {
         Self { cmd_tx: tx }
     }
 
+    #[doc(hidden)]
+    pub fn connected_for_test() -> (Self, mpsc::Receiver<DaemonCommand>) {
+        let (tx, rx) = mpsc::channel(64);
+        (Self { cmd_tx: tx }, rx)
+    }
+
     pub async fn connect(
         socket_path: &Path,
     ) -> Result<(Self, mpsc::Receiver<DaemonEvent>), ConnError> {
         let stream = UnixStream::connect(socket_path).await?;
         let (mut read_half, mut write_half) = stream.into_split();
+
+        write_command(&mut write_half, &DaemonCommand::Subscribe)
+            .await
+            .map_err(|e| ConnError::Io(std::io::Error::other(e)))?;
 
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<DaemonCommand>(64);
         let (event_tx, event_rx) = mpsc::channel::<DaemonEvent>(64);
@@ -74,9 +84,13 @@ impl DaemonConnection {
         Ok((Self { cmd_tx }, event_rx))
     }
 
-    pub fn send(&self, cmd: DaemonCommand) {
-        if let Err(e) = self.cmd_tx.try_send(cmd) {
-            tracing::warn!("failed to send daemon command: {e}");
+    pub fn send(&self, cmd: DaemonCommand) -> bool {
+        match self.cmd_tx.try_send(cmd) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::warn!("failed to send daemon command: {e}");
+                false
+            }
         }
     }
 }

@@ -39,6 +39,13 @@ pub enum DaemonEvent {
         account_id: Uuid,
         state: String,
     },
+    AccountAddStarted {
+        account_id: Uuid,
+    },
+    AccountAddFailed {
+        account_id: Uuid,
+        reason: String,
+    },
 }
 
 pub async fn write_message<W: AsyncWrite + Unpin>(w: &mut W, event: &DaemonEvent) -> Result<()> {

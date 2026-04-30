@@ -46,5 +46,9 @@ pub enum View {
         url_input: String,
         error: Option<String>,
     },
+    AddAccountWaiting {
+        account_id: Uuid,
+        url_input: String,
+    },
     GeneralSettings,
 }

@@ -89,3 +89,25 @@ fn folder_status_display() {
     assert_eq!(FolderStatus::Error.to_string(), "Error");
     assert_eq!(FolderStatus::Paused.to_string(), "Paused");
 }
+
+#[test]
+fn add_account_waiting_carries_fields() {
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let id = Uuid::new_v4();
+    let v = View::AddAccountWaiting {
+        account_id: id,
+        url_input: "https://cloud.example.com".to_string(),
+    };
+    if let View::AddAccountWaiting {
+        account_id,
+        url_input,
+    } = v
+    {
+        assert_eq!(account_id, id);
+        assert_eq!(url_input, "https://cloud.example.com");
+    } else {
+        panic!("wrong variant");
+    }
+}

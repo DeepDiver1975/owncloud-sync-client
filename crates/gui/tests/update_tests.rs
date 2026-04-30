@@ -159,3 +159,168 @@ fn remove_account_removes_from_accounts_and_navigates_home() {
     assert!(app.accounts.is_empty());
     assert!(matches!(app.active_view, View::SyncStatus));
 }
+
+#[test]
+fn add_account_submit_with_url_and_disconnected_daemon_sets_error() {
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+
+    // With default App, daemon is disconnected — send returns false.
+    // Supply a URL to bypass the empty-URL guard; it will fail at send
+    // and set the "not connected" error.
+    let mut app = App {
+        active_view: View::AddAccount {
+            url_input: "https://cloud.example.com".to_string(),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::AddAccountSubmit);
+    // Disconnected daemon → should stay on AddAccount with error
+    if let View::AddAccount { error, .. } = &app.active_view {
+        assert!(error.is_some(), "expected error when daemon disconnected");
+    } else {
+        panic!("expected AddAccount view, got {:?}", app.active_view);
+    }
+}
+
+#[test]
+fn account_add_started_updates_waiting_view_account_id() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::AddAccountWaiting {
+            account_id: Uuid::nil(),
+            url_input: "https://cloud.example.com".to_string(),
+        },
+        ..App::default()
+    };
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountAddStarted { account_id }),
+    );
+    if let View::AddAccountWaiting {
+        account_id: stored_id,
+        ..
+    } = &app.active_view
+    {
+        assert_eq!(*stored_id, account_id);
+    } else {
+        panic!("expected AddAccountWaiting view");
+    }
+}
+
+#[test]
+fn account_state_changed_added_navigates_to_sync_status() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::AddAccountWaiting {
+            account_id,
+            url_input: "https://cloud.example.com".to_string(),
+        },
+        ..App::default()
+    };
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountStateChanged {
+            account_id,
+            state: "added".to_string(),
+        }),
+    );
+    assert!(matches!(app.active_view, View::SyncStatus));
+}
+
+#[test]
+fn account_add_failed_returns_to_add_account_with_error_and_url() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::AddAccountWaiting {
+            account_id,
+            url_input: "https://cloud.example.com".to_string(),
+        },
+        ..App::default()
+    };
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountAddFailed {
+            account_id,
+            reason: "discovery failed".to_string(),
+        }),
+    );
+    if let View::AddAccount { url_input, error } = &app.active_view {
+        assert_eq!(url_input, "https://cloud.example.com");
+        assert_eq!(error.as_deref(), Some("discovery failed"));
+    } else {
+        panic!("expected AddAccount view");
+    }
+}
+
+#[test]
+fn add_account_submit_with_url_navigates_to_waiting_when_connected() {
+    use gui::app::{update, App, Message};
+    use gui::daemon_conn::DaemonConnection;
+    use gui::model::View;
+
+    let (conn, _rx) = DaemonConnection::connected_for_test();
+    let mut app = App {
+        daemon: conn,
+        active_view: View::AddAccount {
+            url_input: "https://cloud.example.com".to_string(),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::AddAccountSubmit);
+    if let View::AddAccountWaiting {
+        account_id,
+        url_input,
+    } = &app.active_view
+    {
+        assert!(
+            account_id.is_nil(),
+            "account_id should be nil before daemon responds"
+        );
+        assert_eq!(url_input, "https://cloud.example.com");
+    } else {
+        panic!("expected AddAccountWaiting view, got {:?}", app.active_view);
+    }
+}
+
+#[test]
+fn account_state_changed_added_with_nil_id_navigates_to_sync_status() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let some_account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::AddAccountWaiting {
+            account_id: Uuid::nil(),
+            url_input: "https://cloud.example.com".to_string(),
+        },
+        ..App::default()
+    };
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountStateChanged {
+            account_id: some_account_id,
+            state: "added".to_string(),
+        }),
+    );
+    assert!(matches!(app.active_view, View::SyncStatus));
+}
