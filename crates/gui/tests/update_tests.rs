@@ -274,7 +274,6 @@ fn add_account_submit_with_url_navigates_to_waiting_when_connected() {
     use gui::app::{update, App, Message};
     use gui::daemon_conn::DaemonConnection;
     use gui::model::View;
-    use uuid::Uuid;
 
     let (conn, _rx) = DaemonConnection::connected_for_test();
     let mut app = App {
