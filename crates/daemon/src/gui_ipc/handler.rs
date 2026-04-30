@@ -55,16 +55,15 @@ pub async fn handle_command(
         }
 
         DaemonCommand::AddAccount { url } => {
+            let account_id = Uuid::new_v4();
+
             if !url.starts_with("http://") && !url.starts_with("https://") {
-                let account_id = Uuid::new_v4();
                 ipc.broadcast(DaemonEvent::AccountAddFailed {
                     account_id,
                     reason: "URL must start with http:// or https://".to_string(),
                 });
                 return Ok(ShouldQuit::No);
             }
-
-            let account_id = Uuid::new_v4();
 
             // Bind to :0 to get an OS-assigned port.
             let listener = match TcpListener::bind("127.0.0.1:0").await {
