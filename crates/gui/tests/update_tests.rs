@@ -161,7 +161,7 @@ fn remove_account_removes_from_accounts_and_navigates_home() {
 }
 
 #[test]
-fn add_account_submit_with_url_navigates_to_waiting_when_connected() {
+fn add_account_submit_with_url_and_disconnected_daemon_sets_error() {
     use gui::app::{update, App, Message};
     use gui::model::View;
 
@@ -267,4 +267,61 @@ fn account_add_failed_returns_to_add_account_with_error_and_url() {
     } else {
         panic!("expected AddAccount view");
     }
+}
+
+#[test]
+fn add_account_submit_with_url_navigates_to_waiting_when_connected() {
+    use gui::app::{update, App, Message};
+    use gui::daemon_conn::DaemonConnection;
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let (conn, _rx) = DaemonConnection::connected_for_test();
+    let mut app = App {
+        daemon: conn,
+        active_view: View::AddAccount {
+            url_input: "https://cloud.example.com".to_string(),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::AddAccountSubmit);
+    if let View::AddAccountWaiting {
+        account_id,
+        url_input,
+    } = &app.active_view
+    {
+        assert!(
+            account_id.is_nil(),
+            "account_id should be nil before daemon responds"
+        );
+        assert_eq!(url_input, "https://cloud.example.com");
+    } else {
+        panic!("expected AddAccountWaiting view, got {:?}", app.active_view);
+    }
+}
+
+#[test]
+fn account_state_changed_added_with_nil_id_navigates_to_sync_status() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let some_account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::AddAccountWaiting {
+            account_id: Uuid::nil(),
+            url_input: "https://cloud.example.com".to_string(),
+        },
+        ..App::default()
+    };
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountStateChanged {
+            account_id: some_account_id,
+            state: "added".to_string(),
+        }),
+    );
+    assert!(matches!(app.active_view, View::SyncStatus));
 }

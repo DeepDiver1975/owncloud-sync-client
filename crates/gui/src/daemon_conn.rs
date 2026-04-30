@@ -23,6 +23,12 @@ impl DaemonConnection {
         Self { cmd_tx: tx }
     }
 
+    #[doc(hidden)]
+    pub fn connected_for_test() -> (Self, mpsc::Receiver<DaemonCommand>) {
+        let (tx, rx) = mpsc::channel(64);
+        (Self { cmd_tx: tx }, rx)
+    }
+
     pub async fn connect(
         socket_path: &Path,
     ) -> Result<(Self, mpsc::Receiver<DaemonEvent>), ConnError> {

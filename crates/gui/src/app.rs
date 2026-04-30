@@ -209,15 +209,17 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
             account_id: _,
             reason,
         } => {
-            let url = if let View::AddAccountWaiting { url_input, .. } = &app.active_view {
-                url_input.clone()
+            if let View::AddAccountWaiting { url_input, .. } = &app.active_view {
+                let url = url_input.clone();
+                app.active_view = View::AddAccount {
+                    url_input: url,
+                    error: Some(reason),
+                };
             } else {
-                String::new()
-            };
-            app.active_view = View::AddAccount {
-                url_input: url,
-                error: Some(reason),
-            };
+                tracing::warn!(
+                    "AccountAddFailed received but not in AddAccountWaiting view: {reason}"
+                );
+            }
         }
     }
 
