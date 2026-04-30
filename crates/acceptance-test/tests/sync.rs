@@ -106,13 +106,13 @@ async fn test_upload_changed_file() {
     poll_until(
         || {
             let p = local_path.clone();
-            async move { p.exists() }
+            async move { std::fs::read(&p).map(|c| c == b"original").unwrap_or(false) }
         },
         Duration::from_secs(30),
         Duration::from_secs(1),
     )
     .await
-    .expect("change_me.txt did not sync down");
+    .expect("change_me.txt did not sync down with correct content");
 
     std::fs::write(&local_path, b"changed content").expect("overwrite local");
 
@@ -151,19 +151,26 @@ async fn test_conflict_resolution() {
     poll_until(
         || {
             let p = local_path.clone();
-            async move { p.exists() }
+            async move {
+                std::fs::read(&p)
+                    .map(|c| c == b"remote v1")
+                    .unwrap_or(false)
+            }
         },
         Duration::from_secs(30),
         Duration::from_secs(1),
     )
     .await
-    .expect("conflict.txt did not sync down");
+    .expect("conflict.txt did not sync down with correct content");
 
+    // Write both sides before any sync cycle completes so the daemon sees them as concurrent
     std::fs::write(&local_path, b"local v2").expect("local write");
     env.ocis_client
         .put("conflict.txt", b"remote v2")
         .await
         .expect("remote write");
+    // Small pause to ensure the daemon's next poll sees both changes simultaneously
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     let sync_dir = env.sync_dir.path().to_owned();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);

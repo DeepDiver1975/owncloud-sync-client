@@ -2,7 +2,7 @@ use acceptance_test::atspi_client::AtSpiClient;
 use acceptance_test::fixture::TestEnvironment;
 use acceptance_test::playwright::complete_oidc_login;
 use atspi::Role;
-use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
+use daemon::gui_ipc::protocol::DaemonEvent;
 use std::time::Duration;
 
 #[tokio::test]
@@ -57,27 +57,15 @@ async fn test_account_setup() {
         .await
         .expect("failed to click 'Connect'");
 
-    // Send AddAccount command via IPC
-    env.daemon_ipc
-        .send(DaemonCommand::AddAccount {
-            url: env.ocis_url.to_string(),
-        })
-        .await
-        .expect("failed to send AddAccount command");
-
-    // Wait for AccountAddStarted event
-    let started = env
+    // Wait for AccountAddStarted event (GUI click triggers the OIDC flow in the daemon)
+    let _started = env
         .daemon_ipc
         .wait_for(
             |e| matches!(e, DaemonEvent::AccountAddStarted { .. }),
             Duration::from_secs(15),
         )
         .await
-        .expect("did not receive AccountAddStarted event");
-    assert!(
-        matches!(started, DaemonEvent::AccountAddStarted { .. }),
-        "unexpected event: {started:?}"
-    );
+        .expect("AccountAddStarted event not received");
 
     // Read the OIDC authorization URL from daemon stdout
     let auth_url = env
@@ -103,8 +91,7 @@ async fn test_account_setup() {
         .expect("Playwright OIDC login failed");
 
     // Wait for AccountStateChanged { state: "added" } event
-    let state_changed = env
-        .daemon_ipc
+    env.daemon_ipc
         .wait_for(
             |e| {
                 matches!(
@@ -114,10 +101,6 @@ async fn test_account_setup() {
             },
             Duration::from_secs(30),
         )
-        .await;
-
-    assert!(
-        state_changed.is_some(),
-        "did not receive AccountStateChanged {{ state: \"added\" }} event"
-    );
+        .await
+        .expect("did not receive AccountStateChanged { state: \"added\" } event");
 }
