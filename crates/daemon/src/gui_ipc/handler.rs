@@ -303,13 +303,8 @@ mod tests {
         assert!(result.is_err(), "expected Err for non-zero exit");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn add_account_browser_failure_broadcasts_account_add_failed() {
-        use crate::config::GeneralConfig;
-        use crate::folder_manager::FolderManager;
-        use crate::scheduler::SyncScheduler;
-        use tempfile::NamedTempFile;
-
         // Prepend an empty temp dir to PATH so xdg-open/open/start cannot be found.
         let empty_dir = tempfile::tempdir().unwrap();
         let old_path = std::env::var("PATH").unwrap_or_default();
