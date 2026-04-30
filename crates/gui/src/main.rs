@@ -96,6 +96,10 @@ impl IcedApp {
                         .into()
                 }
             }
+            View::AddAccountWaiting { .. } => container(text("Loading…"))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into(),
             View::GeneralSettings => gui::views::general_settings::general_settings_view(),
         };
 
