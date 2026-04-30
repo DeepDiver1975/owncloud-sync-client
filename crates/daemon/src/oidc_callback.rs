@@ -12,7 +12,7 @@ use ocis_client::auth::{KeychainStore, OidcAuth, PkceVerifier};
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
-const SUCCESS_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 58\r\nConnection: close\r\n\r\n<html><body>Sign-in complete. You can close this tab.</body></html>";
+const SUCCESS_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 67\r\nConnection: close\r\n\r\n<html><body>Sign-in complete. You can close this tab.</body></html>";
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_callback(
@@ -72,7 +72,6 @@ async fn handle_callback(
 ) -> anyhow::Result<()> {
     let (mut stream, _peer) = listener.accept().await?;
 
-    // Read until we have the full request line (first line ending in \r\n).
     let mut buf = Vec::with_capacity(512);
     let mut tmp = [0u8; 512];
     loop {
@@ -81,7 +80,7 @@ async fn handle_callback(
             anyhow::bail!("connection closed before request received");
         }
         buf.extend_from_slice(&tmp[..n]);
-        if buf.windows(4).any(|w| w == b"\r\n\r\n") || buf.windows(2).any(|w| w == b"\r\n") {
+        if buf.windows(2).any(|w| w == b"\r\n") {
             break;
         }
         if buf.len() > 8192 {
@@ -130,17 +129,16 @@ fn extract_query_param(request: &str, param: &str) -> Option<String> {
     for pair in query.split('&') {
         if let Some((k, v)) = pair.split_once('=') {
             if k == param {
-                return Some(percent_decode(v));
+                return Some(decode_query_value(v));
             }
         }
     }
     None
 }
 
-fn percent_decode(s: &str) -> String {
-    // Minimal percent-decoding for OAuth code values (alphanumeric + - _ . ~).
-    // A full implementation would handle all percent-encoded bytes;
-    // auth codes in practice are base64url and contain no encoded chars.
+fn decode_query_value(s: &str) -> String {
+    // Minimal decoding for query values: replace '+' with space.
+    // Auth codes in practice are base64url and contain no encoded chars.
     s.replace('+', " ")
 }
 
