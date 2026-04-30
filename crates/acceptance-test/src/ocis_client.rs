@@ -8,6 +8,8 @@ pub struct OcisClient {
     pub(crate) client: Client,
     base_url: Url,
     pub space_id: String,
+    username: String,
+    password: String,
 }
 
 #[derive(Deserialize)]
@@ -47,6 +49,8 @@ impl OcisClient {
             client,
             base_url,
             space_id: personal.id,
+            username: username.to_owned(),
+            password: password.to_owned(),
         })
     }
 
@@ -62,7 +66,7 @@ impl OcisClient {
     pub async fn put(&self, path: &str, content: &[u8]) -> Result<()> {
         self.client
             .put(self.webdav_url(path)?)
-            .basic_auth("admin", Some("admin"))
+            .basic_auth(&self.username, Some(&self.password))
             .body(content.to_vec())
             .send()
             .await?
@@ -74,7 +78,7 @@ impl OcisClient {
         let bytes = self
             .client
             .get(self.webdav_url(path)?)
-            .basic_auth("admin", Some("admin"))
+            .basic_auth(&self.username, Some(&self.password))
             .send()
             .await?
             .error_for_status()?
@@ -87,7 +91,7 @@ impl OcisClient {
         let resp = self
             .client
             .head(self.webdav_url(path)?)
-            .basic_auth("admin", Some("admin"))
+            .basic_auth(&self.username, Some(&self.password))
             .send()
             .await?;
         Ok(resp.status() == StatusCode::OK)

@@ -12,9 +12,10 @@ where
         if condition().await {
             return Ok(());
         }
-        if tokio::time::Instant::now() >= deadline {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
             return Err(anyhow!("poll_until timed out after {:?}", timeout));
         }
-        tokio::time::sleep(interval).await;
+        tokio::time::sleep(remaining.min(interval)).await;
     }
 }

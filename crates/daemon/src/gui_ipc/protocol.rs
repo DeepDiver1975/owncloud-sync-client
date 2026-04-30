@@ -81,6 +81,9 @@ pub async fn read_event<R: AsyncRead + Unpin>(r: &mut R) -> Result<DaemonEvent> 
     let mut len_buf = [0u8; 4];
     r.read_exact(&mut len_buf).await?;
     let len = u32::from_be_bytes(len_buf) as usize;
+    if len > 4 * 1024 * 1024 {
+        bail!("incoming event too large: {} bytes", len);
+    }
     let mut buf = vec![0u8; len];
     r.read_exact(&mut buf).await?;
     let evt: DaemonEvent = serde_json::from_slice(&buf)?;

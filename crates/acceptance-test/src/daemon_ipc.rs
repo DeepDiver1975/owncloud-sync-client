@@ -53,6 +53,10 @@ impl DaemonIpcClient {
             .flatten()
     }
 
+    /// Waits for an event matching `predicate`, discarding non-matching events, up to `timeout`.
+    /// Returns `None` on timeout or if the channel closes (daemon died).
+    /// Note: non-matching events (including error events) are discarded — use `next_event`
+    /// if you need to see all events.
     pub async fn wait_for<F>(&mut self, predicate: F, timeout: Duration) -> Option<DaemonEvent>
     where
         F: Fn(&DaemonEvent) -> bool,
