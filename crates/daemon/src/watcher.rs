@@ -73,16 +73,19 @@ mod tests {
 
         std::fs::write(&path, b"modified").unwrap();
 
-        let event = tokio::time::timeout(Duration::from_secs(2), watcher.next_event())
-            .await
-            .expect("timeout waiting for modify event")
-            .expect("channel closed");
-
-        let is_relevant = matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_));
+        let found = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let event = watcher.next_event().await?;
+                if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
+                    return Some(event);
+                }
+            }
+        })
+        .await
+        .expect("timeout waiting for modify event");
         assert!(
-            is_relevant,
-            "expected Create/Modify event, got {:?}",
-            event.kind
+            found.is_some(),
+            "channel closed before seeing Create/Modify event"
         );
     }
 }

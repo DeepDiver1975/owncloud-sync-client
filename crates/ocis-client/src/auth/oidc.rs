@@ -119,7 +119,7 @@ impl OidcAuth {
         use sha2::{Digest, Sha256};
 
         let mut raw = [0u8; 32];
-        getrandom::getrandom(&mut raw).map_err(|e| OcisError::Auth(format!("RNG failure: {e}")))?;
+        getrandom::fill(&mut raw).map_err(|e| OcisError::Auth(format!("RNG failure: {e}")))?;
 
         let verifier = URL_SAFE_NO_PAD.encode(raw);
 
@@ -128,7 +128,7 @@ impl OidcAuth {
 
         let state = {
             let mut raw_state = [0u8; 16];
-            getrandom::getrandom(&mut raw_state)
+            getrandom::fill(&mut raw_state)
                 .map_err(|e| OcisError::Auth(format!("RNG failure: {e}")))?;
             URL_SAFE_NO_PAD.encode(raw_state)
         };

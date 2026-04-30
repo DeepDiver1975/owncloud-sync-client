@@ -45,11 +45,14 @@ impl OwnCloudFileManager {
 
     #[zbus(signal)]
     pub async fn status_changed(
-        ctx: &zbus::SignalContext<'_>,
+        ctx: &zbus::object_server::SignalEmitter<'_>,
         path: String,
         status: String,
     ) -> zbus::Result<()>;
 
     #[zbus(signal)]
-    pub async fn path_registered(ctx: &zbus::SignalContext<'_>, path: String) -> zbus::Result<()>;
+    pub async fn path_registered(
+        ctx: &zbus::object_server::SignalEmitter<'_>,
+        path: String,
+    ) -> zbus::Result<()>;
 }
