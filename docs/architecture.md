@@ -65,6 +65,52 @@ owncloud-sync/                        (Cargo workspace)
 
 ---
 
+## GUI IPC (`daemon` crate — `gui_ipc` module)
+
+The GUI process communicates with the daemon over a per-user Unix socket (Windows: named pipe). The GUI spawns the daemon on startup if it is not already running, then connects to this socket.
+
+### Transport
+
+| Platform | Path |
+|---|---|
+| Windows | `\\.\pipe\ownCloud-GUI-{Username}` |
+| macOS | `~/Library/Application Support/ownCloud/daemon-gui.sock` |
+| Linux | `$XDG_RUNTIME_DIR/owncloud/daemon-gui.sock` (falls back to `/tmp/owncloud/daemon-gui.sock`) |
+
+Both sides resolve the path via `daemon::paths::platform_gui_socket_path()`.
+
+### Wire Protocol
+
+Binary length-prefixed JSON. Every message is a 4-byte big-endian length followed by a UTF-8 JSON body of that length. There is no newline delimiter.
+
+- GUI → daemon: `DaemonCommand` (JSON-tagged enum)
+- Daemon → GUI: `DaemonEvent` (JSON-tagged enum)
+
+### Commands (GUI → Daemon)
+
+| Command | Description |
+|---|---|
+| `Subscribe` | Start receiving `DaemonEvent` broadcasts on this connection |
+| `TriggerSync` | Request an immediate sync for a folder |
+| `PauseFolder` | Pause syncing for a folder |
+| `ResumeFolder` | Resume a paused folder |
+| `AddAccount` | Add a new account by server URL |
+| `RemoveAccount` | Remove an account and its folders |
+| `Quit` | Shut down the daemon gracefully |
+
+### Events (Daemon → GUI)
+
+| Event | Description |
+|---|---|
+| `Ready` | Daemon is initialized and ready |
+| `SyncStarted` | A folder sync job has begun |
+| `SyncProgress` | Progress update (done/total items) |
+| `SyncFinished` | Sync job completed (with optional errors) |
+| `FileStatusChanged` | Per-file status tag changed |
+| `AccountStateChanged` | Account auth/connection state changed |
+
+---
+
 ## Sync Engine (`sync-engine`)
 
 Three-phase pipeline — pure async Rust, no platform or GUI dependencies.

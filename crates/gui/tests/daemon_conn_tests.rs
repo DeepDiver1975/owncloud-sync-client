@@ -1,6 +1,5 @@
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use gui::daemon_conn::DaemonConnection;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 use uuid::Uuid;
 
@@ -35,6 +34,8 @@ async fn connect_returns_connection_and_event_receiver() {
 
 #[tokio::test]
 async fn events_received_from_daemon() {
+    use daemon::gui_ipc::protocol::write_message;
+
     let path = unique_socket();
     let listener = UnixListener::bind(&path).expect("bind");
 
@@ -46,8 +47,7 @@ async fn events_received_from_daemon() {
     let (_, mut write_half) = stream.into_split();
 
     let event = DaemonEvent::Ready;
-    let json = serde_json::to_string(&event).unwrap() + "\n";
-    write_half.write_all(json.as_bytes()).await.expect("write");
+    write_message(&mut write_half, &event).await.expect("write");
 
     let received = tokio::time::timeout(std::time::Duration::from_secs(1), event_rx.recv())
         .await
@@ -61,6 +61,8 @@ async fn events_received_from_daemon() {
 
 #[tokio::test]
 async fn commands_sent_to_daemon() {
+    use daemon::gui_ipc::protocol::read_message;
+
     let path = unique_socket();
     let listener = UnixListener::bind(&path).expect("bind");
 
@@ -68,23 +70,20 @@ async fn commands_sent_to_daemon() {
     let (conn, _event_rx) = DaemonConnection::connect(&path2).await.expect("connect");
 
     let (stream, _) = listener.accept().await.expect("accept");
-    let (read_half, _) = stream.into_split();
+    let (mut read_half, _) = stream.into_split();
 
     conn.send(DaemonCommand::TriggerSync {
         folder_id: Uuid::nil(),
     });
 
-    let mut reader = BufReader::new(read_half);
-    let mut line = String::new();
-    tokio::time::timeout(
+    let parsed = tokio::time::timeout(
         std::time::Duration::from_secs(1),
-        reader.read_line(&mut line),
+        read_message(&mut read_half),
     )
     .await
     .expect("timeout")
     .expect("read");
 
-    let parsed: DaemonCommand = serde_json::from_str(line.trim()).expect("parse");
     assert!(matches!(parsed, DaemonCommand::TriggerSync { .. }));
 
     let _ = std::fs::remove_file(&path);

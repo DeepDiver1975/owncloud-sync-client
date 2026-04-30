@@ -7,11 +7,11 @@ use gui::model::View;
 use gui::spawn::ensure_daemon_running;
 use gui::subscription::next_message;
 
+use daemon::paths::platform_gui_socket_path;
+
 use iced::futures::SinkExt;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length, Subscription, Task};
-
-const SOCKET_PATH: &str = "/tmp/ocsyncd.sock";
 
 fn main() -> iced::Result {
     tracing_subscriber::fmt()
@@ -35,12 +35,12 @@ impl IcedApp {
         let event_rx: EventRxCarrier = Arc::new(Mutex::new(None));
         let init_task = Task::perform(
             async {
-                let socket = std::path::Path::new(SOCKET_PATH);
-                if let Err(e) = ensure_daemon_running(socket).await {
+                let socket = platform_gui_socket_path();
+                if let Err(e) = ensure_daemon_running(&socket).await {
                     tracing::warn!("daemon not available: {e}");
                     return None;
                 }
-                match DaemonConnection::connect(socket).await {
+                match DaemonConnection::connect(&socket).await {
                     Ok((conn, rx)) => {
                         let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
                         Some((conn, carrier))
