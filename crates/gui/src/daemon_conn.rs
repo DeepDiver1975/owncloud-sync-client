@@ -35,6 +35,10 @@ impl DaemonConnection {
         let stream = UnixStream::connect(socket_path).await?;
         let (mut read_half, mut write_half) = stream.into_split();
 
+        write_command(&mut write_half, &DaemonCommand::Subscribe)
+            .await
+            .map_err(|e| ConnError::Io(std::io::Error::other(e)))?;
+
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<DaemonCommand>(64);
         let (event_tx, event_rx) = mpsc::channel::<DaemonEvent>(64);
 

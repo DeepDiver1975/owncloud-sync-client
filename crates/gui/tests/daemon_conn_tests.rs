@@ -72,6 +72,16 @@ async fn commands_sent_to_daemon() {
     let (stream, _) = listener.accept().await.expect("accept");
     let (mut read_half, _) = stream.into_split();
 
+    // connect() sends Subscribe first; consume it before our command arrives.
+    let subscribe = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        read_message(&mut read_half),
+    )
+    .await
+    .expect("timeout")
+    .expect("read");
+    assert!(matches!(subscribe, DaemonCommand::Subscribe));
+
     conn.send(DaemonCommand::TriggerSync {
         folder_id: Uuid::nil(),
     });

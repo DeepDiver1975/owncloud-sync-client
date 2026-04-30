@@ -74,7 +74,7 @@ impl IcedApp {
                     let mut ours = our_rx.lock().await;
                     *ours = guard.take();
                 },
-                |_| Message::DaemonDisconnected,
+                |_| Message::NavigateTo(gui::model::View::SyncStatus),
             );
         }
         update(&mut self.app, message)
