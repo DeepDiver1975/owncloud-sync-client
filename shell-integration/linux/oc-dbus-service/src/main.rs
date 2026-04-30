@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             if let Ok(iface) = iface_ref {
                                 let _ = OwnCloudFileManager::status_changed(
-                                    iface.signal_context(),
+                                    iface.signal_emitter(),
                                     path,
                                     tag,
                                 )
@@ -85,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
                                 .await;
                             if let Ok(iface) = iface_ref {
                                 let _ = OwnCloudFileManager::path_registered(
-                                    iface.signal_context(),
+                                    iface.signal_emitter(),
                                     path,
                                 )
                                 .await;
