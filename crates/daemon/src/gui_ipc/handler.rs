@@ -101,7 +101,7 @@ pub async fn handle_command(
                 }
             };
 
-            if let Err(e) = open_browser(auth_url.as_str()) {
+            if let Err(e) = open_browser(auth_url.as_str()).await {
                 ipc.broadcast(DaemonEvent::AccountAddFailed {
                     account_id,
                     reason: format!("could not open browser: {e}"),
@@ -142,18 +142,27 @@ pub async fn handle_command(
     Ok(ShouldQuit::No)
 }
 
-fn open_browser(url: &str) -> Result<()> {
+pub(crate) async fn run_browser_cmd(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
+    let status = tokio::process::Command::new(cmd)
+        .args(args)
+        .status()
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to start '{cmd}': {e}"))?;
+    if !status.success() {
+        anyhow::bail!("'{cmd}' exited with {}", status);
+    }
+    Ok(())
+}
+
+async fn open_browser(url: &str) -> anyhow::Result<()> {
     #[cfg(target_os = "linux")]
-    std::process::Command::new("xdg-open").arg(url).spawn()?;
+    return run_browser_cmd("xdg-open", &[url]).await;
     #[cfg(target_os = "macos")]
-    std::process::Command::new("open").arg(url).spawn()?;
+    return run_browser_cmd("open", &[url]).await;
     #[cfg(target_os = "windows")]
-    std::process::Command::new("cmd")
-        .args(["/c", "start", url])
-        .spawn()?;
+    return run_browser_cmd("cmd", &["/c", "start", url]).await;
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     anyhow::bail!("unsupported platform for browser launch");
-    Ok(())
 }
 
 #[cfg(test)]
@@ -276,5 +285,21 @@ mod tests {
         .unwrap();
 
         assert_eq!(result, ShouldQuit::Yes);
+    }
+
+    #[tokio::test]
+    async fn run_browser_cmd_returns_err_if_command_not_found() {
+        let result = run_browser_cmd(
+            "this-binary-definitely-does-not-exist-xyz",
+            &["http://example.com"],
+        )
+        .await;
+        assert!(result.is_err(), "expected Err for missing command");
+    }
+
+    #[tokio::test]
+    async fn run_browser_cmd_returns_err_if_exit_nonzero() {
+        let result = run_browser_cmd("sh", &["-c", "exit 1"]).await;
+        assert!(result.is_err(), "expected Err for non-zero exit");
     }
 }
