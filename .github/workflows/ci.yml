@@ -105,3 +105,53 @@ jobs:
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
         continue-on-error: true  # Xcode project not yet created; remove once project exists
+
+  # ---------------------------------------------------------------------------
+  # Acceptance tests — full end-to-end with real oCIS instance
+  # ---------------------------------------------------------------------------
+  acceptance:
+    name: Acceptance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright
+          npx playwright install chromium
+          npx playwright install-deps chromium
+
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -screen 0 1280x960x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Start oCIS
+        run: docker compose -f tests/docker/compose.yml up -d
+
+      - name: Wait for oCIS health
+        run: |
+          for i in $(seq 1 30); do
+            curl -fks https://localhost:9200/health && break || sleep 2
+          done
+
+      - name: Run acceptance tests
+        run: OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture
+
+      - name: Stop oCIS
+        if: always()
+        run: docker compose -f tests/docker/compose.yml down

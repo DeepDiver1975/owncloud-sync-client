@@ -130,3 +130,18 @@ clean:
 outdated:
     cargo outdated --workspace
     cargo outdated --manifest-path {{windows-dir}}/Cargo.toml
+
+# ---------------------------------------------------------------------------
+# Acceptance tests (requires Docker, Node.js, Playwright)
+# ---------------------------------------------------------------------------
+
+# Install Playwright and Chromium (run once)
+acceptance-setup:
+	npm install playwright
+	npx playwright install chromium
+
+# Run acceptance tests (requires Docker and a display server)
+acceptance:
+	docker compose -f tests/docker/compose.yml up -d
+	OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture
+	docker compose -f tests/docker/compose.yml down
