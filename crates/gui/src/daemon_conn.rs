@@ -74,9 +74,13 @@ impl DaemonConnection {
         Ok((Self { cmd_tx }, event_rx))
     }
 
-    pub fn send(&self, cmd: DaemonCommand) {
-        if let Err(e) = self.cmd_tx.try_send(cmd) {
-            tracing::warn!("failed to send daemon command: {e}");
+    pub fn send(&self, cmd: DaemonCommand) -> bool {
+        match self.cmd_tx.try_send(cmd) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::warn!("failed to send daemon command: {e}");
+                false
+            }
         }
     }
 }

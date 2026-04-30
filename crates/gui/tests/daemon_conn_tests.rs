@@ -88,3 +88,10 @@ async fn commands_sent_to_daemon() {
 
     let _ = std::fs::remove_file(&path);
 }
+
+#[test]
+fn send_returns_false_when_disconnected() {
+    let conn = DaemonConnection::disconnected();
+    let sent = conn.send(DaemonCommand::Quit);
+    assert!(!sent, "expected false when channel receiver is dropped");
+}
