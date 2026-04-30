@@ -101,6 +101,8 @@ pub async fn handle_command(
                 }
             };
 
+            println!("OIDC_AUTH_URL={}", auth_url);
+
             if let Err(e) = open_browser(auth_url.as_str()).await {
                 ipc.broadcast(DaemonEvent::AccountAddFailed {
                     account_id,
