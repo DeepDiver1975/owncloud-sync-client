@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    reviewers:
+      - DeepDiver1975
     groups:
       cargo-deps:
         patterns: ["*"]
@@ -12,6 +16,10 @@ updates:
     directory: /shell-integration/windows
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    reviewers:
+      - DeepDiver1975
     groups:
       cargo-deps-windows:
         patterns: ["*"]
@@ -20,6 +28,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    reviewers:
+      - DeepDiver1975
     groups:
       github-actions-deps:
         patterns: ["*"]
