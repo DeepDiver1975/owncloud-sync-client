@@ -1,12 +1,20 @@
 use anyhow::Result;
-use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 use uuid::Uuid;
+
+use ocis_client::auth::OidcAuth;
 
 use super::protocol::{DaemonCommand, DaemonEvent};
 use super::GuiIpcServer;
 use crate::config::AppConfig;
 use crate::folder_manager::FolderManager;
+use crate::oidc_callback;
 use crate::scheduler::SyncScheduler;
+
+const OCIS_CLIENT_ID: &str = "xdXOt13JKxym1B1QcEncf2XDkLAexMBFwiT9j6EohhggggDD";
 
 #[derive(Debug, PartialEq)]
 pub enum ShouldQuit {
@@ -18,14 +26,12 @@ pub async fn handle_command(
     cmd: DaemonCommand,
     scheduler: &mut SyncScheduler,
     _folder_manager: &FolderManager,
-    ipc: &GuiIpcServer,
-    config: &mut AppConfig,
-    config_path: &Path,
+    ipc: &Arc<GuiIpcServer>,
+    config: Arc<Mutex<AppConfig>>,
+    config_path: PathBuf,
 ) -> Result<ShouldQuit> {
     match cmd {
-        DaemonCommand::Subscribe => {
-            // Handled at the connection level; nothing to do here.
-        }
+        DaemonCommand::Subscribe => {}
 
         DaemonCommand::TriggerSync { folder_id } => {
             scheduler.force_request_sync(folder_id);
@@ -50,28 +56,80 @@ pub async fn handle_command(
 
         DaemonCommand::AddAccount { url } => {
             if !url.starts_with("http://") && !url.starts_with("https://") {
-                tracing::warn!("AddAccount rejected invalid URL: {url}");
+                let account_id = Uuid::new_v4();
+                ipc.broadcast(DaemonEvent::AccountAddFailed {
+                    account_id,
+                    reason: "URL must start with http:// or https://".to_string(),
+                });
                 return Ok(ShouldQuit::No);
             }
-            let new_account = crate::config::AccountConfig {
-                id: Uuid::new_v4(),
-                url,
-                username: String::new(),
-                display_name: String::new(),
-                folder: vec![],
+
+            let account_id = Uuid::new_v4();
+
+            // Bind to :0 to get an OS-assigned port.
+            let listener = match TcpListener::bind("127.0.0.1:0").await {
+                Ok(l) => l,
+                Err(e) => {
+                    ipc.broadcast(DaemonEvent::AccountAddFailed {
+                        account_id,
+                        reason: format!("failed to bind callback port: {e}"),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
             };
-            let account_id = new_account.id;
-            config.account.push(new_account);
-            config.save(config_path)?;
-            ipc.broadcast(DaemonEvent::AccountStateChanged {
+            let port = listener.local_addr()?.port();
+            let callback_uri = format!("http://127.0.0.1:{port}/callback");
+
+            let oidc = match OidcAuth::discover(&url, OCIS_CLIENT_ID, &callback_uri).await {
+                Ok(o) => o,
+                Err(e) => {
+                    ipc.broadcast(DaemonEvent::AccountAddFailed {
+                        account_id,
+                        reason: format!("OIDC discovery failed: {e}"),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+
+            let (auth_url, verifier) = match oidc.start_pkce_flow() {
+                Ok(pair) => pair,
+                Err(e) => {
+                    ipc.broadcast(DaemonEvent::AccountAddFailed {
+                        account_id,
+                        reason: format!("PKCE setup failed: {e}"),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+
+            if let Err(e) = open_browser(auth_url.as_str()) {
+                ipc.broadcast(DaemonEvent::AccountAddFailed {
+                    account_id,
+                    reason: format!("could not open browser: {e}"),
+                });
+                return Ok(ShouldQuit::No);
+            }
+
+            ipc.broadcast(DaemonEvent::AccountAddStarted { account_id });
+
+            let ipc_clone = Arc::clone(ipc);
+            tokio::spawn(oidc_callback::run_callback(
+                listener,
+                oidc,
+                verifier,
                 account_id,
-                state: "added".into(),
-            });
+                url,
+                ipc_clone,
+                config,
+                config_path,
+            ));
         }
 
         DaemonCommand::RemoveAccount { account_id } => {
-            config.account.retain(|a| a.id != account_id);
-            config.save(config_path)?;
+            let mut cfg = config.lock().await;
+            cfg.account.retain(|a| a.id != account_id);
+            cfg.save(&config_path)?;
+            drop(cfg);
             ipc.broadcast(DaemonEvent::AccountStateChanged {
                 account_id,
                 state: "removed".into(),
@@ -85,24 +143,37 @@ pub async fn handle_command(
     Ok(ShouldQuit::No)
 }
 
+fn open_browser(url: &str) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    std::process::Command::new("xdg-open").arg(url).spawn()?;
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open").arg(url).spawn()?;
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("cmd")
+        .args(["/c", "start", url])
+        .spawn()?;
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    anyhow::bail!("unsupported platform for browser launch");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{AppConfig, GeneralConfig};
+    use crate::config::GeneralConfig;
     use crate::folder_manager::FolderManager;
     use crate::scheduler::SyncScheduler;
     use tempfile::NamedTempFile;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn trigger_sync_marks_pending() {
         let folder_id = Uuid::new_v4();
         let mut scheduler = SyncScheduler::new(vec![folder_id]);
         let (ipc, _rx) = GuiIpcServer::new();
-        let mut config = AppConfig {
+        let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
             account: vec![],
-        };
+        }));
         let file = NamedTempFile::new().unwrap();
         let fm = FolderManager::empty();
 
@@ -111,15 +182,13 @@ mod tests {
             &mut scheduler,
             &fm,
             &ipc,
-            &mut config,
-            file.path(),
+            config,
+            file.path().to_path_buf(),
         )
         .await
         .unwrap();
 
         assert_eq!(result, ShouldQuit::No);
-        // force_request_sync sets pending even if not paused, but folder isn't registered
-        // so ready_to_run returns empty. Verify no panic and No returned.
     }
 
     #[tokio::test]
@@ -127,10 +196,10 @@ mod tests {
         let folder_id = Uuid::new_v4();
         let mut scheduler = SyncScheduler::new(vec![folder_id]);
         let (ipc, _rx) = GuiIpcServer::new();
-        let mut config = AppConfig {
+        let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
             account: vec![],
-        };
+        }));
         let file = NamedTempFile::new().unwrap();
         let fm = FolderManager::empty();
 
@@ -139,8 +208,8 @@ mod tests {
             &mut scheduler,
             &fm,
             &ipc,
-            &mut config,
-            file.path(),
+            config,
+            file.path().to_path_buf(),
         )
         .await
         .unwrap();
@@ -154,10 +223,10 @@ mod tests {
         let folder_id = Uuid::new_v4();
         let mut scheduler = SyncScheduler::new(vec![folder_id]);
         let (ipc, _rx) = GuiIpcServer::new();
-        let mut config = AppConfig {
+        let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
             account: vec![],
-        };
+        }));
         let file = NamedTempFile::new().unwrap();
         let fm = FolderManager::empty();
 
@@ -166,8 +235,8 @@ mod tests {
             &mut scheduler,
             &fm,
             &ipc,
-            &mut config,
-            file.path(),
+            Arc::clone(&config),
+            file.path().to_path_buf(),
         )
         .await
         .unwrap();
@@ -176,8 +245,8 @@ mod tests {
             &mut scheduler,
             &fm,
             &ipc,
-            &mut config,
-            file.path(),
+            config,
+            file.path().to_path_buf(),
         )
         .await
         .unwrap();
@@ -189,10 +258,10 @@ mod tests {
     async fn quit_returns_should_quit() {
         let mut scheduler = SyncScheduler::new(vec![]);
         let (ipc, _rx) = GuiIpcServer::new();
-        let mut config = AppConfig {
+        let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
             account: vec![],
-        };
+        }));
         let file = NamedTempFile::new().unwrap();
         let fm = FolderManager::empty();
 
@@ -201,8 +270,8 @@ mod tests {
             &mut scheduler,
             &fm,
             &ipc,
-            &mut config,
-            file.path(),
+            config,
+            file.path().to_path_buf(),
         )
         .await
         .unwrap();

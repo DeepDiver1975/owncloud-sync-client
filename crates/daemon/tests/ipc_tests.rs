@@ -132,6 +132,47 @@ async fn roundtrip_account_add_started() {
 }
 
 #[tokio::test]
+async fn add_account_invalid_url_broadcasts_failed() {
+    use daemon::config::{AppConfig, GeneralConfig};
+    use daemon::folder_manager::FolderManager;
+    use daemon::gui_ipc::handler::handle_command;
+    use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
+    use daemon::gui_ipc::GuiIpcServer;
+    use daemon::scheduler::SyncScheduler;
+    use std::sync::Arc;
+    use tempfile::NamedTempFile;
+    use tokio::sync::Mutex;
+
+    let (ipc, mut event_rx) = GuiIpcServer::new();
+    let mut scheduler = SyncScheduler::new(vec![]);
+    let config = Arc::new(Mutex::new(AppConfig {
+        general: GeneralConfig::default(),
+        account: vec![],
+    }));
+    let file = NamedTempFile::new().unwrap();
+    let fm = FolderManager::empty();
+
+    handle_command(
+        DaemonCommand::AddAccount {
+            url: "not-a-url".to_string(),
+        },
+        &mut scheduler,
+        &fm,
+        &ipc,
+        config,
+        file.path().to_path_buf(),
+    )
+    .await
+    .unwrap();
+
+    let evt = event_rx.try_recv().unwrap();
+    assert!(
+        matches!(evt, DaemonEvent::AccountAddFailed { .. }),
+        "expected AccountAddFailed, got {evt:?}"
+    );
+}
+
+#[tokio::test]
 async fn roundtrip_account_add_failed() {
     use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
     use tokio::io::duplex;

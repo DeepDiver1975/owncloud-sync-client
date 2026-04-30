@@ -11,6 +11,7 @@ mod config;
 mod folder_manager;
 mod gui_ipc;
 mod lock;
+mod oidc_callback;
 mod paths;
 mod scheduler;
 mod vfs_factory;
@@ -49,17 +50,18 @@ async fn main() -> Result<()> {
     info!("Lock acquired: {}", lock_path.display());
 
     let config_path = paths::platform_config_dir().join("owncloud.toml");
-    let mut config = AppConfig::load_or_default(&config_path)?;
+    let initial_config = AppConfig::load_or_default(&config_path)?;
     info!("Config loaded from {}", config_path.display());
 
-    let poll_secs = config.general.poll_interval_secs;
+    let poll_secs = initial_config.general.poll_interval_secs;
 
-    let all_folders: Vec<_> = config
+    let all_folders: Vec<_> = initial_config
         .account
         .iter()
         .flat_map(|a| a.folder.clone())
         .collect();
-    let folder_manager = FolderManager::init_sync(&all_folders, &config.account)?;
+    let folder_manager = FolderManager::init_sync(&all_folders, &initial_config.account)?;
+    let config = Arc::new(tokio::sync::Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
     let sync_states = folder_manager.sync_states();
@@ -127,8 +129,8 @@ async fn main() -> Result<()> {
                     &mut scheduler,
                     &folder_manager,
                     &gui_ipc,
-                    &mut config,
-                    &config_path,
+                    Arc::clone(&config),
+                    config_path.clone(),
                 ).await {
                     Ok(ShouldQuit::Yes) => {
                         info!("Quit command received; shutting down");
