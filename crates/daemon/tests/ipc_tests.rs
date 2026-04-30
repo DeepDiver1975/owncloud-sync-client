@@ -115,3 +115,34 @@ async fn non_subscribed_client_does_not_receive_events() {
 
     assert!(result.is_err(), "expected timeout but got a message");
 }
+
+#[tokio::test]
+async fn roundtrip_account_add_started() {
+    use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
+    use tokio::io::duplex;
+    use uuid::Uuid;
+
+    let (mut client, mut server) = duplex(4096);
+    let event = DaemonEvent::AccountAddStarted {
+        account_id: Uuid::new_v4(),
+    };
+    write_message(&mut server, &event).await.unwrap();
+    let received = read_event(&mut client).await.unwrap();
+    assert_eq!(event, received);
+}
+
+#[tokio::test]
+async fn roundtrip_account_add_failed() {
+    use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
+    use tokio::io::duplex;
+    use uuid::Uuid;
+
+    let (mut client, mut server) = duplex(4096);
+    let event = DaemonEvent::AccountAddFailed {
+        account_id: Uuid::new_v4(),
+        reason: "discovery failed".to_string(),
+    };
+    write_message(&mut server, &event).await.unwrap();
+    let received = read_event(&mut client).await.unwrap();
+    assert_eq!(event, received);
+}
