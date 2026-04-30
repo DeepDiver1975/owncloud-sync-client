@@ -24,10 +24,7 @@ pub async fn complete_oidc_login(
   await page.goto({auth_url});
   await page.fill('input[name="login"]', {username});
   await page.fill('input[name="password"]', {password});
-  await Promise.all([
-    page.waitForNavigation({{ waitUntil: 'networkidle' }}),
-    page.click('button[type="submit"]'),
-  ]);
+  await page.click('button[type="submit"]');
   await page.waitForURL('http://127.0.0.1:{callback_port}/callback**', {{ timeout: 15000 }});
   await browser.close();
 }})();
