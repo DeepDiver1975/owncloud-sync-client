@@ -81,9 +81,18 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
                 let url = url_input.clone();
                 if url.is_empty() {
                     *error = Some("Please enter a server URL".to_string());
+                    return iced::Task::none();
+                }
+                let sent = app
+                    .daemon
+                    .send(DaemonCommand::AddAccount { url: url.clone() });
+                if sent {
+                    app.active_view = View::AddAccountWaiting {
+                        account_id: Uuid::nil(),
+                        url_input: url,
+                    };
                 } else {
-                    *error = None;
-                    app.daemon.send(DaemonCommand::AddAccount { url });
+                    *error = Some("Not connected to sync daemon".to_string());
                 }
             }
             iced::Task::none()
@@ -172,15 +181,43 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
         }
 
         DaemonEvent::AccountStateChanged { account_id, state } => {
+            if state == "added" {
+                if let View::AddAccountWaiting {
+                    account_id: waiting_id,
+                    ..
+                } = &app.active_view
+                {
+                    if waiting_id.is_nil() || *waiting_id == account_id {
+                        app.active_view = View::SyncStatus;
+                        return iced::Task::none();
+                    }
+                }
+            }
             tracing::debug!("account state changed: {account_id} → {state}");
         }
 
         DaemonEvent::AccountAddStarted { account_id } => {
-            tracing::debug!("account add started: {account_id}");
+            if let View::AddAccountWaiting {
+                account_id: stored, ..
+            } = &mut app.active_view
+            {
+                *stored = account_id;
+            }
         }
 
-        DaemonEvent::AccountAddFailed { account_id, reason } => {
-            tracing::debug!("account add failed: {account_id} — {reason}");
+        DaemonEvent::AccountAddFailed {
+            account_id: _,
+            reason,
+        } => {
+            let url = if let View::AddAccountWaiting { url_input, .. } = &app.active_view {
+                url_input.clone()
+            } else {
+                String::new()
+            };
+            app.active_view = View::AddAccount {
+                url_input: url,
+                error: Some(reason),
+            };
         }
     }
 
