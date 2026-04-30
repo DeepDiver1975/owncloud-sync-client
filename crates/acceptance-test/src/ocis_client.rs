@@ -1,1 +1,95 @@
-// stub
+use anyhow::{anyhow, Result};
+use bytes::Bytes;
+use reqwest::{Client, StatusCode};
+use serde::Deserialize;
+use url::Url;
+
+pub struct OcisClient {
+    pub(crate) client: Client,
+    base_url: Url,
+    pub space_id: String,
+}
+
+#[derive(Deserialize)]
+struct DrivesResponse {
+    value: Vec<Drive>,
+}
+
+#[derive(Deserialize)]
+struct Drive {
+    id: String,
+    #[serde(rename = "driveType")]
+    drive_type: String,
+}
+
+impl OcisClient {
+    pub async fn from_credentials(base_url: Url, username: &str, password: &str) -> Result<Self> {
+        let client = Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()?;
+
+        let drives_url = base_url.join("/graph/v1.0/me/drives")?;
+        let resp = client
+            .get(drives_url)
+            .basic_auth(username, Some(password))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let drives: DrivesResponse = resp.json().await?;
+        let personal = drives
+            .value
+            .into_iter()
+            .find(|d| d.drive_type == "personal")
+            .ok_or_else(|| anyhow!("no personal drive found"))?;
+
+        Ok(Self {
+            client,
+            base_url,
+            space_id: personal.id,
+        })
+    }
+
+    pub(crate) fn webdav_url(&self, path: &str) -> Result<Url> {
+        let p = format!(
+            "/dav/spaces/{}/{}",
+            self.space_id,
+            path.trim_start_matches('/')
+        );
+        Ok(self.base_url.join(&p)?)
+    }
+
+    pub async fn put(&self, path: &str, content: &[u8]) -> Result<()> {
+        self.client
+            .put(self.webdav_url(path)?)
+            .basic_auth("admin", Some("admin"))
+            .body(content.to_vec())
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    pub async fn get(&self, path: &str) -> Result<Bytes> {
+        let bytes = self
+            .client
+            .get(self.webdav_url(path)?)
+            .basic_auth("admin", Some("admin"))
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        Ok(bytes)
+    }
+
+    pub async fn exists(&self, path: &str) -> Result<bool> {
+        let resp = self
+            .client
+            .head(self.webdav_url(path)?)
+            .basic_auth("admin", Some("admin"))
+            .send()
+            .await?;
+        Ok(resp.status() == StatusCode::OK)
+    }
+}
