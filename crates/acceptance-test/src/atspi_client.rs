@@ -7,7 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use atspi::proxy::accessible::{AccessibleProxy, ObjectRefExt};
 use atspi::{AccessibilityConnection, Role};
 use atspi_common::ObjectRefOwned;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -54,10 +54,21 @@ impl AtSpiClient {
 
         // BFS queue of ObjectRefOwned to visit.
         let mut queue: VecDeque<ObjectRefOwned> = VecDeque::from(app_refs);
+        // Track visited nodes to avoid infinite loops in cyclic graphs.
+        let mut visited: HashSet<(String, String)> = HashSet::new();
 
         while let Some(obj_ref) = queue.pop_front() {
             if obj_ref.is_null() {
                 continue;
+            }
+
+            // Check if we've already visited this node.
+            let key = (
+                obj_ref.name_as_str().unwrap_or("").to_string(),
+                obj_ref.path_as_str().to_string(),
+            );
+            if !visited.insert(key) {
+                continue; // already visited, skip
             }
 
             // Build a proxy for this node.

@@ -106,16 +106,28 @@ impl TestEnvironment {
     /// Reads daemon stdout until a `OIDC_AUTH_URL=<url>` line is found, then returns the URL.
     /// Must be called after `AddAccount` is sent to the daemon.
     pub async fn wait_for_oidc_url(&mut self) -> Result<Url> {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
         loop {
-            match tokio::time::timeout(Duration::from_secs(30), self.daemon_stdout.next_line())
-                .await
-            {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return Err(anyhow!(
+                    "timed out waiting for OIDC_AUTH_URL from daemon stdout"
+                ));
+            }
+            match tokio::time::timeout(remaining, self.daemon_stdout.next_line()).await {
                 Ok(Ok(Some(line))) => {
                     if let Some(url_str) = line.strip_prefix("OIDC_AUTH_URL=") {
                         return Ok(Url::parse(url_str.trim())?);
                     }
+                    // Non-matching line — continue reading
                 }
-                _ => {
+                Ok(Ok(None)) => {
+                    return Err(anyhow!(
+                        "daemon stdout closed before OIDC_AUTH_URL was emitted"
+                    ));
+                }
+                Ok(Err(e)) => return Err(e.into()),
+                Err(_) => {
                     return Err(anyhow!(
                         "timed out waiting for OIDC_AUTH_URL from daemon stdout"
                     ))
