@@ -174,6 +174,14 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
         DaemonEvent::AccountStateChanged { account_id, state } => {
             tracing::debug!("account state changed: {account_id} → {state}");
         }
+
+        DaemonEvent::AccountAddStarted { account_id } => {
+            tracing::debug!("account add started: {account_id}");
+        }
+
+        DaemonEvent::AccountAddFailed { account_id, reason } => {
+            tracing::debug!("account add failed: {account_id} — {reason}");
+        }
     }
 
     iced::Task::none()
