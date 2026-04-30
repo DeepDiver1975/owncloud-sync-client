@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directory: /shell-integration/windows
+    schedule:
+      interval: weekly
+    groups:
+      cargo-deps-windows:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions-deps:
+        patterns: ["*"]
