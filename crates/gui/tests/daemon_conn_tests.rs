@@ -4,13 +4,7 @@ use tokio::net::UnixListener;
 use uuid::Uuid;
 
 fn unique_socket() -> std::path::PathBuf {
-    std::path::PathBuf::from(format!(
-        "/tmp/ocsync_conn_test_{}.sock",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ))
+    std::path::PathBuf::from(format!("/tmp/ocsync_conn_test_{}.sock", Uuid::new_v4()))
 }
 
 #[test]
