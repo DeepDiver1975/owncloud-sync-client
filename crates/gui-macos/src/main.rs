@@ -11,7 +11,7 @@ fn main() {
 #[cfg(target_os = "macos")]
 fn main() {
     use daemon::paths::platform_gui_socket_path;
-    use gui_core::{Action, AppCore};
+    use gui_core::AppCore;
     use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
     use std::sync::{Arc, Mutex};
 

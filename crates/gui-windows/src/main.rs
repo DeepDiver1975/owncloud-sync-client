@@ -11,7 +11,7 @@ fn main() {
 #[cfg(target_os = "windows")]
 fn main() {
     use daemon::paths::platform_gui_socket_path;
-    use gui_core::{Action, AppCore};
+    use gui_core::AppCore;
     use std::sync::{Arc, Mutex};
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::*;
