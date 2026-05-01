@@ -324,6 +324,7 @@ fn spawn_daemon(
     cmd.env("XDG_CONFIG_HOME", config_dir)
         .env("XDG_RUNTIME_DIR", config_dir)
         .env("OCIS_INSECURE", "1")
+        .env("OCIS_BASIC_AUTH", "admin:admin")
         .env("OCSYNCD_NO_BROWSER", "1")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::inherit());
