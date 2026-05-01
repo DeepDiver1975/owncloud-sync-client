@@ -13,6 +13,8 @@ fn main() {
     use daemon::paths::platform_gui_socket_path;
     use gui_core::AppCore;
     use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+    use objc2_foundation::MainThreadMarker;
+    use std::ptr::NonNull;
     use std::sync::{Arc, Mutex};
 
     tracing_subscriber::fmt()
@@ -27,7 +29,8 @@ fn main() {
     let core = Arc::new(Mutex::new(core));
 
     unsafe {
-        let app = NSApplication::sharedApplication();
+        let mtm = MainThreadMarker::new_unchecked();
+        let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
 
         let window = window::inner::create_window();
@@ -37,17 +40,18 @@ fn main() {
 
         // Poll daemon events every 50ms via NSTimer
         let core_timer = core.clone();
-        let timer_block = block2::RcBlock::new(move |_timer: *mut objc2_foundation::NSTimer| {
-            let mut guard = core_timer.lock().unwrap();
-            guard.poll_events();
-            let vm = guard.view_model();
-            tracing::debug!("view: {:?}", vm.active_view);
-        });
+        let timer_block =
+            block2::RcBlock::new(move |_timer: NonNull<objc2_foundation::NSTimer>| {
+                let mut guard = core_timer.lock().unwrap();
+                guard.poll_events();
+                let vm = guard.view_model();
+                tracing::debug!("view: {:?}", vm.active_view);
+            });
         let interval = 0.05_f64;
         let _timer = objc2_foundation::NSTimer::scheduledTimerWithTimeInterval_repeats_block(
             interval,
             true,
-            &timer_block,
+            &*timer_block,
         );
 
         app.run();
