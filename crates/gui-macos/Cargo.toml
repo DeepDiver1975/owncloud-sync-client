@@ -1,0 +1,37 @@
+[package]
+name = "gui-macos"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ocsync-macos"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-app-kit = { version = "0.2", features = [
+    "NSApplication",
+    "NSWindow",
+    "NSTextField",
+    "NSStatusBar",
+    "NSStatusItem",
+    "NSMenu",
+    "NSMenuItem",
+    "NSView",
+    "NSButton",
+] }
+objc2-foundation = { version = "0.2", features = [
+    "NSString",
+    "NSGeometry",
+    "NSTimer",
+    "NSRunLoop",
+    "NSDate",
+] }
+block2 = "0.5"
+tokio = { workspace = true, features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+daemon = { path = "../daemon" }
+gui-core = { path = "../gui-core" }
