@@ -124,7 +124,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers gnome-keyring
+          sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers gnome-keyring dbus-x11
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -157,8 +157,8 @@ jobs:
       - name: Start gnome-keyring (headless secret service)
         run: |
           eval $(dbus-launch --sh-syntax)
+          test -n "$DBUS_SESSION_BUS_ADDRESS" || { echo "dbus-launch failed to produce a bus address"; exit 1; }
           echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
-          echo "DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID" >> $GITHUB_ENV
           echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
 
       - name: Run acceptance tests
