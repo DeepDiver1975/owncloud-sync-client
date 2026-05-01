@@ -30,3 +30,4 @@ atspi = { version = "0.29", features = ["tokio"] }
 atspi-common = "0.13"
 zbus = "4"
 bytes = "1"
+nix = { version = "0.29", features = ["user"] }

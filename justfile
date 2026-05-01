@@ -141,7 +141,6 @@ acceptance-setup:
 	npx playwright install chromium
 
 # Run acceptance tests (requires Docker and a display server)
+# Docker Compose is started/stopped automatically by the test fixture.
 acceptance:
-	docker compose -f tests/docker/compose.yml up -d
 	OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture
-	docker compose -f tests/docker/compose.yml down

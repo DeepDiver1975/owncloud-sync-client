@@ -16,7 +16,7 @@ pub struct DownloadRequest {
 /// If `expected_etag` is set and does not match the server's ETag, the temp
 /// file is removed and an error is returned.
 pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
-    let client = reqwest::Client::new();
+    let client = ocis_client::build_http_client();
 
     let resp = client
         .get(req.remote_url.as_str())

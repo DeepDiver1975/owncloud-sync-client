@@ -5,6 +5,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use atspi::proxy::accessible::{AccessibleProxy, ObjectRefExt};
+use atspi::zbus::Address;
 use atspi::{AccessibilityConnection, Role};
 use atspi_common::ObjectRefOwned;
 use std::collections::{HashSet, VecDeque};
@@ -19,13 +20,28 @@ pub struct AtSpiClient {
 impl AtSpiClient {
     /// Open a connection to the AT-SPI2 D-Bus accessibility bus.
     ///
+    /// Uses `AT_SPI_BUS_ADDRESS` if set; otherwise falls back to session bus discovery.
+    ///
     /// # Errors
     /// Returns an error if the AT-SPI2 bus is not available or the connection cannot be
     /// established.
     pub async fn connect() -> Result<Self> {
-        let conn = AccessibilityConnection::new()
-            .await
-            .context("failed to connect to AT-SPI2 accessibility bus")?;
+        let conn = if let Ok(addr_str) = std::env::var("AT_SPI_BUS_ADDRESS") {
+            if !addr_str.is_empty() {
+                let addr: Address = addr_str.parse().context("invalid AT_SPI_BUS_ADDRESS")?;
+                AccessibilityConnection::from_address(addr)
+                    .await
+                    .context("failed to connect to AT-SPI2 bus at AT_SPI_BUS_ADDRESS")?
+            } else {
+                AccessibilityConnection::new()
+                    .await
+                    .context("failed to connect to AT-SPI2 accessibility bus")?
+            }
+        } else {
+            AccessibilityConnection::new()
+                .await
+                .context("failed to connect to AT-SPI2 accessibility bus")?
+        };
         Ok(Self { conn })
     }
 

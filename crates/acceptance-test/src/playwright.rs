@@ -16,19 +16,39 @@ pub async fn complete_oidc_login(
     username: &str,
     password: &str,
 ) -> Result<()> {
+    // node resolves require() relative to the script file, not the process CWD.
+    // Write the script into the workspace root (next to node_modules) so that
+    // `require('playwright')` resolves to the local installation.
+    let workspace_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()?;
+    let playwright_path = workspace_root.join("node_modules").join("playwright");
+
     let script = format!(
-        r#"const {{ chromium }} = require('playwright');
+        r#"const {{ chromium }} = require({playwright_path});
 (async () => {{
   const browser = await chromium.launch({{ headless: true }});
-  const page = await browser.newPage();
+  const context = await browser.newContext({{ ignoreHTTPSErrors: true }});
+  const page = await context.newPage();
   await page.goto({auth_url});
-  await page.fill('input[name="login"]', {username});
-  await page.fill('input[name="password"]', {password});
+  await page.waitForSelector('#oc-login-username', {{ timeout: 15000 }});
+  await page.fill('#oc-login-username', {username});
+  await page.fill('#oc-login-password', {password});
   await page.click('button[type="submit"]');
-  await page.waitForURL('http://127.0.0.1:{callback_port}/callback**', {{ timeout: 15000 }});
+  // oCIS may show a consent page after login — race between consent and callback
+  const callbackPattern = 'http://127.0.0.1:{callback_port}/**';
+  await Promise.race([
+    page.waitForURL('**consent**', {{ timeout: 15000 }}),
+    page.waitForURL(callbackPattern, {{ timeout: 15000 }}),
+  ]);
+  if (page.url().includes('consent')) {{
+    await page.click('button[type="submit"]');
+    await page.waitForURL(callbackPattern, {{ timeout: 15000 }});
+  }}
   await browser.close();
 }})();
 "#,
+        playwright_path = serde_json::to_string(&playwright_path.to_string_lossy().as_ref())?,
         auth_url = serde_json::to_string(auth_url.as_str())?,
         username = serde_json::to_string(username)?,
         password = serde_json::to_string(password)?,
