@@ -21,14 +21,9 @@ impl DaemonIpcClient {
         let (tx, rx) = mpsc::channel(64);
 
         tokio::spawn(async move {
-            loop {
-                match read_event(&mut buf_reader).await {
-                    Ok(event) => {
-                        if tx.send(event).await.is_err() {
-                            break;
-                        }
-                    }
-                    Err(_) => break,
+            while let Ok(event) = read_event(&mut buf_reader).await {
+                if tx.send(event).await.is_err() {
+                    break;
                 }
             }
         });

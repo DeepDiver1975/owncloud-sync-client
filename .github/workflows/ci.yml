@@ -149,6 +149,9 @@ jobs:
             curl -fks https://localhost:9200/health && break || sleep 2
           done
 
+      - name: Build ocsyncd
+        run: cargo build -p daemon
+
       - name: Run acceptance tests
         run: OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture
 

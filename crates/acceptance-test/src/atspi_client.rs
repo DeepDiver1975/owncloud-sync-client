@@ -100,10 +100,7 @@ impl AtSpiClient {
             };
 
             if obj_role == role {
-                let obj_name = match proxy.name().await {
-                    Ok(n) => n,
-                    Err(_) => String::new(),
-                };
+                let obj_name = proxy.name().await.unwrap_or_default();
                 if obj_name == name {
                     return Ok(obj_ref);
                 }
