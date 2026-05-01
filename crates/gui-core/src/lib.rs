@@ -6,5 +6,6 @@ pub(crate) mod spawn;
 pub mod view_model;
 
 pub use action::{Action, BackendCommand};
+pub use core::AppCore;
 pub use model::{AccountView, FolderStatus, FolderView};
 pub use view_model::{ViewKind, ViewModel};
