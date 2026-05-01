@@ -1,0 +1,15 @@
+[package]
+name = "gui-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+daemon = { path = "../daemon" }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true }
+uuid = { workspace = true }
+anyhow = "1"
+thiserror = { workspace = true }
+tracing = "0.1"
