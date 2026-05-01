@@ -2467,6 +2467,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "gui-macos"
+version = "0.1.0"
+dependencies = [
+ "block2 0.5.1",
+ "daemon",
+ "gui-core",
+ "objc2 0.5.2",
+ "objc2-app-kit 0.2.2",
+ "objc2-foundation 0.2.2",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "gui-windows"
+version = "0.1.0"
+dependencies = [
+ "daemon",
+ "gui-core",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "windows",
+]
+
+[[package]]
 name = "guillotiere"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
