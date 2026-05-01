@@ -57,6 +57,10 @@ depends = "libdbus-1-3, libsecret-1-0"
 suggests = "python3-nautilus"
 section = "net"
 priority = "optional"
+conf-files = ["/etc/xdg/autostart/owncloud-sync.desktop"]
+# NOTE: run `cargo build --release --workspace` before `cargo deb --no-build`.
+# The assets reference binaries from other workspace crates (ocsync, oc-dbus-service)
+# that land in the shared target/release/ directory.
 assets = [
     # binaries
     { source = "target/release/ocsyncd",         dest = "/usr/bin/",                          mode = "0755" },
