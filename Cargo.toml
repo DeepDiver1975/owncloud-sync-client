@@ -12,6 +12,7 @@ members = [
     "crates/daemon",
     "crates/gui",
     "crates/gui-core",
+    "crates/gui-gtk",
     "shell-integration/linux/oc-dbus-service",
 ]
 
