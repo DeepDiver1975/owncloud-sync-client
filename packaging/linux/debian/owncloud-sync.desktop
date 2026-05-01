@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ownCloud Sync
+Comment=Sync files with your ownCloud Infinite Scale server
+Exec=ocsync
+Icon=owncloud
+Categories=Network;FileTransfer;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
