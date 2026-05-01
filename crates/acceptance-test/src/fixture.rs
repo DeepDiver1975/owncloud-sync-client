@@ -10,6 +10,7 @@ use url::Url;
 use crate::daemon_ipc::DaemonIpcClient;
 use crate::ocis_client::OcisClient;
 use crate::playwright::complete_oidc_login;
+use daemon::config::{AppConfig, FolderConfig};
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 
 const OCIS_URL: &str = "https://127.0.0.1:9200";
@@ -25,6 +26,7 @@ pub struct TestEnvironment {
     pub daemon_ipc: DaemonIpcClient,
     pub ocis_client: OcisClient,
     pub daemon_stdout: Lines<BufReader<tokio::process::ChildStdout>>,
+    bin_dir: PathBuf,
     daemon: Child,
     gui: Child,
     atspi_bus: Child,
@@ -69,19 +71,8 @@ impl TestEnvironment {
             .context("could not resolve workspace root")?;
         let bin_dir = workspace_root.join("target/debug");
 
-        // Spawn daemon with piped stdout to capture OIDC_AUTH_URL lines
-        let mut daemon_cmd = Command::new(bin_dir.join("ocsyncd"));
-        daemon_cmd
-            .env("XDG_CONFIG_HOME", config_dir.path())
-            .env("XDG_RUNTIME_DIR", config_dir.path())
-            .env("OCIS_INSECURE", "1")
-            .env("OCSYNCD_NO_BROWSER", "1")
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit());
-
-        let mut daemon = daemon_cmd.spawn().context("failed to spawn ocsyncd")?;
-        let daemon_raw_stdout = daemon.stdout.take().expect("stdout was piped");
-        let daemon_stdout = BufReader::new(daemon_raw_stdout).lines();
+        let (daemon, daemon_stdout) =
+            spawn_daemon(&bin_dir, config_dir.path()).context("failed to spawn ocsyncd")?;
 
         // Wait for GUI socket to appear
         let socket_path = socket_path_for(config_dir.path());
@@ -168,14 +159,15 @@ impl TestEnvironment {
             daemon_ipc,
             ocis_client,
             daemon_stdout,
+            bin_dir,
             daemon,
             gui,
             atspi_bus,
         })
     }
 
-    /// Runs the full OIDC account-setup flow against oCIS using admin credentials.
-    /// After this returns, the daemon has an account and will begin syncing.
+    /// Runs the full OIDC account-setup flow, then patches the config with a sync folder
+    /// and restarts the daemon so it begins syncing.
     pub async fn add_account(&mut self) -> Result<()> {
         self.daemon_ipc
             .send(DaemonCommand::AddAccount {
@@ -221,6 +213,49 @@ impl TestEnvironment {
             )
             .await
             .ok_or_else(|| anyhow!("AccountStateChanged(added) not received"))?;
+
+        // Patch config: add a sync folder to the account, then restart the daemon so it
+        // picks up the new folder (the running daemon only syncs folders loaded at startup).
+        let config_path = self
+            .config_dir
+            .path()
+            .join("owncloud")
+            .join("owncloud.toml");
+        let mut cfg = AppConfig::load(&config_path).context("failed to load config after OIDC")?;
+        let account = cfg
+            .account
+            .first_mut()
+            .ok_or_else(|| anyhow!("no account in config after OIDC"))?;
+        account.folder.push(FolderConfig {
+            id: uuid::Uuid::new_v4(),
+            local_path: self.sync_dir.path().to_string_lossy().into_owned(),
+            space_id: self.ocis_client.space_id.clone(),
+            display_name: "Personal".to_string(),
+            selective_sync_excluded: vec![],
+            vfs_mode: "off".to_string(),
+            paused: false,
+        });
+        cfg.save(&config_path)
+            .context("failed to save config with folder")?;
+
+        // Kill old daemon and remove its socket so the new one can bind.
+        let _ = self.daemon.start_kill();
+        let _ = self.daemon.wait().await;
+        let socket_path = socket_path_for(self.config_dir.path());
+        let _ = std::fs::remove_file(&socket_path);
+
+        // Restart daemon with the updated config.
+        let (new_daemon, new_stdout) = spawn_daemon(&self.bin_dir, self.config_dir.path())
+            .context("failed to restart ocsyncd")?;
+        self.daemon = new_daemon;
+        self.daemon_stdout = new_stdout;
+
+        wait_for_path(&socket_path, Duration::from_secs(30))
+            .await
+            .context("daemon GUI socket did not reappear after restart")?;
+        self.daemon_ipc = DaemonIpcClient::connect(&socket_path)
+            .await
+            .context("failed to reconnect to daemon GUI socket after restart")?;
 
         Ok(())
     }
@@ -280,6 +315,24 @@ impl Drop for TestEnvironment {
             .args(["compose", "-f", &compose_file().to_string_lossy(), "down"])
             .status();
     }
+}
+
+fn spawn_daemon(
+    bin_dir: &Path,
+    config_dir: &Path,
+) -> Result<(Child, Lines<BufReader<tokio::process::ChildStdout>>)> {
+    let mut cmd = Command::new(bin_dir.join("ocsyncd"));
+    cmd.env("XDG_CONFIG_HOME", config_dir)
+        .env("XDG_RUNTIME_DIR", config_dir)
+        .env("OCIS_INSECURE", "1")
+        .env("OCSYNCD_NO_BROWSER", "1")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit());
+
+    let mut child = cmd.spawn().context("failed to spawn ocsyncd")?;
+    let raw_stdout = child.stdout.take().expect("stdout was piped");
+    let lines = BufReader::new(raw_stdout).lines();
+    Ok((child, lines))
 }
 
 async fn wait_ocis_ready(base_url: &str) -> Result<()> {
