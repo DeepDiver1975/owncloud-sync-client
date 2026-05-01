@@ -311,10 +311,8 @@ impl Drop for TestEnvironment {
                 "variant:boolean:false",
             ])
             .status();
-        // Tear down synchronously — Drop is not async
-        let _ = StdCommand::new("docker")
-            .args(["compose", "-f", &compose_file().to_string_lossy(), "down"])
-            .status();
+        // oCIS is kept running across tests so that keychain tokens remain valid
+        // between test binaries. The CI workflow's "Stop oCIS" step tears it down.
     }
 }
 
