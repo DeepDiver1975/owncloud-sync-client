@@ -11,10 +11,16 @@ fn skip_if_no_acceptance() -> bool {
     false
 }
 
-async fn env_after_initial_sync() -> TestEnvironment {
+async fn env_with_account() -> TestEnvironment {
     let mut env = TestEnvironment::start()
         .await
         .expect("TestEnvironment::start");
+    env.add_account().await.expect("add_account");
+    env
+}
+
+async fn env_after_initial_sync() -> TestEnvironment {
+    let mut env = env_with_account().await;
     env.daemon_ipc
         .wait_for(
             |e| matches!(e, DaemonEvent::SyncFinished { errors, .. } if errors.is_empty()),
@@ -30,7 +36,7 @@ async fn test_files_sync_down() {
     if skip_if_no_acceptance() {
         return;
     }
-    let mut env = TestEnvironment::start().await.expect("start");
+    let mut env = env_with_account().await;
 
     env.ocis_client
         .put("hello.txt", b"hello")
@@ -95,7 +101,7 @@ async fn test_upload_changed_file() {
     if skip_if_no_acceptance() {
         return;
     }
-    let env = TestEnvironment::start().await.expect("start");
+    let env = env_with_account().await;
 
     env.ocis_client
         .put("change_me.txt", b"original")
@@ -140,7 +146,7 @@ async fn test_conflict_resolution() {
     if skip_if_no_acceptance() {
         return;
     }
-    let env = TestEnvironment::start().await.expect("start");
+    let env = env_with_account().await;
 
     env.ocis_client
         .put("conflict.txt", b"remote v1")

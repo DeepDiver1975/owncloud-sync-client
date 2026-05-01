@@ -9,6 +9,8 @@ use url::Url;
 
 use crate::daemon_ipc::DaemonIpcClient;
 use crate::ocis_client::OcisClient;
+use crate::playwright::complete_oidc_login;
+use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 
 const OCIS_URL: &str = "https://127.0.0.1:9200";
 
@@ -170,6 +172,57 @@ impl TestEnvironment {
             gui,
             atspi_bus,
         })
+    }
+
+    /// Runs the full OIDC account-setup flow against oCIS using admin credentials.
+    /// After this returns, the daemon has an account and will begin syncing.
+    pub async fn add_account(&mut self) -> Result<()> {
+        self.daemon_ipc
+            .send(DaemonCommand::AddAccount {
+                url: self.ocis_url.to_string(),
+            })
+            .await
+            .context("failed to send AddAccount")?;
+
+        self.daemon_ipc
+            .wait_for(
+                |e| matches!(e, DaemonEvent::AccountAddStarted { .. }),
+                Duration::from_secs(15),
+            )
+            .await
+            .ok_or_else(|| anyhow!("AccountAddStarted not received"))?;
+
+        let auth_url = self.wait_for_oidc_url().await?;
+
+        let callback_port = auth_url
+            .query_pairs()
+            .find_map(|(k, v)| {
+                if k == "redirect_uri" {
+                    url::Url::parse(&v).ok().and_then(|u| u.port())
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| anyhow!("could not extract callback port from redirect_uri"))?;
+
+        complete_oidc_login(&auth_url, callback_port, "admin", "admin")
+            .await
+            .context("Playwright OIDC login failed")?;
+
+        self.daemon_ipc
+            .wait_for(
+                |e| {
+                    matches!(
+                        e,
+                        DaemonEvent::AccountStateChanged { state, .. } if state == "added"
+                    )
+                },
+                Duration::from_secs(30),
+            )
+            .await
+            .ok_or_else(|| anyhow!("AccountStateChanged(added) not received"))?;
+
+        Ok(())
     }
 
     /// Reads daemon stdout until a `OIDC_AUTH_URL=<url>` line is found, then returns the URL.
