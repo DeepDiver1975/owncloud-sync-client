@@ -13,6 +13,8 @@ members = [
     "crates/gui",
     "crates/gui-core",
     "crates/gui-gtk",
+    "crates/gui-windows",
+    "crates/gui-macos",
     "shell-integration/linux/oc-dbus-service",
 ]
 
