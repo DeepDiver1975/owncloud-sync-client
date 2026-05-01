@@ -90,21 +90,27 @@ impl AppCore {
                 }
             }
             Action::PauseFolder(folder_id) => {
-                self.daemon.send(DaemonCommand::PauseFolder { folder_id });
-                set_folder_status(&mut self.state.accounts, folder_id, FolderStatus::Paused);
+                if self.daemon.send(DaemonCommand::PauseFolder { folder_id }) {
+                    set_folder_status(&mut self.state.accounts, folder_id, FolderStatus::Paused);
+                }
             }
             Action::ResumeFolder(folder_id) => {
-                self.daemon.send(DaemonCommand::ResumeFolder { folder_id });
-                set_folder_status(&mut self.state.accounts, folder_id, FolderStatus::Idle);
+                if self.daemon.send(DaemonCommand::ResumeFolder { folder_id }) {
+                    set_folder_status(&mut self.state.accounts, folder_id, FolderStatus::Idle);
+                }
             }
             Action::ForceSyncFolder(folder_id) => {
                 self.daemon.send(DaemonCommand::TriggerSync { folder_id });
+                // no state mutation needed — sync status comes back via events
             }
             Action::RemoveAccount(account_id) => {
-                self.daemon
-                    .send(DaemonCommand::RemoveAccount { account_id });
-                self.state.accounts.retain(|a| a.id != account_id);
-                self.state.active_view = ViewKind::SyncStatus;
+                if self
+                    .daemon
+                    .send(DaemonCommand::RemoveAccount { account_id })
+                {
+                    self.state.accounts.retain(|a| a.id != account_id);
+                    self.state.active_view = ViewKind::SyncStatus;
+                }
             }
             Action::OpenFolder(path) => {
                 return vec![BackendCommand::OpenFolder(path)];
@@ -122,8 +128,17 @@ impl AppCore {
             return false;
         };
         let mut changed = false;
-        while let Ok(event) = rx.try_recv() {
-            changed |= handle_event(&mut self.state, event);
+        loop {
+            match rx.try_recv() {
+                Ok(event) => changed |= handle_event(&mut self.state, event),
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    self.state.daemon_connected = false;
+                    self.event_rx = None;
+                    changed = true;
+                    break;
+                }
+            }
         }
         changed
     }
@@ -237,14 +252,14 @@ fn handle_event(state: &mut AppState, event: DaemonEvent) -> bool {
     }
 }
 
-fn find_folder_mut(accounts: &mut Vec<AccountView>, folder_id: Uuid) -> Option<&mut FolderView> {
+fn find_folder_mut(accounts: &mut [AccountView], folder_id: Uuid) -> Option<&mut FolderView> {
     accounts
         .iter_mut()
         .flat_map(|a| a.folders.iter_mut())
         .find(|f| f.id == folder_id)
 }
 
-fn set_folder_status(accounts: &mut Vec<AccountView>, folder_id: Uuid, status: FolderStatus) {
+fn set_folder_status(accounts: &mut [AccountView], folder_id: Uuid, status: FolderStatus) {
     if let Some(f) = find_folder_mut(accounts, folder_id) {
         f.status = status;
     }
