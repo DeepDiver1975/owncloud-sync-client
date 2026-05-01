@@ -122,7 +122,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install system dependencies
-        run: sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0
+        run: sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers
 
       - name: Install Node.js
         uses: actions/setup-node@v4
