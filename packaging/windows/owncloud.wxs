@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="ownCloud Sync"
+    Version="0.1.0"
+    Manufacturer="ownCloud GmbH"
+    UpgradeCode="D4E5F6A7-B8C9-4D0E-A1F2-B3C4D5E6F7A8"
+    Compressed="yes"
+    InstallerVersion="500">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="ownCloud Sync" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="ownCloud" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="ownCloud" />
+      </Directory>
+    </Directory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+
+      <!-- GUI binary -->
+      <Component Id="ocsync_exe" Guid="*">
+        <File Id="ocsync_exe" Source="$(var.BinDir)\ocsync.exe" KeyPath="yes" />
+        <!-- Autostart on login for current user -->
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Microsoft\Windows\CurrentVersion\Run"
+          Name="ownCloudSync"
+          Value="[INSTALLFOLDER]ocsync.exe"
+          Type="string"
+          KeyPath="no" />
+        <!-- Start Menu shortcut -->
+        <Shortcut
+          Id="StartMenuShortcut"
+          Directory="ApplicationProgramsFolder"
+          Name="ownCloud Sync"
+          Description="Sync files with your ownCloud server"
+          Target="[INSTALLFOLDER]ocsync.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+      </Component>
+
+      <!-- Daemon binary -->
+      <Component Id="ocsyncd_exe" Guid="*">
+        <File Id="ocsyncd_exe" Source="$(var.BinDir)\ocsyncd.exe" KeyPath="yes" />
+      </Component>
+
+      <!-- Overlay COM DLL -->
+      <Component Id="oc_overlay_dll" Guid="*">
+        <File Id="oc_overlay_dll" Source="$(var.BinDir)\oc_overlay.dll" KeyPath="yes" />
+        <Class
+          Id="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+          Context="InprocServer32"
+          Description="ownCloud Overlay Handler"
+          ThreadingModel="apartment"
+          Server="oc_overlay_dll" />
+      </Component>
+
+      <!-- Context menu COM DLL -->
+      <Component Id="oc_contextmenu_dll" Guid="*">
+        <File Id="oc_contextmenu_dll" Source="$(var.BinDir)\oc_contextmenu.dll" KeyPath="yes" />
+        <Class
+          Id="B2C3D4E5-F6A7-8901-BCDE-F12345678901"
+          Context="InprocServer32"
+          Description="ownCloud Context Menu Handler"
+          ThreadingModel="apartment"
+          Server="oc_contextmenu_dll" />
+      </Component>
+
+      <!-- IPC helper DLL -->
+      <Component Id="oc_ipc_dll" Guid="*">
+        <File Id="oc_ipc_dll" Source="$(var.BinDir)\oc_ipc.dll" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+</Wix>
