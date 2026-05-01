@@ -6,6 +6,10 @@ pub struct OwncloudTray {
 }
 
 impl Tray for OwncloudTray {
+    fn id(&self) -> String {
+        "owncloud-sync".to_string()
+    }
+
     fn title(&self) -> String {
         "ownCloud Sync".to_string()
     }

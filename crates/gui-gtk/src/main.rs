@@ -57,7 +57,7 @@ fn main() {
     });
 
     let core_tray = core.clone();
-    let _tray = ksni::TrayService::new(crate::tray::OwncloudTray {
+    ksni::TrayService::new(crate::tray::OwncloudTray {
         on_open: Box::new(|| tracing::info!("tray: open")),
         on_quit: Box::new(move || {
             core_tray.lock().unwrap().apply(Action::Quit);
