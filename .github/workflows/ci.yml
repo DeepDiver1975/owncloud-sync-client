@@ -122,7 +122,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install system dependencies
-        run: sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers
+        run: sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers gnome-keyring
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -151,6 +151,13 @@ jobs:
 
       - name: Build ocsyncd and ocsync
         run: cargo build -p daemon -p gui
+
+      - name: Start gnome-keyring (headless secret service)
+        run: |
+          eval $(dbus-launch --sh-syntax)
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
+          echo "DBUS_SESSION_BUS_PID=$DBUS_SESSION_BUS_PID" >> $GITHUB_ENV
+          echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
 
       - name: Run acceptance tests
         run: OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture
