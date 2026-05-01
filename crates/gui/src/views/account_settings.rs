@@ -3,8 +3,10 @@ use iced::{
     Element, Length,
 };
 
+use gui_core::Action;
+
 use crate::app::Message;
-use crate::model::{AccountView, View};
+use crate::model::{AccountView, ViewKind};
 
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
@@ -30,11 +32,11 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
     }
 
     let remove_btn = button("Remove Account")
-        .on_press(Message::RemoveAccount(account.id))
+        .on_press(Message::Action(Action::RemoveAccount(account.id)))
         .padding(PADDING);
 
     let back_btn = button("Back")
-        .on_press(Message::NavigateTo(View::SyncStatus))
+        .on_press(Message::Action(Action::NavigateTo(ViewKind::SyncStatus)))
         .padding(PADDING / 2);
 
     let col = column![

@@ -30,7 +30,7 @@ mod inner {
                 if event.id.0.contains("Quit") {
                     return Some(super::Message::Quit);
                 } else {
-                    return Some(super::Message::ToggleWindow);
+                    return Some(super::Message::Action(gui_core::Action::ToggleWindow));
                 }
             }
             None

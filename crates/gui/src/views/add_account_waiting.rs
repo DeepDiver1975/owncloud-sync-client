@@ -3,8 +3,10 @@ use iced::{
     Element, Length,
 };
 
+use gui_core::Action;
+
 use crate::app::Message;
-use crate::model::View;
+use crate::model::ViewKind;
 
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
@@ -14,7 +16,7 @@ pub fn add_account_waiting_view<'a>() -> Element<'a, Message> {
     let subtitle = text("Complete sign-in in the browser window that just opened.").size(14);
 
     let cancel_btn = button("Cancel")
-        .on_press(Message::NavigateTo(View::SyncStatus))
+        .on_press(Message::Action(Action::NavigateTo(ViewKind::SyncStatus)))
         .padding(PADDING / 2);
 
     let col = column![title, subtitle, cancel_btn]

@@ -3,8 +3,10 @@ use iced::{
     Alignment, Element, Length,
 };
 
+use gui_core::Action;
+
 use crate::app::Message;
-use crate::model::{AccountView, FolderStatus, View};
+use crate::model::{AccountView, FolderStatus, ViewKind};
 
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
@@ -31,10 +33,10 @@ fn empty_state_view() -> Element<'static, Message> {
         text("No accounts configured").size(18),
         text("Add your first ownCloud account to start syncing.").size(14),
         button("Add Account")
-            .on_press(Message::NavigateTo(View::AddAccount {
+            .on_press(Message::Action(Action::NavigateTo(ViewKind::AddAccount {
                 url_input: String::new(),
                 error: None,
-            }))
+            })))
             .padding(PADDING),
     ]
     .spacing(SPACING)
@@ -106,21 +108,21 @@ fn folder_action_buttons(folder: &crate::model::FolderView) -> Element<'_, Messa
 
     let pause_resume: Element<Message> = match folder.status {
         FolderStatus::Paused => button("Resume")
-            .on_press(Message::ResumeFolder(folder_id))
+            .on_press(Message::Action(Action::ResumeFolder(folder_id)))
             .padding(PADDING / 2)
             .into(),
         _ => button("Pause")
-            .on_press(Message::PauseFolder(folder_id))
+            .on_press(Message::Action(Action::PauseFolder(folder_id)))
             .padding(PADDING / 2)
             .into(),
     };
 
     let sync_btn = button("Sync now")
-        .on_press(Message::ForceSyncFolder(folder_id))
+        .on_press(Message::Action(Action::ForceSyncFolder(folder_id)))
         .padding(PADDING / 2);
 
     let open_btn = button("Open folder")
-        .on_press(Message::OpenFolder(local_path))
+        .on_press(Message::Action(Action::OpenFolder(local_path)))
         .padding(PADDING / 2);
 
     row![pause_resume, sync_btn, open_btn]

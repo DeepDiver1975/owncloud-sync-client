@@ -3,8 +3,10 @@ use iced::{
     Element, Length,
 };
 
+use gui_core::Action;
+
 use crate::app::Message;
-use crate::model::View;
+use crate::model::ViewKind;
 
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
@@ -14,7 +16,7 @@ pub fn general_settings_view() -> Element<'static, Message> {
     let placeholder = text("General settings coming soon.").size(14);
 
     let back_btn = button("Back")
-        .on_press(Message::NavigateTo(View::SyncStatus))
+        .on_press(Message::Action(Action::NavigateTo(ViewKind::SyncStatus)))
         .padding(PADDING / 2);
 
     let col = column![title, placeholder, back_btn]

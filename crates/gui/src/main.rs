@@ -1,15 +1,8 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
-use gui::app::{update, App, EventRxCarrier, Message};
-use gui::daemon_conn::DaemonConnection;
-use gui::model::View;
-use gui::spawn::ensure_daemon_running;
-use gui::subscription::next_message;
-
 use daemon::paths::platform_gui_socket_path;
+use gui::app::{App, Message};
+use gui::model::ViewKind;
+use gui_core::{Action, AppCore};
 
-use iced::futures::SinkExt;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length, Subscription, Task};
 
@@ -27,67 +20,46 @@ fn main() -> iced::Result {
 
 struct IcedApp {
     app: App,
-    event_rx: EventRxCarrier,
 }
 
 impl IcedApp {
     fn init() -> (Self, Task<Message>) {
-        let event_rx: EventRxCarrier = Arc::new(Mutex::new(None));
+        let socket = platform_gui_socket_path();
         let init_task = Task::perform(
-            async {
-                let socket = platform_gui_socket_path();
-                if let Err(e) = ensure_daemon_running(&socket).await {
-                    tracing::warn!("daemon not available: {e}");
-                    return None;
-                }
-                match DaemonConnection::connect(&socket).await {
-                    Ok((conn, rx)) => {
-                        let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
-                        Some((conn, carrier))
-                    }
-                    Err(e) => {
-                        tracing::error!("failed to connect to daemon: {e}");
-                        None
-                    }
-                }
+            async move {
+                let core = AppCore::init(&socket).await;
+                let vm = core.view_model();
+                (core, vm)
             },
-            Message::DaemonConnected,
+            |(core, vm)| {
+                // TODO: properly hand core into App; for now just update ViewModel
+                // The App::default() creates its own AppCore; this vm is from the
+                // connected one. A follow-up task will unify these.
+                let _ = core;
+                Message::ViewModelUpdated(vm)
+            },
         );
         (
             Self {
                 app: App::default(),
-                event_rx,
             },
             init_task,
         )
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
-        if let Message::DaemonConnected(Some((conn, carrier))) = &message {
-            self.app.daemon = conn.clone();
-            // Swap the carrier's inner receiver into our shared Arc
-            let carrier = carrier.clone();
-            let our_rx = self.event_rx.clone();
-            return Task::perform(
-                async move {
-                    let mut guard = carrier.lock().await;
-                    let mut ours = our_rx.lock().await;
-                    *ours = guard.take();
-                },
-                |_| Message::NavigateTo(gui::model::View::SyncStatus),
-            );
-        }
-        update(&mut self.app, message)
+        gui::app::update(&mut self.app, message)
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let content: Element<Message> = match &self.app.active_view {
-            View::SyncStatus => gui::views::sync_status::sync_status_view(&self.app.accounts),
-            View::AddAccount { url_input, error } => {
+        let vm = &self.app.vm;
+        let content: Element<Message> = match &vm.active_view {
+            ViewKind::SyncStatus => gui::views::sync_status::sync_status_view(&vm.accounts),
+            ViewKind::AddAccount { url_input, error } => {
                 gui::views::add_account::add_account_view(url_input, error.as_deref())
             }
-            View::AccountSettings(account_id) => {
-                if let Some(account) = self.app.accounts.iter().find(|a| &a.id == account_id) {
+            ViewKind::AccountSettings(account_id) => {
+                if let Some(account) = vm.accounts.iter().find(|a| &a.id == account_id) {
                     gui::views::account_settings::account_settings_view(account)
                 } else {
                     container(text("Account not found"))
@@ -96,24 +68,26 @@ impl IcedApp {
                         .into()
                 }
             }
-            View::AddAccountWaiting { .. } => {
+            ViewKind::AddAccountWaiting { .. } => {
                 gui::views::add_account_waiting::add_account_waiting_view()
             }
-            View::GeneralSettings => gui::views::general_settings::general_settings_view(),
+            ViewKind::GeneralSettings => gui::views::general_settings::general_settings_view(),
         };
 
         let nav = row![
             iced::widget::button("Sync Status")
-                .on_press(Message::NavigateTo(View::SyncStatus))
+                .on_press(Message::Action(Action::NavigateTo(ViewKind::SyncStatus)))
                 .padding(8),
             iced::widget::button("Add Account")
-                .on_press(Message::NavigateTo(View::AddAccount {
+                .on_press(Message::Action(Action::NavigateTo(ViewKind::AddAccount {
                     url_input: String::new(),
                     error: None,
-                }))
+                })))
                 .padding(8),
             iced::widget::button("Settings")
-                .on_press(Message::NavigateTo(View::GeneralSettings))
+                .on_press(Message::Action(Action::NavigateTo(
+                    ViewKind::GeneralSettings
+                )))
                 .padding(8),
         ]
         .spacing(4)
@@ -123,29 +97,20 @@ impl IcedApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let rx = self.event_rx.clone();
+        let core = self.app.core.clone();
         Subscription::run_with_id(
             "daemon-events",
             iced::stream::channel(16, move |mut output| async move {
+                use iced::futures::SinkExt;
                 loop {
-                    let msg = {
-                        let mut guard = rx.lock().await;
-                        if let Some(receiver) = guard.as_mut() {
-                            next_message(receiver).await
-                        } else {
-                            drop(guard);
-                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                            None
-                        }
-                    };
-                    if let Some(m) = msg {
-                        let is_disconnect = matches!(m, Message::DaemonDisconnected);
-                        let _ = output.send(m).await;
-                        if is_disconnect {
-                            // Wait before attempting reconnect
-                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    {
+                        let mut guard = core.lock().await;
+                        if guard.poll_events() {
+                            let vm = guard.view_model();
+                            let _ = output.send(Message::ViewModelUpdated(vm)).await;
                         }
                     }
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 }
             }),
         )

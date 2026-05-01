@@ -1,23 +1,23 @@
 use gui::app::App;
-use gui::model::{AccountView, FolderStatus, FolderView, View};
+use gui::model::{AccountView, FolderStatus, FolderView, View, ViewKind};
 use uuid::Uuid;
 
 #[test]
 fn app_default_has_empty_accounts() {
     let app = App::default();
-    assert!(app.accounts.is_empty());
+    assert!(app.vm.accounts.is_empty());
 }
 
 #[test]
 fn app_default_active_view_is_sync_status() {
     let app = App::default();
-    assert!(matches!(app.active_view, View::SyncStatus));
+    assert!(matches!(app.vm.active_view, View::SyncStatus));
 }
 
 #[test]
 fn app_default_window_visible() {
     let app = App::default();
-    assert!(app.window_visible);
+    assert!(app.vm.window_visible);
 }
 
 #[test]
@@ -92,15 +92,12 @@ fn folder_status_display() {
 
 #[test]
 fn add_account_waiting_carries_fields() {
-    use gui::model::View;
-    use uuid::Uuid;
-
     let id = Uuid::new_v4();
-    let v = View::AddAccountWaiting {
+    let v = ViewKind::AddAccountWaiting {
         account_id: id,
         url_input: "https://cloud.example.com".to_string(),
     };
-    if let View::AddAccountWaiting {
+    if let ViewKind::AddAccountWaiting {
         account_id,
         url_input,
     } = v

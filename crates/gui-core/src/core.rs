@@ -16,6 +16,15 @@ pub struct AppCore {
     event_rx: Option<mpsc::Receiver<DaemonEvent>>,
 }
 
+impl std::fmt::Debug for AppCore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppCore")
+            .field("daemon_connected", &self.state.daemon_connected)
+            .field("active_view", &self.state.active_view)
+            .finish_non_exhaustive()
+    }
+}
+
 pub(crate) struct AppState {
     pub accounts: Vec<AccountView>,
     pub active_view: ViewKind,

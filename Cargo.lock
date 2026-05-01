@@ -2081,6 +2081,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "daemon",
+ "gui-core",
  "iced",
  "serde",
  "thiserror 2.0.18",
@@ -2088,6 +2089,19 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tray-icon",
+ "uuid",
+]
+
+[[package]]
+name = "gui-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "daemon",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 

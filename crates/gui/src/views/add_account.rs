@@ -3,8 +3,10 @@ use iced::{
     Element, Length,
 };
 
+use gui_core::Action;
+
 use crate::app::Message;
-use crate::model::View;
+use crate::model::ViewKind;
 
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
@@ -19,16 +21,16 @@ pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Eleme
     .size(14);
 
     let url_field = text_input("https://your.server.com", url_input)
-        .on_input(Message::AddAccountUrlChanged)
-        .on_submit(Message::AddAccountSubmit)
+        .on_input(|s| Message::Action(Action::AddAccountUrlChanged(s)))
+        .on_submit(Message::Action(Action::AddAccountSubmit))
         .padding(PADDING);
 
     let connect_btn = button("Connect")
-        .on_press(Message::AddAccountSubmit)
+        .on_press(Message::Action(Action::AddAccountSubmit))
         .padding(PADDING);
 
     let back_btn = button("Cancel")
-        .on_press(Message::NavigateTo(View::SyncStatus))
+        .on_press(Message::Action(Action::NavigateTo(ViewKind::SyncStatus)))
         .padding(PADDING / 2);
 
     let mut col = column![title, subtitle, url_field, connect_btn]
