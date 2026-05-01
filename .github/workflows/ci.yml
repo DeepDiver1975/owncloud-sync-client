@@ -162,7 +162,7 @@ jobs:
           echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
 
       - name: Run acceptance tests
-        run: OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture
+        run: OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture --test-threads=1
 
       - name: Stop oCIS
         if: always()

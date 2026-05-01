@@ -45,6 +45,7 @@ impl TestEnvironment {
                 &compose_file().to_string_lossy(),
                 "up",
                 "-d",
+                "--no-recreate",
             ])
             .status()
             .context("failed to start oCIS via docker compose")?;
