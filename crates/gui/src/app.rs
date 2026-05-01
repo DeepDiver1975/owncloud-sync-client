@@ -28,6 +28,7 @@ impl Default for App {
 pub enum Message {
     Action(Action),
     ViewModelUpdated(ViewModel),
+    CoreInitialized(Arc<Mutex<AppCore>>, ViewModel),
     Quit,
 }
 
@@ -56,6 +57,11 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             )
         }
         Message::ViewModelUpdated(vm) => {
+            app.vm = vm;
+            iced::Task::none()
+        }
+        Message::CoreInitialized(core, vm) => {
+            app.core = core;
             app.vm = vm;
             iced::Task::none()
         }

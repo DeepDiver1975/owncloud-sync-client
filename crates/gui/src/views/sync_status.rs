@@ -71,7 +71,10 @@ fn folder_row(folder: &crate::model::FolderView) -> Element<'_, Message> {
     .spacing(2);
 
     let progress_text: Element<Message> = if let Some((done, total)) = folder.progress {
-        let pct = done.checked_div(total).unwrap_or(0) * 100;
+        let pct = done
+            .checked_mul(100)
+            .and_then(|n| n.checked_div(total))
+            .unwrap_or(0);
         text(format!("{pct}%")).size(12).into()
     } else {
         text("").size(12).into()
@@ -131,11 +134,14 @@ fn folder_action_buttons(folder: &crate::model::FolderView) -> Element<'_, Messa
 }
 
 pub fn truncate_path(path: &str, max_chars: usize) -> String {
-    if path.len() <= max_chars {
+    let chars: Vec<char> = path.chars().collect();
+    if chars.len() <= max_chars {
         return path.to_string();
     }
     let half = max_chars / 2 - 1;
-    format!("{}…{}", &path[..half], &path[path.len() - half..])
+    let start: String = chars[..half].iter().collect();
+    let end: String = chars[chars.len() - half..].iter().collect();
+    format!("{start}…{end}")
 }
 
 #[cfg(test)]
@@ -151,10 +157,21 @@ mod tests {
     fn long_path_is_truncated() {
         let long = "/home/user/very/deeply/nested/path/that/exceeds/the/limit/file.txt";
         let result = truncate_path(long, 40);
-        assert!(result.len() <= 41, "truncated path too long: {result}");
+        assert!(
+            result.chars().count() <= 41,
+            "truncated path too long: {result}"
+        );
         assert!(
             result.contains('…'),
             "truncated path should contain ellipsis"
         );
+    }
+
+    #[test]
+    fn multibyte_path_does_not_panic() {
+        let path = "/home/ünïcödé/très/long/path/that/should/be/truncated/properly/right";
+        let result = truncate_path(path, 20);
+        assert!(result.chars().count() <= 21);
+        assert!(result.contains('…'));
     }
 }

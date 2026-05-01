@@ -162,6 +162,12 @@ impl AppCore {
     }
 }
 
+impl Default for AppCore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn handle_event(state: &mut AppState, event: DaemonEvent) -> bool {
     match event {
         DaemonEvent::Ready => false,

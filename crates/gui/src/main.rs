@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use daemon::paths::platform_gui_socket_path;
 use gui::app::{App, Message};
 use gui::model::ViewKind;
@@ -29,15 +32,10 @@ impl IcedApp {
             async move {
                 let core = AppCore::init(&socket).await;
                 let vm = core.view_model();
+                let core = Arc::new(Mutex::new(core));
                 (core, vm)
             },
-            |(core, vm)| {
-                // TODO: properly hand core into App; for now just update ViewModel
-                // The App::default() creates its own AppCore; this vm is from the
-                // connected one. A follow-up task will unify these.
-                let _ = core;
-                Message::ViewModelUpdated(vm)
-            },
+            |(core, vm)| Message::CoreInitialized(core, vm),
         );
         (
             Self {
