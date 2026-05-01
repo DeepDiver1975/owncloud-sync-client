@@ -3,6 +3,7 @@ name = "daemon"
 version = "0.1.0"
 edition = "2021"
 default-run = "ocsyncd"
+description = "ownCloud Infinite Scale desktop sync daemon"
 
 [[bin]]
 name = "ocsyncd"
@@ -43,3 +44,30 @@ vfs-macos    = { path = "../vfs-macos" }
 tempfile     = "3"
 tokio        = { version = "1", features = ["full"] }
 wiremock     = "0.6"
+
+[package.metadata.deb]
+name = "owncloud-sync"
+maintainer = "ownCloud Sync Contributors <desktop@owncloud.com>"
+copyright = "2024-2026 ownCloud Sync Contributors"
+license-file = ["../../packaging/linux/debian/copyright", "0"]
+extended-description = """\
+Syncs files between your computer and an ownCloud Infinite Scale server. \
+Includes shell integration for Nautilus and Dolphin file managers."""
+depends = "libdbus-1-3, libsecret-1-0"
+suggests = "python3-nautilus"
+section = "net"
+priority = "optional"
+assets = [
+    # binaries
+    { source = "target/release/ocsyncd",         dest = "/usr/bin/",                          mode = "0755" },
+    { source = "target/release/ocsync",           dest = "/usr/bin/",                          mode = "0755" },
+    { source = "target/release/oc-dbus-service",  dest = "/usr/lib/owncloud/",                 mode = "0755" },
+    # shell integration
+    { source = "../../shell-integration/linux/nautilus/owncloud-nautilus.py", dest = "/usr/share/nautilus-python/extensions/", mode = "0644" },
+    { source = "../../shell-integration/linux/dolphin/owncloud.desktop",      dest = "/usr/share/kservices5/ServiceMenus/",    mode = "0644" },
+    # packaging assets
+    { source = "../../packaging/linux/debian/owncloud-sync.desktop",               dest = "/usr/share/applications/",                     mode = "0644" },
+    { source = "../../packaging/linux/debian/owncloud-sync.desktop",               dest = "/etc/xdg/autostart/",                          mode = "0644" },
+    { source = "../../packaging/linux/debian/org.owncloud.FileManager1.service",   dest = "/usr/share/dbus-1/services/",                  mode = "0644" },
+    { source = "../../packaging/linux/debian/owncloud-sync.service",               dest = "/usr/lib/systemd/user/",                       mode = "0644" },
+]
