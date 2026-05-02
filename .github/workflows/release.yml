@@ -36,10 +36,14 @@ jobs:
       - name: Build .deb
         run: cargo deb --manifest-path crates/daemon/Cargo.toml --no-build
 
+      - name: Rename .deb for upload
+        run: cp target/debian/owncloud-sync_*.deb owncloud.deb
+
       - uses: actions/upload-artifact@v4
         with:
           name: linux-deb
-          path: target/debian/*.deb
+          path: owncloud.deb
+          retention-days: 1
 
   package-macos:
     name: Package macOS (.pkg)
@@ -110,6 +114,7 @@ jobs:
         with:
           name: macos-pkg
           path: owncloud.pkg
+          retention-days: 1
 
   package-windows:
     name: Package Windows (.msi)
@@ -146,6 +151,7 @@ jobs:
         with:
           name: windows-msi
           path: owncloud-setup.msi
+          retention-days: 1
 
   publish:
     name: Publish GitHub Release

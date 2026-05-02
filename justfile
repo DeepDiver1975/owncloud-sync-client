@@ -208,8 +208,8 @@ package-macos:
 
 # Build the Windows MSI installer (Windows only — requires dotnet + wix)
 package-windows:
-    cargo build --release --manifest-path shell-integration/windows/Cargo.toml --workspace
     cargo build --release -p daemon -p gui
+    cargo build --release --manifest-path shell-integration/windows/Cargo.toml --workspace
     dotnet tool install --global wix || true
     wix build packaging/windows/owncloud.wxs \
       -d "BinDir=target/release" \

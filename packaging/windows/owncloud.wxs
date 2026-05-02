@@ -5,7 +5,7 @@
     Version="0.1.0"
     Manufacturer="ownCloud GmbH"
     UpgradeCode="D4E5F6A7-B8C9-4D0E-A1F2-B3C4D5E6F7A8"
-    Scope="perMachine"
+    Scope="perUser"
     Compressed="yes"
     InstallerVersion="500">
 
@@ -19,8 +19,10 @@
 
   <Fragment>
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFilesFolder">
-        <Directory Id="INSTALLFOLDER" Name="ownCloud" />
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsFolder" Name="Programs">
+          <Directory Id="INSTALLFOLDER" Name="ownCloud" />
+        </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
         <Directory Id="ApplicationProgramsFolder" Name="ownCloud" />
