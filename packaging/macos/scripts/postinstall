@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+sudo -u "$USER" osascript -e \
+  'tell application "System Events" to make login item at end with properties {path:"/Applications/ownCloud.app", hidden:true}' \
+  2>/dev/null || true
+exit 0

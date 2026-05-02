@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="1">
+  <title>ownCloud Sync</title>
+  <organization>com.owncloud</organization>
+  <domains enable_localSystem="true" />
+  <options customize="never" require-scripts="true" rootVolumeOnly="true" />
+  <pkg-ref id="com.owncloud.sync" />
+  <choices-outline>
+    <line choice="com.owncloud.sync" />
+  </choices-outline>
+  <choice id="com.owncloud.sync" visible="false">
+    <pkg-ref id="com.owncloud.sync" />
+  </choice>
+  <pkg-ref id="com.owncloud.sync" version="0.1.0" onConclusion="none">component.pkg</pkg-ref>
+</installer-gui-script>

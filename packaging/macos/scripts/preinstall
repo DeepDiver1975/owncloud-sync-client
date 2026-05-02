@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+pkill -x ocsync 2>/dev/null || true
+pkill -x ocsyncd 2>/dev/null || true
+exit 0
