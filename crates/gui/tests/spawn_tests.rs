@@ -1,6 +1,7 @@
 use gui::spawn::{wait_for_socket, SpawnError};
 use std::path::Path;
 
+#[cfg(unix)]
 #[tokio::test]
 async fn wait_for_socket_fails_when_nothing_listening() {
     let path = Path::new("/tmp/ocsync_test_nonexistent_socket_xyz.sock");
@@ -8,6 +9,7 @@ async fn wait_for_socket_fails_when_nothing_listening() {
     assert!(matches!(result, Err(SpawnError::Failed(_))));
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn wait_for_socket_succeeds_when_socket_exists() {
     use tokio::net::UnixListener;

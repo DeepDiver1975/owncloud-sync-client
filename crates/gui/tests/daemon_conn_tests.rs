@@ -1,8 +1,8 @@
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use gui::daemon_conn::DaemonConnection;
-use tokio::net::UnixListener;
 use uuid::Uuid;
 
+#[cfg(unix)]
 fn unique_socket() -> std::path::PathBuf {
     std::path::PathBuf::from(format!("/tmp/ocsync_conn_test_{}.sock", Uuid::new_v4()))
 }
@@ -13,8 +13,11 @@ fn disconnected_send_does_not_panic() {
     conn.send(DaemonCommand::Quit);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn connect_returns_connection_and_event_receiver() {
+    use tokio::net::UnixListener;
+
     let path = unique_socket();
     let listener = UnixListener::bind(&path).expect("bind");
 
@@ -26,9 +29,11 @@ async fn connect_returns_connection_and_event_receiver() {
     assert!(result.is_ok());
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn events_received_from_daemon() {
     use daemon::gui_ipc::protocol::write_message;
+    use tokio::net::UnixListener;
 
     let path = unique_socket();
     let listener = UnixListener::bind(&path).expect("bind");
@@ -53,9 +58,11 @@ async fn events_received_from_daemon() {
     let _ = std::fs::remove_file(&path);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn commands_sent_to_daemon() {
     use daemon::gui_ipc::protocol::read_message;
+    use tokio::net::UnixListener;
 
     let path = unique_socket();
     let listener = UnixListener::bind(&path).expect("bind");

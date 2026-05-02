@@ -3,6 +3,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use thiserror::Error;
+#[cfg(target_os = "windows")]
+use tokio::net::windows::named_pipe::ClientOptions;
+#[cfg(unix)]
 use tokio::net::UnixStream;
 
 #[derive(Debug, Error)]
@@ -13,14 +16,26 @@ pub enum SpawnError {
     Failed(String),
 }
 
+async fn try_connect(socket_path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        UnixStream::connect(socket_path).await.map(|_| ())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let pipe_name = socket_path.to_string_lossy();
+        ClientOptions::new().open(pipe_name.as_ref()).map(|_| ())
+    }
+}
+
 pub async fn wait_for_socket(
     socket_path: &Path,
     retries: u32,
     delay_ms: u64,
 ) -> Result<(), SpawnError> {
     for attempt in 0..retries {
-        match UnixStream::connect(socket_path).await {
-            Ok(_) => return Ok(()),
+        match try_connect(socket_path).await {
+            Ok(()) => return Ok(()),
             Err(e) => {
                 tracing::debug!("connect attempt {}/{}: {}", attempt + 1, retries, e);
                 tokio::time::sleep(Duration::from_millis(delay_ms)).await;
@@ -34,7 +49,7 @@ pub async fn wait_for_socket(
 }
 
 pub async fn ensure_daemon_running(socket_path: &Path) -> Result<(), SpawnError> {
-    if UnixStream::connect(socket_path).await.is_ok() {
+    if try_connect(socket_path).await.is_ok() {
         return Ok(());
     }
 
