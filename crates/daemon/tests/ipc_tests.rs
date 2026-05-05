@@ -187,3 +187,71 @@ async fn roundtrip_account_add_failed() {
     let received = read_event(&mut client).await.unwrap();
     assert_eq!(event, received);
 }
+
+#[tokio::test]
+async fn roundtrip_account_add_completed() {
+    use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
+    use tokio::io::duplex;
+    use uuid::Uuid;
+
+    let (mut client, mut server) = duplex(4096);
+    let event = DaemonEvent::AccountAddCompleted {
+        account_id: Uuid::new_v4(),
+        user_id: "uid-alice".to_string(),
+        display_name: "Alice Hansen".to_string(),
+        url: "https://cloud.example.com".to_string(),
+    };
+    write_message(&mut server, &event).await.unwrap();
+    let received = read_event(&mut client).await.unwrap();
+    assert_eq!(event, received);
+}
+
+#[tokio::test]
+async fn roundtrip_account_set_folder_failed() {
+    use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
+    use tokio::io::duplex;
+    use uuid::Uuid;
+
+    let (mut client, mut server) = duplex(4096);
+    let event = DaemonEvent::AccountSetFolderFailed {
+        account_id: Uuid::new_v4(),
+        reason: "path does not exist".to_string(),
+    };
+    write_message(&mut server, &event).await.unwrap();
+    let received = read_event(&mut client).await.unwrap();
+    assert_eq!(event, received);
+}
+
+#[tokio::test]
+async fn roundtrip_account_folder_added() {
+    use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
+    use tokio::io::duplex;
+    use uuid::Uuid;
+
+    let (mut client, mut server) = duplex(4096);
+    let event = DaemonEvent::AccountFolderAdded {
+        account_id: Uuid::new_v4(),
+        folder_id: Uuid::new_v4(),
+        local_path: "/home/alice/ownCloud".to_string(),
+        display_name: "Personal".to_string(),
+    };
+    write_message(&mut server, &event).await.unwrap();
+    let received = read_event(&mut client).await.unwrap();
+    assert_eq!(event, received);
+}
+
+#[tokio::test]
+async fn roundtrip_set_account_folder_command() {
+    use daemon::gui_ipc::protocol::{read_message, write_command, DaemonCommand};
+    use tokio::io::duplex;
+    use uuid::Uuid;
+
+    let (mut client, mut server) = duplex(4096);
+    let cmd = DaemonCommand::SetAccountFolder {
+        account_id: Uuid::new_v4(),
+        local_path: "/home/alice/ownCloud".to_string(),
+    };
+    write_command(&mut client, &cmd).await.unwrap();
+    let received = read_message(&mut server).await.unwrap();
+    assert_eq!(cmd, received);
+}

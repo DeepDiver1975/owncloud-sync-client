@@ -150,6 +150,13 @@ pub async fn handle_command(
             });
         }
 
+        DaemonCommand::SetAccountFolder { account_id, .. } => {
+            ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                account_id,
+                reason: "not yet implemented".to_string(),
+            });
+        }
+
         DaemonCommand::Quit => {
             return Ok(ShouldQuit::Yes);
         }
