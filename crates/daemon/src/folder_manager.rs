@@ -150,6 +150,7 @@ mod tests {
         AccountConfig {
             id: Uuid::new_v4(),
             url: "https://ocis.example.com".to_string(),
+            user_id: String::new(),
             username: "alice".to_string(),
             display_name: "Alice".to_string(),
             folder: folders,

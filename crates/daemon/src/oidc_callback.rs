@@ -108,6 +108,7 @@ async fn handle_callback(
         cfg.account.push(AccountConfig {
             id: account_id,
             url,
+            user_id: String::new(),
             username: String::new(),
             display_name: String::new(),
             folder: vec![],
