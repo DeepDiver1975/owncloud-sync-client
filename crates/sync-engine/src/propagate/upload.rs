@@ -21,7 +21,7 @@ pub async fn propagate_upload(req: UploadRequest) -> Result<String> {
 
 async fn upload_put(req: UploadRequest) -> Result<String> {
     let bytes = tokio::fs::read(&req.local_path).await?;
-    let client = reqwest::Client::new();
+    let client = ocis_client::build_http_client();
 
     let mut builder = client
         .put(req.remote_url.as_str())
@@ -56,7 +56,7 @@ async fn upload_put(req: UploadRequest) -> Result<String> {
 }
 
 async fn upload_tus(req: UploadRequest) -> Result<String> {
-    let client = reqwest::Client::new();
+    let client = ocis_client::build_http_client();
 
     let create_resp = client
         .post(req.remote_url.as_str())

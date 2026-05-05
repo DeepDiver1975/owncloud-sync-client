@@ -1,5 +1,6 @@
 use camino::Utf8Path;
 use std::io::Write;
+use sync_db::SyncJournalDb;
 use sync_engine::engine::{EngineConfig, SyncEngine};
 use sync_engine::types::ConflictStrategy;
 use tempfile::TempDir;
@@ -61,12 +62,15 @@ async fn engine_downloads_new_remote_file() {
     let local_root = Utf8Path::from_path(dir.path()).unwrap().to_owned();
     let space_root = Url::parse(&format!("{}/dav/spaces/s1/", server.uri())).unwrap();
 
+    let db_file = tempfile::NamedTempFile::new().unwrap();
+    let db = SyncJournalDb::open(db_file.path()).await.unwrap();
     let cfg = EngineConfig {
         folder_id: Uuid::new_v4(),
         local_root: local_root.clone(),
         space_root,
         conflict_strategy: ConflictStrategy::KeepBoth,
         max_parallel_transfers: 3,
+        db,
     };
 
     let engine = SyncEngine::new(cfg);
@@ -114,12 +118,15 @@ async fn engine_uploads_new_local_file() {
 
     let space_root = Url::parse(&format!("{}/dav/spaces/s2/", server.uri())).unwrap();
 
+    let db_file = tempfile::NamedTempFile::new().unwrap();
+    let db = SyncJournalDb::open(db_file.path()).await.unwrap();
     let cfg = EngineConfig {
         folder_id: Uuid::new_v4(),
         local_root,
         space_root,
         conflict_strategy: ConflictStrategy::KeepBoth,
         max_parallel_transfers: 3,
+        db,
     };
 
     let engine = SyncEngine::new(cfg);

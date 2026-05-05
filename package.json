@@ -1,0 +1,8 @@
+{
+  "name": "acceptance-test",
+  "description": "Node.js dependencies for acceptance tests (Playwright browser automation)",
+  "private": true,
+  "dependencies": {
+    "playwright": "^1.59.1"
+  }
+}

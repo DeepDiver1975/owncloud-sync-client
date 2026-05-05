@@ -11,6 +11,7 @@ members = [
     "crates/socket-api",
     "crates/daemon",
     "crates/gui",
+    "crates/acceptance-test",
     "shell-integration/linux/oc-dbus-service",
 ]
 

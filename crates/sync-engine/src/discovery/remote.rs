@@ -9,7 +9,7 @@ use crate::types::RemoteEntry;
 /// Fetch all remote entries under `space_root` using Depth:1 PROPFIND,
 /// recursing into collections breadth-first.
 pub async fn discover_remote(space_root: &Url) -> Result<Vec<RemoteEntry>> {
-    let client = reqwest::Client::new();
+    let client = ocis_client::build_http_client();
     let mut result = Vec::new();
     let mut queue = VecDeque::from([space_root.clone()]);
 

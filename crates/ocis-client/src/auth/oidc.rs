@@ -11,6 +11,7 @@ use crate::error::{OcisError, Result};
 pub struct OidcConfig {
     pub issuer_url: Url,
     pub client_id: String,
+    pub client_secret: Option<String>,
     pub redirect_uri: Url,
     pub authorization_endpoint: Url,
     pub token_endpoint: Url,
@@ -63,10 +64,14 @@ pub struct OidcAuth {
 
 impl OidcAuth {
     /// Fetch the OIDC discovery document and build an [`OidcAuth`] instance.
+    ///
+    /// Set `insecure = true` to accept self-signed / invalid TLS certificates (testing only).
     pub async fn discover(
         issuer: &str,
         client_id: impl Into<String>,
+        client_secret: Option<String>,
         redirect_uri: impl Into<String>,
+        insecure: bool,
     ) -> Result<Self> {
         let issuer_url: Url = issuer
             .parse()
@@ -79,8 +84,11 @@ impl OidcAuth {
         .parse()
         .map_err(|e: url::ParseError| OcisError::Auth(e.to_string()))?;
 
+        let env_insecure = std::env::var("OCIS_INSECURE")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(false);
         let http = Client::builder()
-            .use_rustls_tls()
+            .danger_accept_invalid_certs(insecure || env_insecure)
             .build()
             .map_err(OcisError::Http)?;
 
@@ -103,6 +111,7 @@ impl OidcAuth {
         let config = OidcConfig {
             issuer_url,
             client_id: client_id.into(),
+            client_secret,
             redirect_uri: redirect_uri_url,
             authorization_endpoint: doc.authorization_endpoint,
             token_endpoint: doc.token_endpoint,
@@ -150,13 +159,16 @@ impl OidcAuth {
 
     /// Exchange an authorization `code` for a [`TokenSet`] using PKCE.
     pub async fn exchange_code(&self, code: &str, verifier: PkceVerifier) -> Result<TokenSet> {
-        let params = [
+        let mut params = vec![
             ("grant_type", "authorization_code"),
             ("code", code),
             ("redirect_uri", self.config.redirect_uri.as_str()),
             ("client_id", self.config.client_id.as_str()),
             ("code_verifier", verifier.0.as_str()),
         ];
+        if let Some(ref secret) = self.config.client_secret {
+            params.push(("client_secret", secret.as_str()));
+        }
 
         let resp: TokenResponse = self
             .http
@@ -176,11 +188,14 @@ impl OidcAuth {
 
     /// Use a `refresh_token` to obtain a fresh [`TokenSet`].
     pub async fn refresh(&self, refresh_token: &str) -> Result<TokenSet> {
-        let params = [
+        let mut params = vec![
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh_token),
             ("client_id", self.config.client_id.as_str()),
         ];
+        if let Some(ref secret) = self.config.client_secret {
+            params.push(("client_secret", secret.as_str()));
+        }
 
         let resp: TokenResponse = self
             .http

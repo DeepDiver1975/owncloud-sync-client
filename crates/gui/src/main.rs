@@ -13,7 +13,47 @@ use iced::futures::SinkExt;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length, Subscription, Task};
 
+#[cfg(feature = "test-accessibility")]
+fn init_accessibility() {
+    use accesskit::{
+        ActionHandler, ActionRequest, ActivationHandler, DeactivationHandler, Node, NodeId, Role,
+        Tree, TreeId, TreeUpdate,
+    };
+    use accesskit_unix::Adapter;
+
+    struct OcsyncActivation;
+    impl ActivationHandler for OcsyncActivation {
+        fn request_initial_tree(&mut self) -> Option<TreeUpdate> {
+            let root_id = NodeId(0);
+            let mut root = Node::new(Role::Window);
+            root.set_label("ocsync");
+            Some(TreeUpdate {
+                nodes: vec![(root_id, root)],
+                tree: Some(Tree::new(root_id)),
+                tree_id: TreeId::ROOT,
+                focus: root_id,
+            })
+        }
+    }
+
+    struct OcsyncAction;
+    impl ActionHandler for OcsyncAction {
+        fn do_action(&mut self, _request: ActionRequest) {}
+    }
+
+    struct OcsyncDeactivation;
+    impl DeactivationHandler for OcsyncDeactivation {
+        fn deactivate_accessibility(&mut self) {}
+    }
+
+    let adapter = Adapter::new(OcsyncActivation, OcsyncAction, OcsyncDeactivation);
+    std::mem::forget(adapter);
+}
+
 fn main() -> iced::Result {
+    #[cfg(feature = "test-accessibility")]
+    init_accessibility();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),

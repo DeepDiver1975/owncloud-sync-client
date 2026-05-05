@@ -29,10 +29,7 @@ pub struct TusClient {
 
 impl TusClient {
     pub fn new(token: Arc<RwLock<TokenSet>>) -> Self {
-        let client = Client::builder()
-            .use_rustls_tls()
-            .build()
-            .expect("build reqwest client");
+        let client = crate::build_http_client();
         Self { client, token }
     }
 

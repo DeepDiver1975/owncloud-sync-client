@@ -29,6 +29,7 @@ use socket_api::transport::unix::UnixTransport;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
@@ -61,7 +62,7 @@ async fn main() -> Result<()> {
         .iter()
         .flat_map(|a| a.folder.clone())
         .collect();
-    let folder_manager = FolderManager::init_sync(&all_folders, &initial_config.account)?;
+    let folder_manager = FolderManager::init_sync(&all_folders, &initial_config.account).await?;
     let config = Arc::new(tokio::sync::Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
@@ -110,6 +111,7 @@ async fn main() -> Result<()> {
         ticker.tick().await; // skip first immediate tick
         loop {
             ticker.tick().await;
+            info!("poll tick: {} folder(s)", folder_ids_poll.len());
             for id in &folder_ids_poll {
                 let _ = poll_tx
                     .send(DaemonCommand::TriggerSync { folder_id: *id })
@@ -149,7 +151,11 @@ async fn main() -> Result<()> {
             }
 
             _ = scheduler_tick.tick() => {
-                for folder_id in scheduler.ready_to_run() {
+                let ready = scheduler.ready_to_run();
+                if !ready.is_empty() {
+                    info!("scheduler: {} folder(s) ready to sync", ready.len());
+                }
+                for folder_id in ready {
                     scheduler.start_sync(folder_id);
                     gui_ipc.broadcast(DaemonEvent::SyncStarted { folder_id });
 
@@ -157,11 +163,18 @@ async fn main() -> Result<()> {
                     let ipc = Arc::clone(&gui_ipc);
                     tokio::spawn(async move {
                         if let Some(engine) = engine {
+                            info!("run_sync starting for folder {folder_id}");
                             let errors = match engine.run_sync().await {
                                 Ok(_) => vec![],
-                                Err(e) => vec![e.to_string()],
+                                Err(e) => {
+                                    info!("run_sync error for folder {folder_id}: {e}");
+                                    vec![e.to_string()]
+                                }
                             };
+                            info!("run_sync done for folder {folder_id}: {} error(s)", errors.len());
                             ipc.broadcast(DaemonEvent::SyncFinished { folder_id, errors });
+                        } else {
+                            info!("run_sync: no engine for folder {folder_id}");
                         }
                     });
                     scheduler.finish_sync(folder_id);

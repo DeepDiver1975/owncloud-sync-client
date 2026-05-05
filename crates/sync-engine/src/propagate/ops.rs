@@ -11,7 +11,7 @@ pub async fn delete_local(path: &Utf8Path) -> Result<()> {
 
 /// Send a WebDAV DELETE for `url`.
 pub async fn delete_remote(url: &Url) -> Result<()> {
-    let client = reqwest::Client::new();
+    let client = ocis_client::build_http_client();
     let resp = client
         .delete(url.as_str())
         .send()
@@ -33,7 +33,7 @@ pub async fn delete_remote(url: &Url) -> Result<()> {
 
 /// Send a WebDAV MKCOL for `url`.
 pub async fn mkdir_remote(url: &Url) -> Result<()> {
-    let client = reqwest::Client::new();
+    let client = ocis_client::build_http_client();
     let resp = client
         .request(reqwest::Method::from_bytes(b"MKCOL").unwrap(), url.as_str())
         .send()
@@ -56,7 +56,7 @@ pub async fn mkdir_remote(url: &Url) -> Result<()> {
 
 /// Send a WebDAV MOVE from `from_url` to `to_url`.
 pub async fn rename_remote(from_url: &Url, to_url: &Url) -> Result<()> {
-    let client = reqwest::Client::new();
+    let client = ocis_client::build_http_client();
     let resp = client
         .request(
             reqwest::Method::from_bytes(b"MOVE").unwrap(),

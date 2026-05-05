@@ -9,6 +9,9 @@ use crate::model::View;
 const PADDING: u16 = 12;
 const SPACING: u16 = 8;
 
+pub static URL_INPUT_ID: std::sync::LazyLock<text_input::Id> =
+    std::sync::LazyLock::new(text_input::Id::unique);
+
 pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Element<'a, Message> {
     let title = text("Add ownCloud account").size(22);
 
@@ -19,6 +22,7 @@ pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Eleme
     .size(14);
 
     let url_field = text_input("https://your.server.com", url_input)
+        .id(URL_INPUT_ID.clone())
         .on_input(Message::AddAccountUrlChanged)
         .on_submit(Message::AddAccountSubmit)
         .padding(PADDING);

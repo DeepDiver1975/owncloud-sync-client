@@ -23,10 +23,7 @@ pub struct WebDavClient {
 impl WebDavClient {
     /// Create a new client. `token` is shared so callers can update it after a refresh.
     pub fn new(base_url: Url, token: Arc<RwLock<TokenSet>>) -> Self {
-        let client = Client::builder()
-            .use_rustls_tls()
-            .build()
-            .expect("build reqwest client");
+        let client = crate::build_http_client();
         Self {
             base_url,
             client,

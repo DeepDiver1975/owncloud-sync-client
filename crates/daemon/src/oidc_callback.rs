@@ -97,7 +97,10 @@ async fn handle_callback(
         .await
         .map_err(|e| anyhow::anyhow!("token exchange failed: {e}"))?;
 
-    KeychainStore::save(&account_id.to_string(), &tokens)
+    let account_id_str = account_id.to_string();
+    tokio::task::spawn_blocking(move || KeychainStore::save(&account_id_str, &tokens))
+        .await
+        .map_err(|e| anyhow::anyhow!("keychain task panicked: {e}"))?
         .map_err(|e| anyhow::anyhow!("keychain save failed: {e}"))?;
 
     {

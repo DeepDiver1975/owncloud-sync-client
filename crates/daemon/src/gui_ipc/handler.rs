@@ -14,7 +14,8 @@ use crate::folder_manager::FolderManager;
 use crate::oidc_callback;
 use crate::scheduler::SyncScheduler;
 
-const OCIS_CLIENT_ID: &str = "xdXOt13JKxym1B1QcEncf2XDkLAexMBFwiT9j6EohhggggDD";
+const OCIS_CLIENT_ID: &str = "xdXOt13JKxym1B1QcEncf2XDkLAexMBFwiT9j6EfhhHFJhs2KM9jbjTmf8JBXE69";
+const OCIS_CLIENT_SECRET: &str = "UBntmLjC2yYCeHwsyj73Uwo9TAaecAetRwMw0xYcvNL9yRdLSUi0hUAHfvCHFeFh";
 
 #[derive(Debug, PartialEq)]
 pub enum ShouldQuit {
@@ -65,6 +66,8 @@ pub async fn handle_command(
                 return Ok(ShouldQuit::No);
             }
 
+            let insecure = config.lock().await.general.insecure;
+
             // Bind to :0 to get an OS-assigned port.
             let listener = match TcpListener::bind("127.0.0.1:0").await {
                 Ok(l) => l,
@@ -79,7 +82,15 @@ pub async fn handle_command(
             let port = listener.local_addr()?.port();
             let callback_uri = format!("http://127.0.0.1:{port}/callback");
 
-            let oidc = match OidcAuth::discover(&url, OCIS_CLIENT_ID, &callback_uri).await {
+            let oidc = match OidcAuth::discover(
+                &url,
+                OCIS_CLIENT_ID,
+                Some(OCIS_CLIENT_SECRET.to_string()),
+                &callback_uri,
+                insecure,
+            )
+            .await
+            {
                 Ok(o) => o,
                 Err(e) => {
                     ipc.broadcast(DaemonEvent::AccountAddFailed {
@@ -101,13 +112,7 @@ pub async fn handle_command(
                 }
             };
 
-            if let Err(e) = open_browser(auth_url.as_str()).await {
-                ipc.broadcast(DaemonEvent::AccountAddFailed {
-                    account_id,
-                    reason: format!("could not open browser: {e}"),
-                });
-                return Ok(ShouldQuit::No);
-            }
+            println!("OIDC_AUTH_URL={}", auth_url);
 
             ipc.broadcast(DaemonEvent::AccountAddStarted { account_id });
 
@@ -118,10 +123,20 @@ pub async fn handle_command(
                 verifier,
                 account_id,
                 url,
-                ipc_clone,
+                Arc::clone(&ipc_clone),
                 config,
                 config_path,
             ));
+
+            // Open browser unless disabled (e.g. in acceptance tests where Playwright drives it).
+            if std::env::var("OCSYNCD_NO_BROWSER").is_err() {
+                let auth_url_str = auth_url.to_string();
+                tokio::spawn(async move {
+                    if let Err(e) = open_browser(&auth_url_str).await {
+                        tracing::warn!("could not open browser: {e}");
+                    }
+                });
+            }
         }
 
         DaemonCommand::RemoveAccount { account_id } => {
@@ -303,16 +318,8 @@ mod tests {
         assert!(result.is_err(), "expected Err for non-zero exit");
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn add_account_browser_failure_broadcasts_account_add_failed() {
-        // Prepend an empty temp dir to PATH so xdg-open/open/start cannot be found.
-        let empty_dir = tempfile::tempdir().unwrap();
-        let old_path = std::env::var("PATH").unwrap_or_default();
-        // Safety: single-threaded test, PATH manipulation is contained.
-        unsafe {
-            std::env::set_var("PATH", format!("{}", empty_dir.path().display()));
-        }
-
+    #[tokio::test]
+    async fn add_account_oidc_failure_broadcasts_account_add_failed() {
         let mut scheduler = SyncScheduler::new(vec![]);
         let (ipc, mut rx) = GuiIpcServer::new();
         let config = Arc::new(Mutex::new(AppConfig {
@@ -322,11 +329,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let fm = FolderManager::empty();
 
-        // Use an https:// URL that passes URL validation but will fail at browser launch
-        // because PATH is empty. OIDC discovery will also fail (no real server), so we
-        // expect AccountAddFailed — the important assertion is that it is broadcast at all
-        // (the browser-launch failure path converges with the OIDC failure path into the
-        // same AccountAddFailed event, which is correct behavior).
+        // OIDC discovery against a non-existent server must broadcast AccountAddFailed.
         let result = handle_command(
             DaemonCommand::AddAccount {
                 url: "https://cloud.example.com".to_string(),
@@ -339,11 +342,6 @@ mod tests {
         )
         .await
         .unwrap();
-
-        // Restore PATH before any assertions (even on panic).
-        unsafe {
-            std::env::set_var("PATH", &old_path);
-        }
 
         assert_eq!(result, ShouldQuit::No);
 

@@ -79,10 +79,7 @@ pub struct GraphClient {
 impl GraphClient {
     /// Create a new client. `base_url` should be the oCIS server root.
     pub fn new(base_url: Url, token: Arc<RwLock<TokenSet>>) -> Self {
-        let client = Client::builder()
-            .use_rustls_tls()
-            .build()
-            .expect("build reqwest client");
+        let client = crate::build_http_client();
         Self {
             base_url,
             client,

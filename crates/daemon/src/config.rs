@@ -19,6 +19,9 @@ pub struct GeneralConfig {
     pub notification_enabled: bool,
     #[serde(default = "default_poll_interval")]
     pub poll_interval_secs: u64,
+    /// Accept invalid/self-signed TLS certificates. For testing only.
+    #[serde(default)]
+    pub insecure: bool,
 }
 
 fn default_log_level() -> String {
@@ -37,6 +40,7 @@ impl Default for GeneralConfig {
             log_level: default_log_level(),
             notification_enabled: default_true(),
             poll_interval_secs: default_poll_interval(),
+            insecure: false,
         }
     }
 }
