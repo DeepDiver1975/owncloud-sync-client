@@ -6,6 +6,7 @@ use gui::daemon_conn::DaemonConnection;
 use gui::model::View;
 use gui::spawn::ensure_daemon_running;
 use gui::subscription::next_message;
+use gui::theme;
 
 use daemon::paths::platform_gui_socket_path;
 
@@ -61,6 +62,7 @@ fn main() -> iced::Result {
         .init();
 
     iced::application("ownCloud Sync", IcedApp::update, IcedApp::view)
+        .theme(|_| theme::app_theme())
         .subscription(IcedApp::subscription)
         .run_with(IcedApp::init)
 }
@@ -105,7 +107,6 @@ impl IcedApp {
     fn update(&mut self, message: Message) -> Task<Message> {
         if let Message::DaemonConnected(Some((conn, carrier))) = &message {
             self.app.daemon = conn.clone();
-            // Swap the carrier's inner receiver into our shared Arc
             let carrier = carrier.clone();
             let our_rx = self.event_rx.clone();
             return Task::perform(
@@ -152,6 +153,128 @@ impl IcedApp {
     }
 
     fn view(&self) -> Element<'_, Message> {
+        // Title bar
+        let title_bar = container(
+            row![
+                theme::owncloud_icon(),
+                text("ownCloud Sync")
+                    .size(12)
+                    .style(theme::colored_text(theme::TEXT_PRIMARY)),
+            ]
+            .spacing(8)
+            .align_y(iced::Alignment::Center)
+            .padding([6, 12]),
+        )
+        .width(Length::Fill)
+        .style(theme::sidebar_style);
+
+        // Sidebar nav
+        let is_sync = matches!(self.app.active_view, View::SyncStatus);
+        let is_add = matches!(
+            self.app.active_view,
+            View::AddAccount { .. } | View::AddAccountWaiting { .. } | View::PickLocalFolder { .. }
+        );
+        let is_settings = matches!(
+            self.app.active_view,
+            View::GeneralSettings | View::AccountSettings(_)
+        );
+
+        let nav_sync = iced::widget::button(
+            row![
+                text("☁").size(13).style(theme::colored_text(if is_sync {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                })),
+                text("Sync Status")
+                    .size(12)
+                    .style(theme::colored_text(if is_sync {
+                        theme::ACCENT
+                    } else {
+                        theme::TEXT_SECONDARY
+                    })),
+            ]
+            .spacing(7)
+            .align_y(iced::Alignment::Center),
+        )
+        .on_press(Message::NavigateTo(View::SyncStatus))
+        .width(Length::Fill)
+        .padding([7, 9])
+        .style(if is_sync {
+            theme::nav_active_style
+        } else {
+            theme::nav_button_style
+        });
+
+        let nav_add = iced::widget::button(
+            row![
+                text("＋").size(13).style(theme::colored_text(if is_add {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                })),
+                text("Add Account")
+                    .size(12)
+                    .style(theme::colored_text(if is_add {
+                        theme::ACCENT
+                    } else {
+                        theme::TEXT_SECONDARY
+                    })),
+            ]
+            .spacing(7)
+            .align_y(iced::Alignment::Center),
+        )
+        .on_press(Message::NavigateTo(View::AddAccount {
+            url_input: String::new(),
+            error: None,
+        }))
+        .width(Length::Fill)
+        .padding([7, 9])
+        .style(if is_add {
+            theme::nav_active_style
+        } else {
+            theme::nav_button_style
+        });
+
+        let nav_settings = iced::widget::button(
+            row![
+                text("⚙")
+                    .size(13)
+                    .style(theme::colored_text(if is_settings {
+                        theme::ACCENT
+                    } else {
+                        theme::TEXT_SECONDARY
+                    })),
+                text("Settings")
+                    .size(12)
+                    .style(theme::colored_text(if is_settings {
+                        theme::ACCENT
+                    } else {
+                        theme::TEXT_SECONDARY
+                    })),
+            ]
+            .spacing(7)
+            .align_y(iced::Alignment::Center),
+        )
+        .on_press(Message::NavigateTo(View::GeneralSettings))
+        .width(Length::Fill)
+        .padding([7, 9])
+        .style(if is_settings {
+            theme::nav_active_style
+        } else {
+            theme::nav_button_style
+        });
+
+        let sidebar = container(
+            column![nav_sync, nav_add, nav_settings]
+                .spacing(2)
+                .padding([8, 6]),
+        )
+        .width(156)
+        .height(Length::Fill)
+        .style(theme::sidebar_style);
+
+        // Content
         let content: Element<Message> = match &self.app.active_view {
             View::SyncStatus => gui::views::sync_status::sync_status_view(&self.app.accounts),
             View::AddAccount { url_input, error } => {
@@ -161,10 +284,12 @@ impl IcedApp {
                 if let Some(account) = self.app.accounts.iter().find(|a| &a.id == account_id) {
                     gui::views::account_settings::account_settings_view(account)
                 } else {
-                    container(text("Account not found"))
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .into()
+                    container(
+                        text("Account not found").style(theme::colored_text(theme::TEXT_MUTED)),
+                    )
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
                 }
             }
             View::AddAccountWaiting { .. } => {
@@ -185,24 +310,13 @@ impl IcedApp {
             View::GeneralSettings => gui::views::general_settings::general_settings_view(),
         };
 
-        let nav = row![
-            iced::widget::button("Sync Status")
-                .on_press(Message::NavigateTo(View::SyncStatus))
-                .padding(8),
-            iced::widget::button("Add Account")
-                .on_press(Message::NavigateTo(View::AddAccount {
-                    url_input: String::new(),
-                    error: None,
-                }))
-                .padding(8),
-            iced::widget::button("Settings")
-                .on_press(Message::NavigateTo(View::GeneralSettings))
-                .padding(8),
-        ]
-        .spacing(4)
-        .padding(8);
+        let body = row![sidebar, content].height(Length::Fill);
 
-        column![nav, content].into()
+        container(column![title_bar, body])
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(theme::content_style)
+            .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
