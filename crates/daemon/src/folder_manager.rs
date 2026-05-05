@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use camino::Utf8PathBuf;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -6,8 +6,10 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::config::{AccountConfig, FolderConfig};
+use crate::paths::platform_config_dir;
 use crate::vfs_factory::create_vfs;
 use crate::watcher::FolderWatcher;
+use sync_db::SyncJournalDb;
 use sync_engine::engine::{EngineConfig, SyncEngine};
 use sync_engine::state::SyncState;
 use sync_engine::types::ConflictStrategy;
@@ -28,12 +30,14 @@ pub struct FolderManager {
 }
 
 impl FolderManager {
-    pub fn init_sync(
+    pub async fn init_sync(
         folder_configs: &[FolderConfig],
         account_configs: &[AccountConfig],
     ) -> Result<Self> {
         let mut folders = HashMap::new();
         let mut states: HashMap<Uuid, SyncState> = HashMap::new();
+
+        let db_dir = platform_config_dir();
 
         for fc in folder_configs {
             let account = account_configs
@@ -46,10 +50,15 @@ impl FolderManager {
                 .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
 
             let server_url = account
-                .map(|a| a.url.as_str())
+                .map(|a| a.url.trim_end_matches('/'))
                 .unwrap_or("http://localhost");
-            let space_root = Url::parse(&format!("{}/dav/spaces/{}", server_url, fc.space_id))
-                .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown").unwrap());
+            let space_root = Url::parse(&format!("{}/dav/spaces/{}/", server_url, fc.space_id))
+                .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown/").unwrap());
+
+            let db_path = db_dir.join(format!("sync-{}.db", fc.id));
+            let db = SyncJournalDb::open(&db_path)
+                .await
+                .with_context(|| format!("open sync journal for folder {}", fc.id))?;
 
             let engine = SyncEngine::new(EngineConfig {
                 folder_id: fc.id,
@@ -57,6 +66,7 @@ impl FolderManager {
                 space_root,
                 conflict_strategy: ConflictStrategy::KeepBoth,
                 max_parallel_transfers: 4,
+                db,
             });
 
             let watcher = FolderWatcher::watch(root.as_std_path())?;
@@ -144,8 +154,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn init_two_folders() {
+    #[tokio::test]
+    async fn init_two_folders() {
         let dir1 = tempdir().unwrap();
         let dir2 = tempdir().unwrap();
 
@@ -154,7 +164,9 @@ mod tests {
 
         let account = make_account_config(vec![fc1.clone(), fc2.clone()]);
 
-        let fm = FolderManager::init_sync(&[fc1.clone(), fc2.clone()], &[account]).unwrap();
+        let fm = FolderManager::init_sync(&[fc1.clone(), fc2.clone()], &[account])
+            .await
+            .unwrap();
 
         assert_eq!(fm.folders.len(), 2);
 
