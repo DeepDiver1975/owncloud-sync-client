@@ -139,6 +139,13 @@ impl IcedApp {
             View::AddAccountWaiting { .. } => {
                 gui::views::add_account_waiting::add_account_waiting_view()
             }
+            View::PickLocalFolder { .. } => {
+                // TODO(Task 8): replace with dedicated pick_local_folder_view
+                container(text("Choose a local folder…"))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            }
             View::GeneralSettings => gui::views::general_settings::general_settings_view(),
         };
 
