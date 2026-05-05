@@ -38,6 +38,8 @@ impl FolderManager {
         let mut states: HashMap<Uuid, SyncState> = HashMap::new();
 
         let db_dir = platform_config_dir();
+        std::fs::create_dir_all(&db_dir)
+            .with_context(|| format!("create config dir {}", db_dir.display()))?;
 
         for fc in folder_configs {
             let account = account_configs
