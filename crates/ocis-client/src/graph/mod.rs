@@ -17,6 +17,14 @@ pub struct SpaceQuota {
     pub remaining: i64,
 }
 
+/// Identity information for the authenticated user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserInfo {
+    pub id: String,
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+}
+
 /// An oCIS Space (Drive).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Space {
@@ -119,6 +127,13 @@ impl GraphClient {
         let path = format!("graph/v1.0/drives/{drive_id}");
         let drive: DriveJson = self.get_json(&path).await?;
         Ok(Space::from(drive))
+    }
+
+    /// Fetch the identity of the currently authenticated user.
+    ///
+    /// Calls `GET /graph/v1.0/me`.
+    pub async fn get_me(&self) -> Result<UserInfo> {
+        self.get_json("graph/v1.0/me").await
     }
 }
 
