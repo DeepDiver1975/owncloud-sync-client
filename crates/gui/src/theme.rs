@@ -157,7 +157,7 @@ pub fn ghost_button_style(_theme: &iced::Theme, status: button::Status) -> butto
 pub fn nav_active_style(_theme: &iced::Theme, _status: button::Status) -> button::Style {
     button::Style {
         background: Some(Background::Color(Color { r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.13 })),
-        text_color: Color { r: 0.345, g: 0.643, b: 0.831, a: 1.0 }, // #58a6d4
+        text_color: STATUS_SYNCING,
         border: Border { radius: 6.0.into(), ..Default::default() },
         ..Default::default()
     }
