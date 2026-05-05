@@ -16,6 +16,18 @@ const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
 const SUCCESS_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 67\r\nConnection: close\r\n\r\n<html><body>Sign-in complete. You can close this tab.</body></html>";
 
+/// Writes a plain-text 200 error response to `stream` so the browser can complete its
+/// navigation before we clean up. Without this the browser gets ERR_CONNECTION_RESET.
+async fn send_error_page(stream: &mut tokio::net::TcpStream, reason: &str) {
+    let body = format!("Sign-in failed: {reason}");
+    let resp = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    let _ = stream.write_all(resp.as_bytes()).await;
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn run_callback(
     listener: TcpListener,
@@ -124,8 +136,10 @@ async fn handle_callback(
     let base_url = match url::Url::parse(&url) {
         Ok(u) => u,
         Err(e) => {
+            let msg = format!("invalid server URL: {e}");
+            send_error_page(&mut stream, &msg).await;
             delete_keychain(&account_id_str).await.ok();
-            anyhow::bail!("invalid server URL: {e}");
+            anyhow::bail!("{msg}");
         }
     };
     let token_arc = Arc::new(RwLock::new(tokens));
@@ -133,40 +147,45 @@ async fn handle_callback(
     let user_info = match graph.get_me().await {
         Ok(info) => info,
         Err(e) => {
+            let msg = format!("GET /me failed: {e}");
+            send_error_page(&mut stream, &msg).await;
             delete_keychain(&account_id_str).await.ok();
-            anyhow::bail!("GET /me failed: {e}");
+            anyhow::bail!("{msg}");
         }
     };
 
     // 3. Check for duplicate account (same url + user_id) and save — atomically
     //    under a single lock acquisition to prevent TOCTOU races.
-    {
+    let save_result = {
         let mut cfg = config.lock().await;
         if cfg
             .account
             .iter()
             .any(|a| a.url == url && a.user_id == user_info.id)
         {
-            drop(cfg);
-            delete_keychain(&account_id_str).await.ok();
-            anyhow::bail!(
+            Err(anyhow::anyhow!(
                 "account already exists for user '{}' on {url}",
                 user_info.id
-            );
+            ))
+        } else {
+            cfg.account.push(AccountConfig {
+                id: account_id,
+                url: url.clone(),
+                user_id: user_info.id.clone(),
+                username: String::new(),
+                display_name: user_info.display_name.clone(),
+                folder: vec![],
+            });
+            cfg.save(&config_path)
+                .map_err(|e| anyhow::anyhow!("failed to save config: {e}"))
         }
-        cfg.account.push(AccountConfig {
-            id: account_id,
-            url: url.clone(),
-            user_id: user_info.id.clone(),
-            username: String::new(),
-            display_name: user_info.display_name.clone(),
-            folder: vec![],
-        });
-        if let Err(e) = cfg.save(&config_path) {
-            drop(cfg);
-            delete_keychain(&account_id_str).await.ok();
-            anyhow::bail!("failed to save config: {e}");
-        }
+    };
+
+    // Always send an HTTP response so the browser isn't left with an open connection.
+    if let Err(ref e) = save_result {
+        send_error_page(&mut stream, &e.to_string()).await;
+        delete_keychain(&account_id_str).await.ok();
+        return Err(save_result.unwrap_err());
     }
 
     // 5. Broadcast AccountAddCompleted.
