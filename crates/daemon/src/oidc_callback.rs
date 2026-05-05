@@ -3,12 +3,14 @@ use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::config::{AccountConfig, AppConfig};
 use crate::gui_ipc::protocol::DaemonEvent;
 use crate::gui_ipc::GuiIpcServer;
 use ocis_client::auth::{KeychainStore, OidcAuth, PkceVerifier};
+use ocis_client::GraphClient;
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -97,28 +99,82 @@ async fn handle_callback(
         .await
         .map_err(|e| anyhow::anyhow!("token exchange failed: {e}"))?;
 
+    // 1. Save tokens to keychain.
     let account_id_str = account_id.to_string();
-    tokio::task::spawn_blocking(move || KeychainStore::save(&account_id_str, &tokens))
-        .await
-        .map_err(|e| anyhow::anyhow!("keychain task panicked: {e}"))?
-        .map_err(|e| anyhow::anyhow!("keychain save failed: {e}"))?;
-
     {
-        let mut cfg = config.lock().await;
-        cfg.account.push(AccountConfig {
-            id: account_id,
-            url,
-            user_id: String::new(),
-            username: String::new(),
-            display_name: String::new(),
-            folder: vec![],
-        });
-        cfg.save(&config_path)?;
+        let account_id_str = account_id_str.clone();
+        let tokens_to_save = tokens.clone();
+        tokio::task::spawn_blocking(move || KeychainStore::save(&account_id_str, &tokens_to_save))
+            .await
+            .map_err(|e| anyhow::anyhow!("keychain task panicked: {e}"))?
+            .map_err(|e| anyhow::anyhow!("keychain save failed: {e}"))?;
     }
 
-    ipc.broadcast(DaemonEvent::AccountStateChanged {
+    // Helper closure to delete keychain entry on failure.
+    let delete_keychain = |id: &str| {
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            if let Err(e) = KeychainStore::delete(&id) {
+                tracing::warn!("failed to delete keychain entry for {id}: {e}");
+            }
+        })
+    };
+
+    // 2. Call GET /graph/v1.0/me to get user identity.
+    let base_url = match url::Url::parse(&url) {
+        Ok(u) => u,
+        Err(e) => {
+            delete_keychain(&account_id_str).await.ok();
+            anyhow::bail!("invalid server URL: {e}");
+        }
+    };
+    let token_arc = Arc::new(RwLock::new(tokens));
+    let graph = GraphClient::new(base_url, token_arc);
+    let user_info = match graph.get_me().await {
+        Ok(info) => info,
+        Err(e) => {
+            delete_keychain(&account_id_str).await.ok();
+            anyhow::bail!("GET /me failed: {e}");
+        }
+    };
+
+    // 3. Check for duplicate account (same url + user_id) and save — atomically
+    //    under a single lock acquisition to prevent TOCTOU races.
+    {
+        let mut cfg = config.lock().await;
+        if cfg
+            .account
+            .iter()
+            .any(|a| a.url == url && a.user_id == user_info.id)
+        {
+            drop(cfg);
+            delete_keychain(&account_id_str).await.ok();
+            anyhow::bail!(
+                "account already exists for user '{}' on {url}",
+                user_info.id
+            );
+        }
+        cfg.account.push(AccountConfig {
+            id: account_id,
+            url: url.clone(),
+            user_id: user_info.id.clone(),
+            username: String::new(),
+            display_name: user_info.display_name.clone(),
+            folder: vec![],
+        });
+        if let Err(e) = cfg.save(&config_path) {
+            drop(cfg);
+            delete_keychain(&account_id_str).await.ok();
+            anyhow::bail!("failed to save config: {e}");
+        }
+    }
+
+    // 5. Broadcast AccountAddCompleted.
+    ipc.broadcast(DaemonEvent::AccountAddCompleted {
         account_id,
-        state: "added".to_string(),
+        user_id: user_info.id,
+        display_name: user_info.display_name,
+        url,
     });
 
     stream.write_all(SUCCESS_HTML).await?;
