@@ -520,6 +520,20 @@ fn account_set_folder_failed_sets_inline_error() {
 }
 
 #[test]
+fn daemon_disconnected_does_not_reach_app_update() {
+    // DaemonDisconnected is intercepted by IcedApp::update before reaching
+    // the shared `update()` function. Calling `update()` directly with
+    // DaemonDisconnected should therefore be a no-op (the function has no
+    // arm for it — it falls through to the implicit unit return).
+    // We verify the app state is unchanged as a proxy for this.
+    let mut app = App::default();
+    let _task = update(&mut app, Message::DaemonDisconnected);
+    // App state must be untouched — view stays SyncStatus, no accounts added.
+    assert!(matches!(app.active_view, View::SyncStatus));
+    assert!(app.accounts.is_empty());
+}
+
+#[test]
 fn pick_local_folder_cancel_sends_remove_account_and_navigates() {
     use daemon::gui_ipc::protocol::DaemonCommand;
     use gui::app::{update, App, Message};

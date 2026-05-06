@@ -117,6 +117,37 @@ impl IcedApp {
                 |_| Message::NavigateTo(gui::model::View::SyncStatus),
             );
         }
+
+        if matches!(message, Message::DaemonDisconnected) {
+            let socket = platform_gui_socket_path();
+            let our_rx = self.event_rx.clone();
+            return Task::perform(
+                async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    if ensure_daemon_running(&socket).await.is_err() {
+                        return None;
+                    }
+                    match DaemonConnection::connect(&socket).await {
+                        Ok((conn, rx)) => {
+                            let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
+                            // Pre-swap the receiver so the subscription picks it up immediately.
+                            {
+                                let mut guard = carrier.lock().await;
+                                let mut ours = our_rx.lock().await;
+                                *ours = guard.take();
+                            }
+                            Some((conn, Arc::new(Mutex::new(None))))
+                        }
+                        Err(e) => {
+                            tracing::warn!("daemon reconnect failed: {e}");
+                            None
+                        }
+                    }
+                },
+                Message::DaemonConnected,
+            );
+        }
+
         update(&mut self.app, message)
     }
 
@@ -183,7 +214,13 @@ impl IcedApp {
                     let msg = {
                         let mut guard = rx.lock().await;
                         if let Some(receiver) = guard.as_mut() {
-                            next_message(receiver).await
+                            let m = next_message(receiver).await;
+                            if matches!(m, Some(Message::DaemonDisconnected)) {
+                                // Nil the receiver so we don't hammer a closed channel.
+                                // The reconnect Task will swap in a fresh one via DaemonConnected.
+                                *guard = None;
+                            }
+                            m
                         } else {
                             drop(guard);
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -191,12 +228,7 @@ impl IcedApp {
                         }
                     };
                     if let Some(m) = msg {
-                        let is_disconnect = matches!(m, Message::DaemonDisconnected);
                         let _ = output.send(m).await;
-                        if is_disconnect {
-                            // Wait before attempting reconnect
-                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                        }
                     }
                 }
             }),
