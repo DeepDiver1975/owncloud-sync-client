@@ -121,7 +121,6 @@ impl IcedApp {
 
         if matches!(message, Message::DaemonDisconnected) {
             let socket = platform_gui_socket_path();
-            let our_rx = self.event_rx.clone();
             return Task::perform(
                 async move {
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -131,13 +130,7 @@ impl IcedApp {
                     match DaemonConnection::connect(&socket).await {
                         Ok((conn, rx)) => {
                             let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
-                            // Pre-swap the receiver so the subscription picks it up immediately.
-                            {
-                                let mut guard = carrier.lock().await;
-                                let mut ours = our_rx.lock().await;
-                                *ours = guard.take();
-                            }
-                            Some((conn, Arc::new(Mutex::new(None))))
+                            Some((conn, carrier))
                         }
                         Err(e) => {
                             tracing::warn!("daemon reconnect failed: {e}");
