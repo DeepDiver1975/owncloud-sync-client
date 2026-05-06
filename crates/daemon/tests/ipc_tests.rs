@@ -150,14 +150,14 @@ async fn add_account_invalid_url_broadcasts_failed() {
         account: vec![],
     }));
     let file = NamedTempFile::new().unwrap();
-    let fm = FolderManager::empty();
+    let mut fm = FolderManager::empty();
 
     handle_command(
         DaemonCommand::AddAccount {
             url: "not-a-url".to_string(),
         },
         &mut scheduler,
-        &fm,
+        &mut fm,
         &ipc,
         config,
         file.path().to_path_buf(),

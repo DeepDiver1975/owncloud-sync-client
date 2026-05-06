@@ -62,7 +62,8 @@ async fn main() -> Result<()> {
         .iter()
         .flat_map(|a| a.folder.clone())
         .collect();
-    let folder_manager = FolderManager::init_sync(&all_folders, &initial_config.account).await?;
+    let mut folder_manager =
+        FolderManager::init_sync(&all_folders, &initial_config.account).await?;
     let config = Arc::new(tokio::sync::Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
@@ -130,7 +131,7 @@ async fn main() -> Result<()> {
                 match handle_command(
                     cmd,
                     &mut scheduler,
-                    &folder_manager,
+                    &mut folder_manager,
                     &gui_ipc,
                     Arc::clone(&config),
                     config_path.clone(),

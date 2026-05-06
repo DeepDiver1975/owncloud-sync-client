@@ -91,6 +91,55 @@ impl FolderManager {
         })
     }
 
+    /// Register a single new folder at runtime (called after `SetAccountFolder`).
+    pub async fn add_folder(&mut self, fc: &FolderConfig, account: &AccountConfig) -> Result<()> {
+        let db_dir = platform_config_dir();
+        std::fs::create_dir_all(&db_dir)
+            .with_context(|| format!("create config dir {}", db_dir.display()))?;
+
+        let root = Utf8PathBuf::from(&fc.local_path);
+
+        let vfs = create_vfs(&fc.vfs_mode, &root)
+            .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
+
+        let server_url = account.url.trim_end_matches('/');
+        let space_root = Url::parse(&format!("{}/dav/spaces/{}/", server_url, fc.space_id))
+            .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown/").unwrap());
+
+        let db_path = db_dir.join(format!("sync-{}.db", fc.id));
+        let db = SyncJournalDb::open(&db_path)
+            .await
+            .with_context(|| format!("open sync journal for folder {}", fc.id))?;
+
+        let engine = SyncEngine::new(EngineConfig {
+            folder_id: fc.id,
+            local_root: root.clone(),
+            space_root,
+            conflict_strategy: ConflictStrategy::KeepBoth,
+            max_parallel_transfers: 4,
+            db,
+        });
+
+        let watcher = FolderWatcher::watch(root.as_std_path())?;
+
+        {
+            let mut states = self.sync_states.write().unwrap();
+            states.insert(fc.id, SyncState::new(fc.id));
+        }
+
+        self.folders.insert(
+            fc.id,
+            ManagedFolder {
+                config: fc.clone(),
+                engine: Arc::new(engine),
+                vfs,
+                watcher,
+            },
+        );
+
+        Ok(())
+    }
+
     pub fn empty() -> Self {
         Self {
             folders: HashMap::new(),

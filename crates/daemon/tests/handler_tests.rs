@@ -19,7 +19,7 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
         account: vec![],
     }));
     let file = NamedTempFile::new().unwrap();
-    let fm = FolderManager::empty();
+    let mut fm = FolderManager::empty();
 
     let unknown_account_id = Uuid::new_v4();
 
@@ -29,7 +29,7 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
             local_path: "/tmp".to_string(),
         },
         &mut scheduler,
-        &fm,
+        &mut fm,
         &ipc,
         config,
         file.path().to_path_buf(),
@@ -71,7 +71,7 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
         }],
     }));
     let file = NamedTempFile::new().unwrap();
-    let fm = FolderManager::empty();
+    let mut fm = FolderManager::empty();
 
     let nonexistent_path = "/this/path/definitely/does/not/exist/on/this/system";
 
@@ -81,7 +81,7 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
             local_path: nonexistent_path.to_string(),
         },
         &mut scheduler,
-        &fm,
+        &mut fm,
         &ipc,
         config,
         file.path().to_path_buf(),

@@ -27,7 +27,7 @@ pub enum ShouldQuit {
 pub async fn handle_command(
     cmd: DaemonCommand,
     scheduler: &mut SyncScheduler,
-    _folder_manager: &FolderManager,
+    folder_manager: &mut FolderManager,
     ipc: &Arc<GuiIpcServer>,
     config: Arc<Mutex<AppConfig>>,
     config_path: PathBuf,
@@ -239,23 +239,39 @@ pub async fn handle_command(
                 }
             };
 
-            // Step 6 & 7: Push FolderConfig, save, and broadcast success.
+            // Step 6 & 7: Push FolderConfig, save, register with engine, and broadcast.
             let folder_id = Uuid::new_v4();
-            {
+            let new_folder_config = FolderConfig {
+                id: folder_id,
+                local_path: local_path.clone(),
+                space_id: personal.id,
+                display_name: "Personal".to_string(),
+                selective_sync_excluded: vec![],
+                vfs_mode: "off".to_string(),
+                paused: false,
+            };
+            let account_config = {
                 let mut cfg = config.lock().await;
                 if let Some(account) = cfg.account.iter_mut().find(|a| a.id == account_id) {
-                    account.folder.push(FolderConfig {
-                        id: folder_id,
-                        local_path: local_path.clone(),
-                        space_id: personal.id,
-                        display_name: "Personal".to_string(),
-                        selective_sync_excluded: vec![],
-                        vfs_mode: "off".to_string(),
-                        paused: false,
-                    });
+                    account.folder.push(new_folder_config.clone());
                 }
                 cfg.save(&config_path)?;
+                cfg.account.iter().find(|a| a.id == account_id).cloned()
+            };
+
+            // Register the new folder with the engine and scheduler so sync runs immediately.
+            if let Some(account) = account_config {
+                if let Err(e) = folder_manager
+                    .add_folder(&new_folder_config, &account)
+                    .await
+                {
+                    tracing::warn!("failed to register folder with engine: {e}");
+                } else {
+                    scheduler.add_folder(folder_id);
+                    scheduler.request_sync(folder_id);
+                }
             }
+
             ipc.broadcast(DaemonEvent::AccountFolderAdded {
                 account_id,
                 folder_id,
@@ -312,12 +328,12 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         let result = handle_command(
             DaemonCommand::TriggerSync { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
@@ -338,12 +354,12 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
@@ -365,12 +381,12 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             Arc::clone(&config),
             file.path().to_path_buf(),
@@ -380,7 +396,7 @@ mod tests {
         handle_command(
             DaemonCommand::ResumeFolder { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
@@ -400,12 +416,12 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         let result = handle_command(
             DaemonCommand::Quit,
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
@@ -441,7 +457,7 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         // OIDC discovery against a non-existent server must broadcast AccountAddFailed.
         let result = handle_command(
@@ -449,7 +465,7 @@ mod tests {
                 url: "https://cloud.example.com".to_string(),
             },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
