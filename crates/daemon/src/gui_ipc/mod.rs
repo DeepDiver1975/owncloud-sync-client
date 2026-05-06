@@ -23,7 +23,9 @@ impl GuiIpcServer {
     }
 
     pub fn broadcast(&self, event: DaemonEvent) {
-        let _ = self.event_tx.send(event);
+        if self.event_tx.send(event).is_err() {
+            tracing::warn!("broadcast: no GUI clients connected, event dropped");
+        }
     }
 
     pub async fn run(

@@ -52,3 +52,75 @@ fn round_trip_multi_account() {
     let cfg2 = AppConfig::load(out.path()).unwrap();
     assert_eq!(cfg, cfg2);
 }
+
+#[test]
+fn account_config_user_id_defaults_empty_when_absent() {
+    let toml = r#"
+[[account]]
+id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+url = "https://cloud.example.com"
+username = "bob"
+display_name = "Bob"
+"#;
+    let cfg: daemon::config::AppConfig = toml::from_str(toml).unwrap();
+    assert_eq!(cfg.account[0].user_id, "");
+}
+
+#[test]
+fn account_config_user_id_round_trips() {
+    let toml = r#"
+[[account]]
+id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+url = "https://cloud.example.com"
+user_id = "4c510ada-c86b-4815-8820-42cdf82c3d51"
+username = "alice"
+display_name = "Alice"
+"#;
+    let cfg: daemon::config::AppConfig = toml::from_str(toml).unwrap();
+    assert_eq!(
+        cfg.account[0].user_id,
+        "4c510ada-c86b-4815-8820-42cdf82c3d51"
+    );
+}
+
+#[test]
+fn find_account_by_url_and_user_id_returns_match() {
+    use daemon::config::{AccountConfig, AppConfig, GeneralConfig};
+    use uuid::Uuid;
+    let cfg = AppConfig {
+        general: GeneralConfig::default(),
+        account: vec![AccountConfig {
+            id: Uuid::new_v4(),
+            url: "https://cloud.example.com".to_string(),
+            user_id: "uid-alice".to_string(),
+            username: "alice".to_string(),
+            display_name: "Alice".to_string(),
+            folder: vec![],
+        }],
+    };
+    assert!(cfg
+        .account
+        .iter()
+        .any(|a| a.url == "https://cloud.example.com" && a.user_id == "uid-alice"));
+}
+
+#[test]
+fn find_account_by_url_and_user_id_returns_none_when_absent() {
+    use daemon::config::{AccountConfig, AppConfig, GeneralConfig};
+    use uuid::Uuid;
+    let cfg = AppConfig {
+        general: GeneralConfig::default(),
+        account: vec![AccountConfig {
+            id: Uuid::new_v4(),
+            url: "https://cloud.example.com".to_string(),
+            user_id: "uid-alice".to_string(),
+            username: "alice".to_string(),
+            display_name: "Alice".to_string(),
+            folder: vec![],
+        }],
+    };
+    assert!(!cfg
+        .account
+        .iter()
+        .any(|a| a.url == "https://cloud.example.com" && a.user_id == "uid-bob"));
+}

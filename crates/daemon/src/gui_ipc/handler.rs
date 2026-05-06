@@ -2,14 +2,15 @@ use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
-use ocis_client::auth::OidcAuth;
+use ocis_client::auth::{KeychainStore, OidcAuth};
+use ocis_client::GraphClient;
 
 use super::protocol::{DaemonCommand, DaemonEvent};
 use super::GuiIpcServer;
-use crate::config::AppConfig;
+use crate::config::{AppConfig, FolderConfig};
 use crate::folder_manager::FolderManager;
 use crate::oidc_callback;
 use crate::scheduler::SyncScheduler;
@@ -26,10 +27,11 @@ pub enum ShouldQuit {
 pub async fn handle_command(
     cmd: DaemonCommand,
     scheduler: &mut SyncScheduler,
-    _folder_manager: &FolderManager,
+    folder_manager: &mut FolderManager,
     ipc: &Arc<GuiIpcServer>,
     config: Arc<Mutex<AppConfig>>,
     config_path: PathBuf,
+    live_folder_ids: Arc<std::sync::RwLock<Vec<Uuid>>>,
 ) -> Result<ShouldQuit> {
     match cmd {
         DaemonCommand::Subscribe => {}
@@ -150,6 +152,136 @@ pub async fn handle_command(
             });
         }
 
+        DaemonCommand::SetAccountFolder {
+            account_id,
+            local_path,
+        } => {
+            // Step 1: Find the account in config.
+            let (account_url, account_id_str) = {
+                let cfg = config.lock().await;
+                match cfg.account.iter().find(|a| a.id == account_id) {
+                    Some(a) => (a.url.clone(), a.id.to_string()),
+                    None => {
+                        ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                            account_id,
+                            reason: "account not found".to_string(),
+                        });
+                        return Ok(ShouldQuit::No);
+                    }
+                }
+            };
+
+            // Step 2: Validate local_path exists and is a directory.
+            let path = std::path::Path::new(&local_path);
+            if !path.exists() || !path.is_dir() {
+                ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                    account_id,
+                    reason: "path does not exist or is not a directory".to_string(),
+                });
+                return Ok(ShouldQuit::No);
+            }
+
+            // Step 3: Load keychain tokens.
+            let key = account_id_str.clone();
+            let token_set = match tokio::task::spawn_blocking(move || KeychainStore::load(&key))
+                .await
+                .map_err(|e| anyhow::anyhow!("keychain task panicked: {e}"))?
+            {
+                Ok(Some(t)) => t,
+                Ok(None) => {
+                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                        account_id,
+                        reason: "could not load account credentials".to_string(),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+                Err(e) => {
+                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                        account_id,
+                        reason: format!("could not load account credentials: {e}"),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+
+            // Step 4: Construct GraphClient.
+            let base_url = match url::Url::parse(&account_url) {
+                Ok(u) => u,
+                Err(e) => {
+                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                        account_id,
+                        reason: format!("invalid server URL: {e}"),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+            let token_arc = Arc::new(RwLock::new(token_set));
+            let graph = GraphClient::new(base_url, token_arc);
+
+            // Step 5: List spaces and find the personal drive.
+            let spaces = match graph.list_spaces().await {
+                Ok(s) => s,
+                Err(e) => {
+                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                        account_id,
+                        reason: format!("failed to list spaces: {e}"),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+            let personal = match spaces.into_iter().find(|s| s.drive_type == "personal") {
+                Some(s) => s,
+                None => {
+                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                        account_id,
+                        reason: "no personal drive found".to_string(),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+
+            // Step 6 & 7: Push FolderConfig, save, register with engine, and broadcast.
+            let folder_id = Uuid::new_v4();
+            let new_folder_config = FolderConfig {
+                id: folder_id,
+                local_path: local_path.clone(),
+                space_id: personal.id,
+                display_name: "Personal".to_string(),
+                selective_sync_excluded: vec![],
+                vfs_mode: "off".to_string(),
+                paused: false,
+            };
+            let account_config = {
+                let mut cfg = config.lock().await;
+                if let Some(account) = cfg.account.iter_mut().find(|a| a.id == account_id) {
+                    account.folder.push(new_folder_config.clone());
+                }
+                cfg.save(&config_path)?;
+                cfg.account.iter().find(|a| a.id == account_id).cloned()
+            };
+
+            // Register the new folder with the engine and scheduler so sync runs immediately.
+            if let Some(account) = account_config {
+                if let Err(e) = folder_manager
+                    .add_folder(&new_folder_config, &account)
+                    .await
+                {
+                    tracing::warn!("failed to register folder with engine: {e}");
+                } else {
+                    scheduler.add_folder(folder_id);
+                    live_folder_ids.write().unwrap().push(folder_id);
+                    scheduler.request_sync(folder_id);
+                }
+            }
+
+            ipc.broadcast(DaemonEvent::AccountFolderAdded {
+                account_id,
+                folder_id,
+                local_path,
+                display_name: "Personal".to_string(),
+            });
+        }
+
         DaemonCommand::Quit => {
             return Ok(ShouldQuit::Yes);
         }
@@ -198,15 +330,16 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         let result = handle_command(
             DaemonCommand::TriggerSync { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -224,15 +357,16 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -251,25 +385,27 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             Arc::clone(&config),
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
         handle_command(
             DaemonCommand::ResumeFolder { folder_id },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -286,15 +422,16 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         let result = handle_command(
             DaemonCommand::Quit,
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -327,7 +464,7 @@ mod tests {
             account: vec![],
         }));
         let file = NamedTempFile::new().unwrap();
-        let fm = FolderManager::empty();
+        let mut fm = FolderManager::empty();
 
         // OIDC discovery against a non-existent server must broadcast AccountAddFailed.
         let result = handle_command(
@@ -335,10 +472,11 @@ mod tests {
                 url: "https://cloud.example.com".to_string(),
             },
             &mut scheduler,
-            &fm,
+            &mut fm,
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();

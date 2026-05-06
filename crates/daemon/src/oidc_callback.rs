@@ -3,16 +3,30 @@ use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::config::{AccountConfig, AppConfig};
 use crate::gui_ipc::protocol::DaemonEvent;
 use crate::gui_ipc::GuiIpcServer;
 use ocis_client::auth::{KeychainStore, OidcAuth, PkceVerifier};
+use ocis_client::GraphClient;
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
 const SUCCESS_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 67\r\nConnection: close\r\n\r\n<html><body>Sign-in complete. You can close this tab.</body></html>";
+
+/// Writes a plain-text 200 error response to `stream` so the browser can complete its
+/// navigation before we clean up. Without this the browser gets ERR_CONNECTION_RESET.
+async fn send_error_page(stream: &mut tokio::net::TcpStream, reason: &str) {
+    let body = format!("Sign-in failed: {reason}");
+    let resp = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    let _ = stream.write_all(resp.as_bytes()).await;
+}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_callback(
@@ -97,27 +111,89 @@ async fn handle_callback(
         .await
         .map_err(|e| anyhow::anyhow!("token exchange failed: {e}"))?;
 
+    // 1. Save tokens to keychain.
     let account_id_str = account_id.to_string();
-    tokio::task::spawn_blocking(move || KeychainStore::save(&account_id_str, &tokens))
-        .await
-        .map_err(|e| anyhow::anyhow!("keychain task panicked: {e}"))?
-        .map_err(|e| anyhow::anyhow!("keychain save failed: {e}"))?;
-
     {
-        let mut cfg = config.lock().await;
-        cfg.account.push(AccountConfig {
-            id: account_id,
-            url,
-            username: String::new(),
-            display_name: String::new(),
-            folder: vec![],
-        });
-        cfg.save(&config_path)?;
+        let account_id_str = account_id_str.clone();
+        let tokens_to_save = tokens.clone();
+        tokio::task::spawn_blocking(move || KeychainStore::save(&account_id_str, &tokens_to_save))
+            .await
+            .map_err(|e| anyhow::anyhow!("keychain task panicked: {e}"))?
+            .map_err(|e| anyhow::anyhow!("keychain save failed: {e}"))?;
     }
 
-    ipc.broadcast(DaemonEvent::AccountStateChanged {
+    // Helper closure to delete keychain entry on failure.
+    let delete_keychain = |id: &str| {
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            if let Err(e) = KeychainStore::delete(&id) {
+                tracing::warn!("failed to delete keychain entry for {id}: {e}");
+            }
+        })
+    };
+
+    // 2. Call GET /graph/v1.0/me to get user identity.
+    let base_url = match url::Url::parse(&url) {
+        Ok(u) => u,
+        Err(e) => {
+            let msg = format!("invalid server URL: {e}");
+            send_error_page(&mut stream, &msg).await;
+            delete_keychain(&account_id_str).await.ok();
+            anyhow::bail!("{msg}");
+        }
+    };
+    let token_arc = Arc::new(RwLock::new(tokens));
+    let graph = GraphClient::new(base_url, token_arc);
+    let user_info = match graph.get_me().await {
+        Ok(info) => info,
+        Err(e) => {
+            let msg = format!("GET /me failed: {e}");
+            send_error_page(&mut stream, &msg).await;
+            delete_keychain(&account_id_str).await.ok();
+            anyhow::bail!("{msg}");
+        }
+    };
+
+    // 3. Check for duplicate account (same url + user_id) and save — atomically
+    //    under a single lock acquisition to prevent TOCTOU races.
+    let save_result = {
+        let mut cfg = config.lock().await;
+        if cfg
+            .account
+            .iter()
+            .any(|a| a.url == url && a.user_id == user_info.id)
+        {
+            Err(anyhow::anyhow!(
+                "account already exists for user '{}' on {url}",
+                user_info.id
+            ))
+        } else {
+            cfg.account.push(AccountConfig {
+                id: account_id,
+                url: url.clone(),
+                user_id: user_info.id.clone(),
+                username: String::new(),
+                display_name: user_info.display_name.clone(),
+                folder: vec![],
+            });
+            cfg.save(&config_path)
+                .map_err(|e| anyhow::anyhow!("failed to save config: {e}"))
+        }
+    };
+
+    // Always send an HTTP response so the browser isn't left with an open connection.
+    if let Err(ref e) = save_result {
+        send_error_page(&mut stream, &e.to_string()).await;
+        delete_keychain(&account_id_str).await.ok();
+        return Err(save_result.unwrap_err());
+    }
+
+    // 5. Broadcast AccountAddCompleted.
+    ipc.broadcast(DaemonEvent::AccountAddCompleted {
         account_id,
-        state: "added".to_string(),
+        user_id: user_info.id,
+        display_name: user_info.display_name,
+        url,
     });
 
     stream.write_all(SUCCESS_HTML).await?;

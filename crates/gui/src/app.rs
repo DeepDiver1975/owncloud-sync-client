@@ -41,6 +41,9 @@ pub enum Message {
     ToggleWindow,
     AddAccountUrlChanged(String),
     AddAccountSubmit,
+    PickLocalFolderPathChanged(String),
+    PickLocalFolderSubmit,
+    PickLocalFolderCancel,
     PauseFolder(Uuid),
     ResumeFolder(Uuid),
     ForceSyncFolder(Uuid),
@@ -95,6 +98,47 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
                     *error = Some("Not connected to sync daemon".to_string());
                 }
             }
+            iced::Task::none()
+        }
+
+        Message::PickLocalFolderPathChanged(path) => {
+            if let View::PickLocalFolder {
+                local_path_input, ..
+            } = &mut app.active_view
+            {
+                *local_path_input = path;
+            }
+            iced::Task::none()
+        }
+
+        Message::PickLocalFolderSubmit => {
+            if let View::PickLocalFolder {
+                account_id,
+                local_path_input,
+                error,
+                ..
+            } = &mut app.active_view
+            {
+                if local_path_input.is_empty() {
+                    *error = Some("Please enter a local folder path".to_string());
+                    return iced::Task::none();
+                }
+                let aid = *account_id;
+                let path = local_path_input.clone();
+                *error = None;
+                app.daemon.send(DaemonCommand::SetAccountFolder {
+                    account_id: aid,
+                    local_path: path,
+                });
+            }
+            iced::Task::none()
+        }
+
+        Message::PickLocalFolderCancel => {
+            if let View::PickLocalFolder { account_id, .. } = app.active_view {
+                app.daemon.send(DaemonCommand::RemoveAccount { account_id });
+            }
+            app.active_view = View::SyncStatus;
             iced::Task::none()
         }
 
@@ -181,18 +225,6 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
         }
 
         DaemonEvent::AccountStateChanged { account_id, state } => {
-            if state == "added" {
-                if let View::AddAccountWaiting {
-                    account_id: waiting_id,
-                    ..
-                } = &app.active_view
-                {
-                    if waiting_id.is_nil() || *waiting_id == account_id {
-                        app.active_view = View::SyncStatus;
-                        return iced::Task::none();
-                    }
-                }
-            }
             tracing::debug!("account state changed: {account_id} → {state}");
         }
 
@@ -219,6 +251,62 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                 tracing::warn!(
                     "AccountAddFailed received but not in AddAccountWaiting view: {reason}"
                 );
+            }
+        }
+
+        DaemonEvent::AccountAddCompleted {
+            account_id,
+            display_name,
+            url,
+            ..
+        } => {
+            app.accounts.push(AccountView {
+                id: account_id,
+                url: url.clone(),
+                display_name: display_name.clone(),
+                folders: vec![],
+            });
+            app.active_view = View::PickLocalFolder {
+                account_id,
+                display_name,
+                url,
+                local_path_input: String::new(),
+                error: None,
+            };
+        }
+
+        DaemonEvent::AccountFolderAdded {
+            account_id,
+            folder_id,
+            local_path,
+            display_name,
+        } => {
+            if let Some(account) = app.accounts.iter_mut().find(|a| a.id == account_id) {
+                account.folders.push(FolderView {
+                    id: folder_id,
+                    display_name,
+                    local_path,
+                    status: FolderStatus::Idle,
+                    progress: None,
+                    errors: vec![],
+                });
+            }
+            if matches!(&app.active_view, View::PickLocalFolder { account_id: aid, .. } if *aid == account_id)
+            {
+                app.active_view = View::SyncStatus;
+            }
+        }
+
+        DaemonEvent::AccountSetFolderFailed { account_id, reason } => {
+            if let View::PickLocalFolder {
+                account_id: aid,
+                error,
+                ..
+            } = &mut app.active_view
+            {
+                if *aid == account_id {
+                    *error = Some(reason);
+                }
             }
         }
     }

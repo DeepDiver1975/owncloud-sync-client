@@ -10,7 +10,6 @@ use url::Url;
 use crate::daemon_ipc::DaemonIpcClient;
 use crate::ocis_client::OcisClient;
 use crate::playwright::complete_oidc_login;
-use daemon::config::{AppConfig, FolderConfig};
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 
 const OCIS_URL: &str = "https://127.0.0.1:9200";
@@ -26,7 +25,6 @@ pub struct TestEnvironment {
     pub daemon_ipc: DaemonIpcClient,
     pub ocis_client: OcisClient,
     pub daemon_stdout: Lines<BufReader<tokio::process::ChildStdout>>,
-    bin_dir: PathBuf,
     daemon: Child,
     gui: Child,
     atspi_bus: Child,
@@ -160,16 +158,15 @@ impl TestEnvironment {
             daemon_ipc,
             ocis_client,
             daemon_stdout,
-            bin_dir,
             daemon,
             gui,
             atspi_bus,
         })
     }
 
-    /// Runs the full OIDC account-setup flow, then patches the config with a sync folder
-    /// and restarts the daemon so it begins syncing.
+    /// Runs the full OIDC account-setup flow via IPC, then sets the sync folder via IPC.
     pub async fn add_account(&mut self) -> Result<()> {
+        // Step 1: send AddAccount
         self.daemon_ipc
             .send(DaemonCommand::AddAccount {
                 url: self.ocis_url.to_string(),
@@ -177,6 +174,7 @@ impl TestEnvironment {
             .await
             .context("failed to send AddAccount")?;
 
+        // Step 2: wait for AccountAddStarted
         self.daemon_ipc
             .wait_for(
                 |e| matches!(e, DaemonEvent::AccountAddStarted { .. }),
@@ -185,6 +183,7 @@ impl TestEnvironment {
             .await
             .ok_or_else(|| anyhow!("AccountAddStarted not received"))?;
 
+        // Step 3: complete OIDC login via Playwright
         let auth_url = self.wait_for_oidc_url().await?;
 
         let callback_port = auth_url
@@ -202,61 +201,38 @@ impl TestEnvironment {
             .await
             .context("Playwright OIDC login failed")?;
 
-        self.daemon_ipc
+        // Step 4: wait for AccountAddCompleted and capture account_id
+        let completed_event = self
+            .daemon_ipc
             .wait_for(
-                |e| {
-                    matches!(
-                        e,
-                        DaemonEvent::AccountStateChanged { state, .. } if state == "added"
-                    )
-                },
+                |e| matches!(e, DaemonEvent::AccountAddCompleted { .. }),
                 Duration::from_secs(30),
             )
             .await
-            .ok_or_else(|| anyhow!("AccountStateChanged(added) not received"))?;
+            .ok_or_else(|| anyhow!("AccountAddCompleted not received"))?;
 
-        // Patch config: add a sync folder to the account, then restart the daemon so it
-        // picks up the new folder (the running daemon only syncs folders loaded at startup).
-        let config_path = self
-            .config_dir
-            .path()
-            .join("owncloud")
-            .join("owncloud.toml");
-        let mut cfg = AppConfig::load(&config_path).context("failed to load config after OIDC")?;
-        let account = cfg
-            .account
-            .first_mut()
-            .ok_or_else(|| anyhow!("no account in config after OIDC"))?;
-        account.folder.push(FolderConfig {
-            id: uuid::Uuid::new_v4(),
-            local_path: self.sync_dir.path().to_string_lossy().into_owned(),
-            space_id: self.ocis_client.space_id.clone(),
-            display_name: "Personal".to_string(),
-            selective_sync_excluded: vec![],
-            vfs_mode: "off".to_string(),
-            paused: false,
-        });
-        cfg.save(&config_path)
-            .context("failed to save config with folder")?;
+        let account_id = match completed_event {
+            DaemonEvent::AccountAddCompleted { account_id, .. } => account_id,
+            _ => unreachable!(),
+        };
 
-        // Kill old daemon and remove its socket so the new one can bind.
-        let _ = self.daemon.start_kill();
-        let _ = self.daemon.wait().await;
-        let socket_path = socket_path_for(self.config_dir.path());
-        let _ = std::fs::remove_file(&socket_path);
-
-        // Restart daemon with the updated config.
-        let (new_daemon, new_stdout) = spawn_daemon(&self.bin_dir, self.config_dir.path())
-            .context("failed to restart ocsyncd")?;
-        self.daemon = new_daemon;
-        self.daemon_stdout = new_stdout;
-
-        wait_for_path(&socket_path, Duration::from_secs(30))
+        // Step 5: send SetAccountFolder
+        self.daemon_ipc
+            .send(DaemonCommand::SetAccountFolder {
+                account_id,
+                local_path: self.sync_dir.path().to_string_lossy().into_owned(),
+            })
             .await
-            .context("daemon GUI socket did not reappear after restart")?;
-        self.daemon_ipc = DaemonIpcClient::connect(&socket_path)
+            .context("failed to send SetAccountFolder")?;
+
+        // Step 6: wait for AccountFolderAdded
+        self.daemon_ipc
+            .wait_for(
+                |e| matches!(e, DaemonEvent::AccountFolderAdded { .. }),
+                Duration::from_secs(30),
+            )
             .await
-            .context("failed to reconnect to daemon GUI socket after restart")?;
+            .ok_or_else(|| anyhow!("AccountFolderAdded not received"))?;
 
         Ok(())
     }

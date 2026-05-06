@@ -112,3 +112,28 @@ async fn test_webdav_url_for_space() {
         "https://ocis.example.com/dav/spaces/storage$personal!abc-123/"
     );
 }
+
+const GET_ME_RESPONSE: &str = r#"{
+  "id": "4c510ada-c86b-4815-8820-42cdf82c3d51",
+  "displayName": "Alice Hansen",
+  "mail": "alice@example.com"
+}"#;
+
+#[tokio::test]
+async fn test_get_me_parses_response() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/graph/v1.0/me"))
+        .and(header("Authorization", "Bearer test-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_raw(GET_ME_RESPONSE, "application/json"))
+        .mount(&server)
+        .await;
+
+    let base_url = format!("{}/", server.uri()).parse().unwrap();
+    let client = GraphClient::new(base_url, dummy_token());
+
+    let me = client.get_me().await.unwrap();
+    assert_eq!(me.id, "4c510ada-c86b-4815-8820-42cdf82c3d51");
+    assert_eq!(me.display_name, "Alice Hansen");
+}

@@ -1,7 +1,9 @@
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
+
 use daemon::gui_ipc::protocol::DaemonEvent;
-use gui::app::Message;
+use gui::app::{EventRxCarrier, Message};
 use gui::subscription::next_message;
-use tokio::sync::mpsc;
 
 #[tokio::test]
 async fn next_message_wraps_event() {
@@ -29,4 +31,30 @@ async fn next_message_returns_none_after_disconnect_sentinel() {
     // so next_message returns DaemonDisconnected again (not None)
     let msg = next_message(&mut rx).await;
     assert!(matches!(msg, Some(Message::DaemonDisconnected)));
+}
+
+#[tokio::test]
+async fn subscription_nils_receiver_after_disconnect() {
+    // Build a closed channel — simulates the daemon dropping the connection.
+    let (tx, rx) = mpsc::channel::<DaemonEvent>(1);
+    drop(tx);
+
+    let event_rx: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
+    let event_rx_clone = event_rx.clone();
+
+    // Run one subscription iteration: call next_message, detect DaemonDisconnected,
+    // and nil the Option — mirroring what the subscription closure does.
+    {
+        let mut guard = event_rx_clone.lock().await;
+        if let Some(receiver) = guard.as_mut() {
+            let m = next_message(receiver).await;
+            if matches!(m, Some(Message::DaemonDisconnected)) {
+                *guard = None;
+            }
+        }
+    }
+
+    // The receiver must now be None so we don't hammer the closed channel.
+    let guard = event_rx.lock().await;
+    assert!(guard.is_none(), "expected None after disconnect");
 }

@@ -49,6 +49,8 @@ impl Default for GeneralConfig {
 pub struct AccountConfig {
     pub id: Uuid,
     pub url: String,
+    #[serde(default)]
+    pub user_id: String,
     pub username: String,
     pub display_name: String,
     #[serde(default)]

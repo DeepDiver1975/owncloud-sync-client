@@ -50,5 +50,12 @@ pub enum View {
         account_id: Uuid,
         url_input: String,
     },
+    PickLocalFolder {
+        account_id: Uuid,
+        display_name: String,
+        url: String,
+        local_path_input: String,
+        error: Option<String>,
+    },
     GeneralSettings,
 }

@@ -7,11 +7,25 @@ use uuid::Uuid;
 #[serde(tag = "type")]
 pub enum DaemonCommand {
     Subscribe,
-    TriggerSync { folder_id: Uuid },
-    PauseFolder { folder_id: Uuid },
-    ResumeFolder { folder_id: Uuid },
-    AddAccount { url: String },
-    RemoveAccount { account_id: Uuid },
+    TriggerSync {
+        folder_id: Uuid,
+    },
+    PauseFolder {
+        folder_id: Uuid,
+    },
+    ResumeFolder {
+        folder_id: Uuid,
+    },
+    AddAccount {
+        url: String,
+    },
+    RemoveAccount {
+        account_id: Uuid,
+    },
+    SetAccountFolder {
+        account_id: Uuid,
+        local_path: String,
+    },
     Quit,
 }
 
@@ -45,6 +59,22 @@ pub enum DaemonEvent {
     AccountAddFailed {
         account_id: Uuid,
         reason: String,
+    },
+    AccountAddCompleted {
+        account_id: Uuid,
+        user_id: String,
+        display_name: String,
+        url: String,
+    },
+    AccountSetFolderFailed {
+        account_id: Uuid,
+        reason: String,
+    },
+    AccountFolderAdded {
+        account_id: Uuid,
+        folder_id: Uuid,
+        local_path: String,
+        display_name: String,
     },
 }
 
