@@ -20,7 +20,7 @@ pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
         col = col.push(account_section(account));
     }
 
-    container(col)
+    container(iced::widget::scrollable(col).width(Length::Fill))
         .width(Length::Fill)
         .height(Length::Fill)
         .padding([16, 20])
@@ -55,9 +55,35 @@ fn empty_state_view() -> Element<'static, Message> {
     .into()
 }
 
+fn account_led_color(account: &AccountView) -> iced::Color {
+    if account
+        .folders
+        .iter()
+        .any(|f| matches!(f.status, FolderStatus::Error))
+    {
+        theme::STATUS_ERROR
+    } else if account
+        .folders
+        .iter()
+        .any(|f| matches!(f.status, FolderStatus::Syncing))
+    {
+        theme::STATUS_SYNCING
+    } else if account
+        .folders
+        .iter()
+        .all(|f| matches!(f.status, FolderStatus::Paused))
+        && !account.folders.is_empty()
+    {
+        theme::STATUS_PAUSED
+    } else {
+        theme::STATUS_OK
+    }
+}
+
 fn account_section(account: &AccountView) -> Element<'_, Message> {
-    let led = container(Space::new(7, 7)).style(|_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(theme::STATUS_OK)),
+    let led_color = account_led_color(account);
+    let led = container(Space::new(7, 7)).style(move |_| iced::widget::container::Style {
+        background: Some(iced::Background::Color(led_color)),
         border: iced::Border {
             radius: 4.0.into(),
             ..Default::default()
@@ -205,11 +231,14 @@ fn folder_row(folder: &crate::model::FolderView) -> Element<'_, Message> {
 }
 
 pub fn truncate_path(path: &str, max_chars: usize) -> String {
-    if path.len() <= max_chars {
+    let char_count = path.chars().count();
+    if char_count <= max_chars {
         return path.to_string();
     }
     let half = max_chars / 2 - 1;
-    format!("{}…{}", &path[..half], &path[path.len() - half..])
+    let front: String = path.chars().take(half).collect();
+    let back: String = path.chars().skip(char_count - half).collect();
+    format!("{front}…{back}")
 }
 
 #[cfg(test)]
@@ -225,10 +254,29 @@ mod tests {
     fn long_path_is_truncated() {
         let long = "/home/user/very/deeply/nested/path/that/exceeds/the/limit/file.txt";
         let result = truncate_path(long, 40);
-        assert!(result.len() <= 41, "truncated path too long: {result}");
+        assert!(
+            result.chars().count() <= 41,
+            "truncated path too long: {result}"
+        );
         assert!(
             result.contains('…'),
             "truncated path should contain ellipsis"
         );
+    }
+
+    #[test]
+    fn non_ascii_path_does_not_panic() {
+        let long = "/home/user/Bücher/sehr/tief/verschachtelt/Datei.txt";
+        let result = truncate_path(long, 30);
+        assert!(result.chars().count() <= 31);
+        assert!(result.contains('…'));
+    }
+
+    #[test]
+    fn cjk_path_does_not_panic() {
+        let long = "/home/user/文档/很长的路径/子目录/另一个目录/文件名.txt";
+        let result = truncate_path(long, 20);
+        assert!(result.chars().count() <= 21);
+        assert!(result.contains('…'));
     }
 }
