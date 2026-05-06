@@ -161,6 +161,7 @@ async fn add_account_invalid_url_broadcasts_failed() {
         &ipc,
         config,
         file.path().to_path_buf(),
+        Arc::new(std::sync::RwLock::new(vec![])),
     )
     .await
     .unwrap();

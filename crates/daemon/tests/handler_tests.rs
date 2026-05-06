@@ -33,6 +33,7 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
         &ipc,
         config,
         file.path().to_path_buf(),
+        Arc::new(std::sync::RwLock::new(vec![])),
     )
     .await
     .unwrap();
@@ -85,6 +86,7 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
         &ipc,
         config,
         file.path().to_path_buf(),
+        Arc::new(std::sync::RwLock::new(vec![])),
     )
     .await
     .unwrap();

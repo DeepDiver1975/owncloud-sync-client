@@ -31,6 +31,7 @@ pub async fn handle_command(
     ipc: &Arc<GuiIpcServer>,
     config: Arc<Mutex<AppConfig>>,
     config_path: PathBuf,
+    live_folder_ids: Arc<std::sync::RwLock<Vec<Uuid>>>,
 ) -> Result<ShouldQuit> {
     match cmd {
         DaemonCommand::Subscribe => {}
@@ -268,6 +269,7 @@ pub async fn handle_command(
                     tracing::warn!("failed to register folder with engine: {e}");
                 } else {
                     scheduler.add_folder(folder_id);
+                    live_folder_ids.write().unwrap().push(folder_id);
                     scheduler.request_sync(folder_id);
                 }
             }
@@ -337,6 +339,7 @@ mod tests {
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -363,6 +366,7 @@ mod tests {
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -390,6 +394,7 @@ mod tests {
             &ipc,
             Arc::clone(&config),
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -400,6 +405,7 @@ mod tests {
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -425,6 +431,7 @@ mod tests {
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();
@@ -469,6 +476,7 @@ mod tests {
             &ipc,
             config,
             file.path().to_path_buf(),
+            Arc::new(std::sync::RwLock::new(vec![])),
         )
         .await
         .unwrap();

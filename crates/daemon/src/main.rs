@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::interval;
@@ -77,6 +77,9 @@ async fn main() -> Result<()> {
     let folder_ids: Vec<_> = folder_manager.folders.keys().cloned().collect();
     let mut scheduler = SyncScheduler::new(folder_ids.clone());
 
+    // Shared live folder-ID list — updated when folders are added at runtime.
+    let live_folder_ids: Arc<RwLock<Vec<uuid::Uuid>>> = Arc::new(RwLock::new(folder_ids.clone()));
+
     // Spawn SocketApiServer.
     let socket_api_clone = Arc::clone(&socket_api);
     tokio::spawn(async move {
@@ -104,18 +107,19 @@ async fn main() -> Result<()> {
 
     gui_ipc.broadcast(DaemonEvent::Ready);
 
-    // Spawn remote poll loop — sends TriggerSync periodically.
-    let folder_ids_poll = folder_ids.clone();
+    // Spawn remote poll loop — sends TriggerSync for all currently registered folders.
+    let live_ids_poll = Arc::clone(&live_folder_ids);
     let (poll_tx, mut poll_rx) = mpsc::channel::<DaemonCommand>(64);
     tokio::spawn(async move {
         let mut ticker = interval(Duration::from_secs(poll_secs));
         ticker.tick().await; // skip first immediate tick
         loop {
             ticker.tick().await;
-            info!("poll tick: {} folder(s)", folder_ids_poll.len());
-            for id in &folder_ids_poll {
+            let ids = live_ids_poll.read().unwrap().clone();
+            info!("poll tick: {} folder(s)", ids.len());
+            for id in ids {
                 let _ = poll_tx
-                    .send(DaemonCommand::TriggerSync { folder_id: *id })
+                    .send(DaemonCommand::TriggerSync { folder_id: id })
                     .await;
             }
         }
@@ -135,6 +139,7 @@ async fn main() -> Result<()> {
                     &gui_ipc,
                     Arc::clone(&config),
                     config_path.clone(),
+                    Arc::clone(&live_folder_ids),
                 ).await {
                     Ok(ShouldQuit::Yes) => {
                         info!("Quit command received; shutting down");
