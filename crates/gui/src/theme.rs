@@ -442,3 +442,10 @@ pub fn owncloud_icon() -> iced::widget::Svg<'static> {
     );
     iced::widget::Svg::new(handle).width(22).height(22)
 }
+
+pub fn cloud_muted() -> iced::widget::Svg<'static> {
+    let handle = iced::widget::svg::Handle::from_memory(
+        include_bytes!("../assets/owncloud-icon-muted.svg").as_slice(),
+    );
+    iced::widget::Svg::new(handle).width(56).height(44)
+}
