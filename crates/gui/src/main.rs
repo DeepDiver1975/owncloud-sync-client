@@ -63,6 +63,11 @@ fn main() -> iced::Result {
 
     iced::application("ownCloud Sync", IcedApp::update, IcedApp::view)
         .theme(|_| theme::app_theme())
+        .window(iced::window::Settings {
+            size: iced::Size::new(800.0, 480.0),
+            min_size: Some(iced::Size::new(600.0, 400.0)),
+            ..Default::default()
+        })
         .subscription(IcedApp::subscription)
         .run_with(IcedApp::init)
 }
@@ -201,7 +206,7 @@ impl IcedApp {
 
         let nav_add = iced::widget::button(
             row![
-                text("＋").size(13).style(theme::colored_text(if is_add {
+                text("+").size(15).style(theme::colored_text(if is_add {
                     theme::ACCENT
                 } else {
                     theme::TEXT_SECONDARY
