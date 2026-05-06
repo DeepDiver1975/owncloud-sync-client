@@ -85,7 +85,7 @@ pub const STATUS_SYNCING: Color = Color {
 }; // #58a6d4
 pub const STATUS_ERROR: Color = Color {
     r: 0.973,
-    g: 0.318,
+    g: 0.3176,
     b: 0.286,
     a: 1.0,
 }; // #f85149
