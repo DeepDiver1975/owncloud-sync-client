@@ -28,16 +28,14 @@ pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
 }
 
 fn empty_state_view() -> Element<'static, Message> {
-    let cloud = text("☁")
-        .size(48)
-        .style(theme::colored_text(theme::BORDER_SUBTLE));
+    let cloud = theme::cloud_muted();
     let heading = text("No accounts configured")
         .size(20)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
     let sub = text("Add your first ownCloud account to start syncing.")
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
-    let add_btn = button(text("＋ Add account").size(13))
+    let add_btn = button(text("+ Add account").size(13))
         .on_press(Message::NavigateTo(View::AddAccount {
             url_input: String::new(),
             error: None,
