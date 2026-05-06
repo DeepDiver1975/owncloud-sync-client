@@ -1,9 +1,10 @@
 use iced::{
-    widget::{button, column, container, text, text_input},
-    Element, Length,
+    widget::{button, column, container, row, text, text_input},
+    Alignment, Element, Length,
 };
 
 use crate::app::Message;
+use crate::theme;
 
 pub fn pick_local_folder_view<'a>(
     display_name: &'a str,
@@ -11,38 +12,65 @@ pub fn pick_local_folder_view<'a>(
     local_path_input: &'a str,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
-    let title = text("Choose sync folder").size(22);
-    let account_label = text(format!("Account: {display_name} — {url}")).size(13);
-    let instruction = text("Choose a local folder where your files will be synced.").size(14);
+    let heading = text("Choose a local folder")
+        .size(16)
+        .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let path_field = text_input("/home/user/ownCloud", local_path_input)
+    let caption = text(format!(
+        "Where should {} from {} sync to?",
+        display_name, url
+    ))
+    .size(13)
+    .style(theme::colored_text(theme::TEXT_SECONDARY));
+
+    let path_label = text("Local folder path")
+        .size(11)
+        .style(theme::colored_text(theme::TEXT_SECONDARY));
+
+    let path_field = text_input("~/ownCloud", local_path_input)
         .on_input(Message::PickLocalFolderPathChanged)
         .on_submit(Message::PickLocalFolderSubmit)
-        .padding(12);
+        .padding([9, 11])
+        .size(13)
+        .style(theme::text_input_style);
 
-    let start_btn = button("Start syncing")
+    let confirm_btn = button(text("Start Syncing").size(13))
         .on_press(Message::PickLocalFolderSubmit)
-        .padding(12);
+        .padding([9, 18])
+        .style(theme::primary_button_style);
 
-    let cancel_btn = button("Cancel")
+    let cancel_btn = button(text("Cancel").size(13))
         .on_press(Message::PickLocalFolderCancel)
-        .padding(6);
+        .padding([8, 14])
+        .style(theme::ghost_button_style);
 
-    let mut col = column![title, account_label, instruction, path_field, start_btn]
-        .spacing(8)
-        .max_width(480);
+    let mut col = column![heading, caption, column![path_label, path_field].spacing(4),]
+        .spacing(14)
+        .max_width(420);
 
-    if let Some(err_text) = error {
-        col = col.push(text(err_text).size(13));
+    if let Some(err) = error {
+        let banner = container(
+            text(err)
+                .size(12)
+                .style(theme::colored_text(theme::STATUS_ERROR)),
+        )
+        .style(theme::error_banner_style)
+        .padding([8, 12])
+        .width(Length::Fill);
+        col = col.push(banner);
     }
 
-    col = col.push(cancel_btn);
+    col = col.push(
+        row![confirm_btn, cancel_btn]
+            .spacing(10)
+            .align_y(Alignment::Center),
+    );
 
     container(col)
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(Length::Fill)
         .center_y(Length::Fill)
-        .padding(24)
+        .padding([24, 28])
         .into()
 }
