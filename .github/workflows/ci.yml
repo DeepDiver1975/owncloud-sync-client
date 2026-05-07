@@ -152,7 +152,7 @@ jobs:
           done
 
       - name: Build ocsyncd and ocsync
-        run: cargo build -p daemon -p gui
+        run: cargo build -p daemon -p gui --features gui/test-accessibility
 
       - name: Start gnome-keyring (headless secret service)
         run: |
