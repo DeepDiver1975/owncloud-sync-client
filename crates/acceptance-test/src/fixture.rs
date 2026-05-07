@@ -12,7 +12,7 @@ use crate::daemon_ipc::DaemonIpcClient;
 use crate::ocis_client::OcisClient;
 use crate::playwright::complete_oidc_login;
 use atspi::Role;
-use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
+use daemon::gui_ipc::protocol::DaemonEvent;
 
 const OCIS_URL: &str = "https://127.0.0.1:9200";
 
@@ -172,17 +172,47 @@ impl TestEnvironment {
         })
     }
 
-    /// Runs the full OIDC account-setup flow via IPC, then sets the sync folder via IPC.
+    /// Runs the full account-setup flow by driving the GUI through AT-SPI2.
+    /// Daemon IPC events are used only as completion signals.
     pub async fn add_account(&mut self) -> Result<()> {
-        // Step 1: send AddAccount
-        self.daemon_ipc
-            .send(DaemonCommand::AddAccount {
-                url: self.ocis_url.to_string(),
-            })
+        // 1. Click "Add Account" in the nav sidebar.
+        let add_btn = self
+            .atspi
+            .wait_for_widget(Role::Button, "+ Add Account", Duration::from_secs(10))
             .await
-            .context("failed to send AddAccount")?;
+            .context("Add Account nav button not found")?;
+        self.atspi
+            .click(&add_btn)
+            .await
+            .context("failed to click Add Account")?;
 
-        // Step 2: wait for AccountAddStarted
+        // 2. Type the server URL into the text field (found by its placeholder text).
+        let url_field = self
+            .atspi
+            .wait_for_widget(
+                Role::Entry,
+                "https://your.server.com",
+                Duration::from_secs(5),
+            )
+            .await
+            .context("server URL text input not found")?;
+        self.atspi
+            .set_text(&url_field, self.ocis_url.as_str())
+            .await
+            .context("failed to set server URL")?;
+
+        // 3. Click "Connect →".
+        let connect_btn = self
+            .atspi
+            .wait_for_widget(Role::Button, "Connect →", Duration::from_secs(5))
+            .await
+            .context("Connect button not found")?;
+        self.atspi
+            .click(&connect_btn)
+            .await
+            .context("failed to click Connect")?;
+
+        // 4. Wait for daemon to confirm OIDC flow started.
         self.daemon_ipc
             .wait_for(
                 |e| matches!(e, DaemonEvent::AccountAddStarted { .. }),
@@ -191,7 +221,7 @@ impl TestEnvironment {
             .await
             .ok_or_else(|| anyhow!("AccountAddStarted not received"))?;
 
-        // Step 3: complete OIDC login via Playwright
+        // 5. Read the OIDC authorization URL from daemon stdout.
         let auth_url = self.wait_for_oidc_url().await?;
 
         let callback_port = auth_url
@@ -205,13 +235,13 @@ impl TestEnvironment {
             })
             .ok_or_else(|| anyhow!("could not extract callback port from redirect_uri"))?;
 
+        // 6. Complete OIDC login in headless browser.
         complete_oidc_login(&auth_url, callback_port, "admin", "admin")
             .await
             .context("Playwright OIDC login failed")?;
 
-        // Step 4: wait for AccountAddCompleted and capture account_id
-        let completed_event = self
-            .daemon_ipc
+        // 7. Wait for daemon to confirm OIDC completed and account saved.
+        self.daemon_ipc
             .wait_for(
                 |e| matches!(e, DaemonEvent::AccountAddCompleted { .. }),
                 Duration::from_secs(30),
@@ -219,21 +249,30 @@ impl TestEnvironment {
             .await
             .ok_or_else(|| anyhow!("AccountAddCompleted not received"))?;
 
-        let account_id = match completed_event {
-            DaemonEvent::AccountAddCompleted { account_id, .. } => account_id,
-            _ => unreachable!(),
-        };
-
-        // Step 5: send SetAccountFolder
-        self.daemon_ipc
-            .send(DaemonCommand::SetAccountFolder {
-                account_id,
-                local_path: self.sync_dir.path().to_string_lossy().into_owned(),
-            })
+        // 8. Type the local sync folder path.
+        let sync_path = self.sync_dir.path().to_string_lossy().into_owned();
+        let folder_field = self
+            .atspi
+            .wait_for_widget(Role::Entry, "~/ownCloud", Duration::from_secs(10))
             .await
-            .context("failed to send SetAccountFolder")?;
+            .context("folder path text input not found")?;
+        self.atspi
+            .set_text(&folder_field, &sync_path)
+            .await
+            .context("failed to set folder path")?;
 
-        // Step 6: wait for AccountFolderAdded
+        // 9. Click "Start Syncing".
+        let sync_btn = self
+            .atspi
+            .wait_for_widget(Role::Button, "Start Syncing", Duration::from_secs(5))
+            .await
+            .context("Start Syncing button not found")?;
+        self.atspi
+            .click(&sync_btn)
+            .await
+            .context("failed to click Start Syncing")?;
+
+        // 10. Wait for daemon to confirm folder registered.
         self.daemon_ipc
             .wait_for(
                 |e| matches!(e, DaemonEvent::AccountFolderAdded { .. }),
