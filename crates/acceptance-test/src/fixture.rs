@@ -7,9 +7,11 @@ use tokio::io::{AsyncBufReadExt, BufReader, Lines};
 use tokio::process::{Child, Command};
 use url::Url;
 
+use crate::atspi_client::AtSpiClient;
 use crate::daemon_ipc::DaemonIpcClient;
 use crate::ocis_client::OcisClient;
 use crate::playwright::complete_oidc_login;
+use atspi::Role;
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 
 const OCIS_URL: &str = "https://127.0.0.1:9200";
@@ -24,6 +26,7 @@ pub struct TestEnvironment {
     pub config_dir: TempDir,
     pub daemon_ipc: DaemonIpcClient,
     pub ocis_client: OcisClient,
+    pub atspi: AtSpiClient,
     pub daemon_stdout: Lines<BufReader<tokio::process::ChildStdout>>,
     daemon: Child,
     gui: Child,
@@ -147,6 +150,10 @@ impl TestEnvironment {
         set_screen_reader(true);
         tokio::time::sleep(Duration::from_millis(500)).await;
 
+        let atspi = AtSpiClient::connect()
+            .await
+            .context("failed to connect to AT-SPI2 accessibility bus")?;
+
         let ocis_client = OcisClient::from_credentials(Url::parse(OCIS_URL)?, "admin", "admin")
             .await
             .context("failed to create OcisClient")?;
@@ -156,6 +163,7 @@ impl TestEnvironment {
             sync_dir,
             config_dir,
             daemon_ipc,
+            atspi,
             ocis_client,
             daemon_stdout,
             daemon,
