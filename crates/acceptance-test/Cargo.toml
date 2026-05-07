@@ -11,6 +11,10 @@ name = "account_setup"
 path = "tests/account_setup.rs"
 
 [[test]]
+name = "duplicate_account"
+path = "tests/duplicate_account.rs"
+
+[[test]]
 name = "sync"
 path = "tests/sync.rs"
 
