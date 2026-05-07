@@ -177,24 +177,13 @@ impl IcedApp {
             View::GeneralSettings | View::AccountSettings(_)
         );
 
-        let nav_sync = iced::widget::button(
-            row![
-                text("☁").size(13).style(theme::colored_text(if is_sync {
-                    theme::ACCENT
-                } else {
-                    theme::TEXT_SECONDARY
-                })),
-                text("Sync Status")
-                    .size(12)
-                    .style(theme::colored_text(if is_sync {
-                        theme::ACCENT
-                    } else {
-                        theme::TEXT_SECONDARY
-                    })),
-            ]
-            .spacing(7)
-            .align_y(iced::Alignment::Center),
-        )
+        let nav_sync = iced::widget::button(text("☁ Sync Status").size(12).style(
+            theme::colored_text(if is_sync {
+                theme::ACCENT
+            } else {
+                theme::TEXT_SECONDARY
+            }),
+        ))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .width(Length::Fill)
         .padding([7, 9])
@@ -204,24 +193,13 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_add = iced::widget::button(
-            row![
-                text("+").size(15).style(theme::colored_text(if is_add {
-                    theme::ACCENT
-                } else {
-                    theme::TEXT_SECONDARY
-                })),
-                text("Add Account")
-                    .size(12)
-                    .style(theme::colored_text(if is_add {
-                        theme::ACCENT
-                    } else {
-                        theme::TEXT_SECONDARY
-                    })),
-            ]
-            .spacing(7)
-            .align_y(iced::Alignment::Center),
-        )
+        let nav_add = iced::widget::button(text("+ Add Account").size(12).style(
+            theme::colored_text(if is_add {
+                theme::ACCENT
+            } else {
+                theme::TEXT_SECONDARY
+            }),
+        ))
         .on_press(Message::NavigateTo(View::AddAccount {
             url_input: String::new(),
             error: None,
@@ -234,26 +212,13 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_settings = iced::widget::button(
-            row![
-                text("⚙")
-                    .size(13)
-                    .style(theme::colored_text(if is_settings {
-                        theme::ACCENT
-                    } else {
-                        theme::TEXT_SECONDARY
-                    })),
-                text("Settings")
-                    .size(12)
-                    .style(theme::colored_text(if is_settings {
-                        theme::ACCENT
-                    } else {
-                        theme::TEXT_SECONDARY
-                    })),
-            ]
-            .spacing(7)
-            .align_y(iced::Alignment::Center),
-        )
+        let nav_settings = iced::widget::button(text("⚙ Settings").size(12).style(
+            theme::colored_text(if is_settings {
+                theme::ACCENT
+            } else {
+                theme::TEXT_SECONDARY
+            }),
+        ))
         .on_press(Message::NavigateTo(View::GeneralSettings))
         .width(Length::Fill)
         .padding([7, 9])
