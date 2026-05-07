@@ -87,7 +87,8 @@ impl TestEnvironment {
             .context("failed to connect to daemon GUI socket")?;
 
         // Resolve the AT-SPI2 bus address so both the GUI and the test client can find it.
-        let atspi_env_val = resolve_atspi_bus_address();
+        let atspi_env_val =
+            resolve_atspi_bus_address().context("failed to resolve AT-SPI2 bus address")?;
 
         // Propagate the bus address into the environment for both this process and the GUI.
         // Safety: single-threaded at this point in startup.
@@ -398,13 +399,42 @@ fn socket_path_for(runtime_dir: &Path) -> PathBuf {
     runtime_dir.join("owncloud").join("daemon-gui.sock")
 }
 
-/// Return the AT-SPI2 bus address, checking env var then the well-known GNOME socket path.
-fn resolve_atspi_bus_address() -> String {
+/// Return the AT-SPI2 bus address.
+///
+/// Checks `AT_SPI_BUS_ADDRESS` first. Otherwise queries `org.a11y.Bus.GetAddress` on the
+/// session bus, which triggers D-Bus service activation of `at-spi-bus-launcher` if it is
+/// not already running.
+fn resolve_atspi_bus_address() -> Result<String> {
     if let Ok(addr) = std::env::var("AT_SPI_BUS_ADDRESS") {
         if !addr.is_empty() {
-            return addr;
+            return Ok(addr);
         }
     }
-    let uid = nix::unistd::getuid().as_raw();
-    format!("unix:path=/run/user/{uid}/at-spi/bus")
+    let output = StdCommand::new("dbus-send")
+        .args([
+            "--session",
+            "--print-reply",
+            "--dest=org.a11y.Bus",
+            "/org/a11y/bus",
+            "org.a11y.Bus.GetAddress",
+        ])
+        .output()
+        .context("failed to run dbus-send to query AT-SPI bus address")?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .find_map(|line| {
+            let t = line.trim();
+            if t.starts_with("string \"") && t.ends_with('"') {
+                Some(t[8..t.len() - 1].to_string())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| {
+            anyhow!(
+                "could not parse AT-SPI bus address from dbus-send output: {:?}",
+                stdout
+            )
+        })
 }

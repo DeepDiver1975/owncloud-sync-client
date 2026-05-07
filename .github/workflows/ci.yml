@@ -124,7 +124,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers gnome-keyring dbus-x11
+          sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers gnome-keyring dbus-x11 at-spi2-core
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -160,6 +160,14 @@ jobs:
           test -n "$DBUS_SESSION_BUS_ADDRESS" || { echo "dbus-launch failed to produce a bus address"; exit 1; }
           echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
           echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
+
+      - name: Start AT-SPI2 accessibility bus
+        run: |
+          dbus-send --session --print-reply --dest=org.a11y.Bus /org/a11y/bus org.a11y.Bus.GetAddress
+          # Trigger ScreenReaderEnabled=true so accesskit activates when the GUI spawns
+          dbus-send --session --dest=org.a11y.Bus /org/a11y/bus \
+            org.freedesktop.DBus.Properties.Set \
+            string:org.a11y.Status string:ScreenReaderEnabled variant:boolean:true
 
       - name: Run acceptance tests
         run: OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture --test-threads=1
