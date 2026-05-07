@@ -84,61 +84,65 @@ pub async fn handle_command(
             let port = listener.local_addr()?.port();
             let callback_uri = format!("http://127.0.0.1:{port}/callback");
 
-            let oidc = match OidcAuth::discover(
-                &url,
-                OCIS_CLIENT_ID,
-                Some(OCIS_CLIENT_SECRET.to_string()),
-                &callback_uri,
-                insecure,
-            )
-            .await
-            {
-                Ok(o) => o,
-                Err(e) => {
-                    ipc.broadcast(DaemonEvent::AccountAddFailed {
-                        account_id,
-                        reason: format!("OIDC discovery failed: {e}"),
-                    });
-                    return Ok(ShouldQuit::No);
-                }
-            };
-
-            let (auth_url, verifier) = match oidc.start_pkce_flow() {
-                Ok(pair) => pair,
-                Err(e) => {
-                    ipc.broadcast(DaemonEvent::AccountAddFailed {
-                        account_id,
-                        reason: format!("PKCE setup failed: {e}"),
-                    });
-                    return Ok(ShouldQuit::No);
-                }
-            };
-
-            println!("OIDC_AUTH_URL={}", auth_url);
-
+            // Emit AccountAddStarted immediately so clients don't wait on OIDC discovery.
             ipc.broadcast(DaemonEvent::AccountAddStarted { account_id });
 
             let ipc_clone = Arc::clone(ipc);
-            tokio::spawn(oidc_callback::run_callback(
-                listener,
-                oidc,
-                verifier,
-                account_id,
-                url,
-                Arc::clone(&ipc_clone),
-                config,
-                config_path,
-            ));
-
-            // Open browser unless disabled (e.g. in acceptance tests where Playwright drives it).
-            if std::env::var("OCSYNCD_NO_BROWSER").is_err() {
-                let auth_url_str = auth_url.to_string();
-                tokio::spawn(async move {
-                    if let Err(e) = open_browser(&auth_url_str).await {
-                        tracing::warn!("could not open browser: {e}");
+            tokio::spawn(async move {
+                let oidc = match OidcAuth::discover(
+                    &url,
+                    OCIS_CLIENT_ID,
+                    Some(OCIS_CLIENT_SECRET.to_string()),
+                    &callback_uri,
+                    insecure,
+                )
+                .await
+                {
+                    Ok(o) => o,
+                    Err(e) => {
+                        ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
+                            account_id,
+                            reason: format!("OIDC discovery failed: {e}"),
+                        });
+                        return;
                     }
-                });
-            }
+                };
+
+                let (auth_url, verifier) = match oidc.start_pkce_flow() {
+                    Ok(pair) => pair,
+                    Err(e) => {
+                        ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
+                            account_id,
+                            reason: format!("PKCE setup failed: {e}"),
+                        });
+                        return;
+                    }
+                };
+
+                println!("OIDC_AUTH_URL={}", auth_url);
+
+                let no_browser = std::env::var("OCSYNCD_NO_BROWSER").is_ok();
+                if !no_browser {
+                    let auth_url_str = auth_url.to_string();
+                    tokio::spawn(async move {
+                        if let Err(e) = open_browser(&auth_url_str).await {
+                            tracing::warn!("could not open browser: {e}");
+                        }
+                    });
+                }
+
+                oidc_callback::run_callback(
+                    listener,
+                    oidc,
+                    verifier,
+                    account_id,
+                    url,
+                    ipc_clone,
+                    config,
+                    config_path,
+                )
+                .await;
+            });
         }
 
         DaemonCommand::RemoveAccount { account_id } => {
@@ -483,10 +487,27 @@ mod tests {
 
         assert_eq!(result, ShouldQuit::No);
 
-        let event = rx.try_recv().expect("expected an event to be broadcast");
+        // AccountAddStarted is now emitted immediately before OIDC discovery.
+        let first = rx.try_recv().expect("expected AccountAddStarted");
         assert!(
-            matches!(event, DaemonEvent::AccountAddFailed { .. }),
-            "expected AccountAddFailed, got {event:?}"
+            matches!(first, DaemonEvent::AccountAddStarted { .. }),
+            "expected AccountAddStarted, got {first:?}"
+        );
+
+        // AccountAddFailed arrives once the background task completes OIDC discovery.
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        let failed = loop {
+            if let Ok(event) = rx.try_recv() {
+                break event;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                panic!("timed out waiting for AccountAddFailed");
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        };
+        assert!(
+            matches!(failed, DaemonEvent::AccountAddFailed { .. }),
+            "expected AccountAddFailed, got {failed:?}"
         );
     }
 }

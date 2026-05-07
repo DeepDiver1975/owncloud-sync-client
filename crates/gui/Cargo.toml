@@ -10,7 +10,7 @@ name = "ocsync"
 path = "src/main.rs"
 
 [dependencies]
-iced = { version = "0.13", features = ["tokio"] }
+iced = { version = "0.13", features = ["tokio", "svg"] }
 tray-icon = { version = "0.19", optional = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }

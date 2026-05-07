@@ -1,55 +1,81 @@
 use iced::{
-    widget::{button, column, container, text, text_input},
-    Element, Length,
+    widget::{button, column, container, row, text, text_input},
+    Alignment, Element, Length,
 };
 
 use crate::app::Message;
 use crate::model::View;
-
-const PADDING: u16 = 12;
-const SPACING: u16 = 8;
+use crate::theme;
 
 pub static URL_INPUT_ID: std::sync::LazyLock<text_input::Id> =
     std::sync::LazyLock::new(text_input::Id::unique);
 
 pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Element<'a, Message> {
-    let title = text("Add ownCloud account").size(22);
+    let heading = text("Add Account")
+        .size(20)
+        .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let subtitle = text(
-        "Enter your ownCloud server address. You will be redirected \
-         to the browser to complete sign-in.",
-    )
-    .size(14);
+    let caption = text("Enter your ownCloud server address. Sign-in will open in your browser.")
+        .size(13)
+        .style(theme::colored_text(theme::TEXT_SECONDARY));
+
+    let url_label = text("Server URL")
+        .size(11)
+        .style(theme::colored_text(theme::TEXT_SECONDARY));
 
     let url_field = text_input("https://your.server.com", url_input)
         .id(URL_INPUT_ID.clone())
         .on_input(Message::AddAccountUrlChanged)
         .on_submit(Message::AddAccountSubmit)
-        .padding(PADDING);
+        .padding([9, 11])
+        .size(13)
+        .style(theme::text_input_style);
 
-    let connect_btn = button("Connect")
+    let helper = text("Include the full address including https://")
+        .size(11)
+        .style(theme::colored_text(theme::TEXT_MUTED));
+
+    let connect_btn = button(text("Connect →").size(13))
         .on_press(Message::AddAccountSubmit)
-        .padding(PADDING);
+        .padding([9, 18])
+        .style(theme::primary_button_style);
 
-    let back_btn = button("Cancel")
+    let cancel_btn = button(text("Cancel").size(13))
         .on_press(Message::NavigateTo(View::SyncStatus))
-        .padding(PADDING / 2);
+        .padding([8, 14])
+        .style(theme::ghost_button_style);
 
-    let mut col = column![title, subtitle, url_field, connect_btn]
-        .spacing(SPACING)
-        .max_width(480);
+    let mut col = column![
+        heading,
+        caption,
+        column![url_label, url_field, helper].spacing(4),
+    ]
+    .spacing(14)
+    .max_width(420);
 
-    if let Some(err_text) = error {
-        col = col.push(text(err_text).size(13));
+    if let Some(err) = error {
+        let banner = container(
+            text(err)
+                .size(12)
+                .style(theme::colored_text(theme::STATUS_ERROR)),
+        )
+        .style(theme::error_banner_style)
+        .padding([8, 12])
+        .width(Length::Fill);
+        col = col.push(banner);
     }
 
-    col = col.push(back_btn);
+    col = col.push(
+        row![connect_btn, cancel_btn]
+            .spacing(10)
+            .align_y(Alignment::Center),
+    );
 
     container(col)
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(Length::Fill)
         .center_y(Length::Fill)
-        .padding(PADDING * 2)
+        .padding([24, 28])
         .into()
 }

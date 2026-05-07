@@ -1,31 +1,38 @@
 use iced::{
     widget::{button, column, container, text},
-    Element, Length,
+    Alignment, Element, Length,
 };
 
 use crate::app::Message;
 use crate::model::View;
-
-const PADDING: u16 = 12;
-const SPACING: u16 = 8;
+use crate::theme;
 
 pub fn add_account_waiting_view<'a>() -> Element<'a, Message> {
-    let title = text("Waiting for browser sign-in…").size(22);
-    let subtitle = text("Complete sign-in in the browser window that just opened.").size(14);
+    let spinner = text("⟳").size(28).style(theme::colored_text(theme::ACCENT));
 
-    let cancel_btn = button("Cancel")
+    let heading = text("Waiting for sign-in…")
+        .size(15)
+        .style(theme::colored_text(theme::TEXT_PRIMARY));
+
+    let caption = text("Complete authentication in the browser window that just opened.")
+        .size(13)
+        .style(theme::colored_text(theme::TEXT_SECONDARY));
+
+    let cancel_btn = button(text("Cancel").size(13))
         .on_press(Message::NavigateTo(View::SyncStatus))
-        .padding(PADDING / 2);
+        .padding([8, 14])
+        .style(theme::ghost_button_style);
 
-    let col = column![title, subtitle, cancel_btn]
-        .spacing(SPACING)
-        .max_width(480);
-
-    container(col)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
-        .padding(PADDING * 2)
-        .into()
+    container(
+        column![spinner, heading, caption, cancel_btn]
+            .spacing(12)
+            .align_x(Alignment::Center)
+            .max_width(380),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .center_x(Length::Fill)
+    .center_y(Length::Fill)
+    .padding([24, 28])
+    .into()
 }

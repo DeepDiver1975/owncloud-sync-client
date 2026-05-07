@@ -1,56 +1,93 @@
 use iced::{
     widget::{button, column, container, row, text, Column},
-    Element, Length,
+    Alignment, Element, Length,
 };
 
 use crate::app::Message;
 use crate::model::{AccountView, View};
-
-const PADDING: u16 = 12;
-const SPACING: u16 = 8;
+use crate::theme;
 
 pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
-    let title = text("Account Settings").size(22);
-    let url_label = text(format!("Server: {}", account.url)).size(14);
-    let folders_title = text("Synced folders:").size(16);
+    let acct_name = text(&account.display_name)
+        .size(15)
+        .style(theme::colored_text(theme::TEXT_PRIMARY));
+    let acct_url = text(&account.url)
+        .size(11)
+        .style(theme::colored_text(theme::TEXT_MUTED));
 
-    let mut folders_col = Column::new().spacing(SPACING / 2);
+    let remove_btn = button(text("Remove Account").size(12))
+        .on_press(Message::RemoveAccount(account.id))
+        .padding([6, 12])
+        .style(theme::danger_button_style);
+
+    let header = row![
+        column![acct_name, acct_url].spacing(2),
+        iced::widget::horizontal_space(),
+        remove_btn,
+    ]
+    .align_y(Alignment::Start)
+    .spacing(12);
+
+    let folders_label = text("SYNCED FOLDERS")
+        .size(10)
+        .style(theme::colored_text(theme::TEXT_MUTED));
+
+    let mut folders_col = Column::new().spacing(0);
     if account.folders.is_empty() {
-        folders_col = folders_col.push(text("No folders configured.").size(13));
+        folders_col = folders_col.push(
+            container(
+                text("No folders configured.")
+                    .size(12)
+                    .style(theme::colored_text(theme::TEXT_MUTED)),
+            )
+            .padding([10, 14]),
+        );
     } else {
         for folder in &account.folders {
-            let folder_row = row![
-                text(&folder.display_name).size(14),
-                text("→").size(14),
-                text(&folder.local_path).size(13),
-            ]
-            .spacing(SPACING / 2);
-            folders_col = folders_col.push(folder_row);
+            let row_widget = container(
+                row![
+                    text(&folder.display_name)
+                        .size(12)
+                        .style(theme::colored_text(theme::TEXT_PRIMARY)),
+                    text("→")
+                        .size(11)
+                        .style(theme::colored_text(theme::TEXT_MUTED)),
+                    text(&folder.local_path)
+                        .size(11)
+                        .style(theme::colored_text(theme::TEXT_MUTED)),
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center)
+                .padding([8, 12]),
+            )
+            .width(Length::Fill)
+            .style(|_: &iced::Theme| iced::widget::container::Style {
+                border: iced::Border {
+                    color: theme::BORDER_SUBTLE,
+                    width: 0.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+            folders_col = folders_col.push(row_widget);
         }
     }
 
-    let remove_btn = button("Remove Account")
-        .on_press(Message::RemoveAccount(account.id))
-        .padding(PADDING);
+    let folders_card = container(folders_col)
+        .width(Length::Fill)
+        .style(theme::card_style);
 
-    let back_btn = button("Back")
+    let back_btn = button(text("← Back").size(12))
         .on_press(Message::NavigateTo(View::SyncStatus))
-        .padding(PADDING / 2);
+        .padding([6, 12])
+        .style(theme::ghost_button_style);
 
-    let col = column![
-        title,
-        url_label,
-        folders_title,
-        folders_col,
-        remove_btn,
-        back_btn
-    ]
-    .spacing(SPACING)
-    .max_width(480);
+    let col = column![header, folders_label, folders_card, back_btn]
+        .spacing(12)
+        .padding([16, 20]);
 
     container(col)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(PADDING * 2)
         .into()
 }
