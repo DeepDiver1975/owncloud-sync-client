@@ -1,5 +1,7 @@
 use acceptance_test::fixture::TestEnvironment;
+use atspi::Role;
 use daemon::config::AppConfig;
+use std::time::Duration;
 
 #[tokio::test]
 async fn test_account_setup() {
@@ -31,4 +33,13 @@ async fn test_account_setup() {
         1,
         "expected exactly 1 folder in account"
     );
+
+    // Assert: the account display name is visible in the GUI SyncStatus view.
+    // This is the key assertion: it confirms the GUI actually updated, not just the config.
+    // If this fails with "timed out", check the dump_tree() output in the error message
+    // and update Role::Label to the role the AT-SPI bridge emits for Iced text() widgets.
+    env.atspi
+        .wait_for_widget(Role::Label, &account.display_name, Duration::from_secs(10))
+        .await
+        .expect("account display name not visible in SyncStatus view");
 }
