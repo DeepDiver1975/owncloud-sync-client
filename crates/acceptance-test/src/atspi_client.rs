@@ -142,10 +142,12 @@ impl AtSpiClient {
                 Err(_) => {
                     let now = Instant::now();
                     if now >= deadline {
+                        let tree = self.dump_tree().await;
                         return Err(anyhow!(
-                            "timed out waiting for widget with role {:?} and name {:?}",
+                            "timed out waiting for widget with role {:?} and name {:?}\nAccessible tree:\n{}",
                             role,
-                            name
+                            name,
+                            tree
                         ));
                     }
                     let remaining = deadline - now;
@@ -188,6 +190,61 @@ impl AtSpiClient {
         } else {
             Err(anyhow!("do_action(0) returned false"))
         }
+    }
+
+    /// Walk the full accessible tree and return a formatted dump of every node.
+    /// Called automatically by [`wait_for_widget`] on timeout.
+    pub async fn dump_tree(&self) -> String {
+        let zconn = self.conn.connection();
+        let mut output = String::new();
+
+        let registry_root = match self.conn.root_accessible_on_registry().await {
+            Ok(r) => r,
+            Err(e) => return format!("dump_tree: registry root error: {e}"),
+        };
+
+        let app_refs = match registry_root.get_children().await {
+            Ok(children) => children,
+            Err(e) => return format!("dump_tree: children error: {e}"),
+        };
+
+        let mut queue: VecDeque<(ObjectRefOwned, usize)> =
+            app_refs.into_iter().map(|r| (r, 0)).collect();
+        let mut visited: HashSet<(String, String)> = HashSet::new();
+
+        while let Some((obj_ref, depth)) = queue.pop_front() {
+            if obj_ref.is_null() {
+                continue;
+            }
+
+            let key = (
+                obj_ref.name_as_str().unwrap_or("").to_string(),
+                obj_ref.path_as_str().to_string(),
+            );
+            if !visited.insert(key) {
+                continue;
+            }
+
+            let proxy: AccessibleProxy<'_> = match obj_ref.as_accessible_proxy(zconn).await {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            let role = proxy.get_role().await.unwrap_or(Role::Invalid);
+            let name = proxy.name().await.unwrap_or_default();
+            let indent = "  ".repeat(depth);
+            output.push_str(&format!("{indent}[{role:?}] {name:?}\n"));
+
+            if let Ok(children) = proxy.get_children().await {
+                for child in children {
+                    if !child.is_null() {
+                        queue.push_back((child, depth + 1));
+                    }
+                }
+            }
+        }
+
+        output
     }
 
     /// Set the text content of an editable widget.
