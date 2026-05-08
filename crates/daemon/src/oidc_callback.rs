@@ -23,9 +23,10 @@ const SUCCESS_HTML_TEMPLATE: &str = include_str!("../resources/oauth/success.htm
 const ERROR_HTML_TEMPLATE: &str = include_str!("../resources/oauth/error.html");
 
 async fn send_html_response(stream: &mut tokio::net::TcpStream, status: &str, html: String) {
+    debug_assert!(!status.contains('\r') && !status.contains('\n'));
     let resp = format!(
         "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        html.len(),
+        html.len(), // String::len() returns bytes, correct for Content-Length
         html
     );
     let _ = stream.write_all(resp.as_bytes()).await;
@@ -216,6 +217,8 @@ async fn handle_callback(
         url,
     });
 
+    // Best-effort write: the account is already saved and AccountAddCompleted broadcast.
+    // A write error here means the browser closed early; nothing useful to do.
     send_html_response(
         &mut stream,
         "200 OK",
