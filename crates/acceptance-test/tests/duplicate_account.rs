@@ -27,7 +27,7 @@ async fn test_duplicate_account_rejected() {
         .await
         .expect("failed to send second AddAccount");
 
-    // Wait for AccountAddStarted so we know the daemon opened an OIDC flow.
+    // Wait for AccountAddStarted so we know the daemon opened a new OIDC flow.
     env.daemon_ipc
         .wait_for(
             |e| matches!(e, DaemonEvent::AccountAddStarted { .. }),
