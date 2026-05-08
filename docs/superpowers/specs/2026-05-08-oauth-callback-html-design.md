@@ -57,10 +57,11 @@ Filled at runtime:
   const SUCCESS_HTML_TEMPLATE: &str = include_str!("../resources/oauth/success.html");
   const ERROR_HTML_TEMPLATE: &str = include_str!("../resources/oauth/error.html");
 
+  // Requires `html-escape = "0.2"` in [dependencies]
   fn render(template: &str, title: &str, message: &str) -> String {
       template
-          .replace("{{TITLE}}", title)
-          .replace("{{MESSAGE}}", message)
+          .replace("{{TITLE}}", &html_escape::encode_text(title))
+          .replace("{{MESSAGE}}", &html_escape::encode_text(message))
   }
 
   async fn send_html_response(stream: &mut TcpStream, status: &str, html: String) {
@@ -142,7 +143,8 @@ account_setup AT
 |------|--------|
 | `crates/daemon/resources/oauth/success.html` | New — verbatim upstream template |
 | `crates/daemon/resources/oauth/error.html` | New — verbatim upstream template |
-| `crates/daemon/src/oidc_callback.rs` | Replace inline responses with template rendering |
+| `crates/daemon/Cargo.toml` | Add `html-escape = "0.2"` dependency |
+| `crates/daemon/src/oidc_callback.rs` | Replace inline responses with HTML-escaped template rendering |
 | `crates/acceptance-test/src/playwright.rs` | Return page title from `complete_oidc_login` |
 | `crates/acceptance-test/src/fixture.rs` | Thread title through `add_account` |
 | `crates/acceptance-test/tests/account_setup.rs` | Assert page title |

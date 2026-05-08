@@ -6,7 +6,7 @@
 
 **Architecture:** `success.html` and `error.html` live in `crates/daemon/resources/oauth/` and are embedded at compile time via `include_str!`. A `render()` helper fills `{{TITLE}}` / `{{MESSAGE}}` placeholders (Handlebars-style, matching the Rust template ecosystem) at runtime. The Playwright acceptance helper is extended to return the callback page title, which `test_account_setup` asserts equals `"Successfully signed in"`.
 
-**Tech Stack:** Rust (tokio, `include_str!`), HTML/CSS with dark-mode support, Node.js Playwright (headless Chromium)
+**Tech Stack:** Rust (tokio, `include_str!`, `html-escape` crate for XSS-safe placeholder substitution), HTML/CSS with dark-mode support, Node.js Playwright (headless Chromium)
 
 ---
 
@@ -149,14 +149,23 @@ git commit -s -m "feat(daemon): add OAuth callback HTML resource templates"
 
 ---
 
-### Task 2: Add `render()` helper with unit test
+### Task 2: Add `html-escape` dependency and `render()` helper with unit tests
 
 **Files:**
+- Modify: `crates/daemon/Cargo.toml`
 - Modify: `crates/daemon/src/oidc_callback.rs`
 
-`{{TITLE}}` and `{{MESSAGE}}` each appear twice in the templates (in `<title>` and `<h1>`/`<h2>`). `str::replace` replaces all occurrences, which is correct. `String::len()` returns byte count — the correct value for HTTP `Content-Length`.
+`{{TITLE}}` and `{{MESSAGE}}` each appear twice in the templates (in `<title>` and `<h1>`/`<h2>`). `str::replace` replaces all occurrences, which is correct. `String::len()` returns byte count — the correct value for HTTP `Content-Length`. Values are HTML-escaped via `html_escape::encode_text()` before substitution to prevent XSS from server-controlled strings (error messages, user IDs from oCIS).
 
-- [ ] **Step 1: Write the failing unit tests**
+- [ ] **Step 1: Add `html-escape` to `crates/daemon/Cargo.toml`**
+
+In `crates/daemon/Cargo.toml`, add one line to `[dependencies]` (after the `url` entry):
+
+```toml
+html-escape   = "0.2"
+```
+
+- [ ] **Step 2: Write the failing unit tests**
 
 In `crates/daemon/src/oidc_callback.rs`, add to the existing `#[cfg(test)]` block at the bottom (after the existing tests):
 
@@ -178,44 +187,70 @@ In `crates/daemon/src/oidc_callback.rs`, add to the existing `#[cfg(test)]` bloc
             "<title>T</title><h1>T</h1><h2>M</h2>"
         );
     }
+
+    #[test]
+    fn render_escapes_html_in_message() {
+        let template = "<h2>{{MESSAGE}}</h2>";
+        assert_eq!(
+            render(template, "Title", "<script>alert(1)</script>"),
+            "<h2>&lt;script&gt;alert(1)&lt;/script&gt;</h2>"
+        );
+    }
+
+    #[test]
+    fn render_escapes_html_in_title() {
+        let template = "<title>{{TITLE}}</title>";
+        assert_eq!(
+            render(template, "A & B", "msg"),
+            "<title>A &amp; B</title>"
+        );
+    }
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [ ] **Step 3: Run to confirm failure**
 
 ```bash
 cargo test -p daemon render_fills_title 2>&1 | tail -5
 ```
 Expected: `error[E0425]: cannot find function 'render' in this scope`
 
-- [ ] **Step 3: Implement `render()`**
+- [ ] **Step 4: Implement `render()`**
 
-In `crates/daemon/src/oidc_callback.rs`, add this function after the `use` imports and before `const SIGN_IN_TIMEOUT`:
+In `crates/daemon/src/oidc_callback.rs`, add this `use` import at the top with the other imports:
+
+```rust
+use html_escape::encode_text;
+```
+
+Then add this function after the `use` imports and before `const SIGN_IN_TIMEOUT`:
 
 ```rust
 fn render(template: &str, title: &str, message: &str) -> String {
     template
-        .replace("{{TITLE}}", title)
-        .replace("{{MESSAGE}}", message)
+        .replace("{{TITLE}}", &encode_text(title))
+        .replace("{{MESSAGE}}", &encode_text(message))
 }
 ```
 
-- [ ] **Step 4: Run to confirm passing**
+- [ ] **Step 5: Run to confirm passing**
 
 ```bash
-cargo test -p daemon render 2>&1 | tail -6
+cargo test -p daemon render 2>&1 | tail -8
 ```
 Expected:
 ```
+test oidc_callback::tests::render_escapes_html_in_message ... ok
+test oidc_callback::tests::render_escapes_html_in_title ... ok
 test oidc_callback::tests::render_fills_title_and_message ... ok
 test oidc_callback::tests::render_replaces_all_occurrences ... ok
-test result: ok. 2 passed; 0 failed
+test result: ok. 4 passed; 0 failed
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add crates/daemon/src/oidc_callback.rs
-git commit -s -m "feat(daemon): add render() helper for HTML template placeholder substitution"
+git add crates/daemon/Cargo.toml crates/daemon/src/oidc_callback.rs
+git commit -s -m "feat(daemon): add render() with html-escape to prevent XSS in callback pages"
 ```
 
 ---
