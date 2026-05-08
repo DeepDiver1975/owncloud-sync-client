@@ -19,21 +19,19 @@ fn render(template: &str, title: &str, message: &str) -> String {
         .replace("{{MESSAGE}}", &encode_text(message))
 }
 
-const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
+const SUCCESS_HTML_TEMPLATE: &str = include_str!("../resources/oauth/success.html");
+const ERROR_HTML_TEMPLATE: &str = include_str!("../resources/oauth/error.html");
 
-const SUCCESS_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 67\r\nConnection: close\r\n\r\n<html><body>Sign-in complete. You can close this tab.</body></html>";
-
-/// Writes a plain-text 200 error response to `stream` so the browser can complete its
-/// navigation before we clean up. Without this the browser gets ERR_CONNECTION_RESET.
-async fn send_error_page(stream: &mut tokio::net::TcpStream, reason: &str) {
-    let body = format!("Sign-in failed: {reason}");
+async fn send_html_response(stream: &mut tokio::net::TcpStream, status: &str, html: String) {
     let resp = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        body.len(),
-        body
+        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        html.len(),
+        html
     );
     let _ = stream.write_all(resp.as_bytes()).await;
 }
+
+const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_callback(
@@ -144,7 +142,12 @@ async fn handle_callback(
         Ok(u) => u,
         Err(e) => {
             let msg = format!("invalid server URL: {e}");
-            send_error_page(&mut stream, &msg).await;
+            send_html_response(
+                &mut stream,
+                "400 Bad Request",
+                render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
+            )
+            .await;
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -155,7 +158,12 @@ async fn handle_callback(
         Ok(info) => info,
         Err(e) => {
             let msg = format!("GET /me failed: {e}");
-            send_error_page(&mut stream, &msg).await;
+            send_html_response(
+                &mut stream,
+                "400 Bad Request",
+                render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
+            )
+            .await;
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -190,7 +198,12 @@ async fn handle_callback(
 
     // Always send an HTTP response so the browser isn't left with an open connection.
     if let Err(ref e) = save_result {
-        send_error_page(&mut stream, &e.to_string()).await;
+        send_html_response(
+            &mut stream,
+            "400 Bad Request",
+            render(ERROR_HTML_TEMPLATE, "Sign-in failed", &e.to_string()),
+        )
+        .await;
         delete_keychain(&account_id_str).await.ok();
         return Err(save_result.unwrap_err());
     }
@@ -203,7 +216,16 @@ async fn handle_callback(
         url,
     });
 
-    stream.write_all(SUCCESS_HTML).await?;
+    send_html_response(
+        &mut stream,
+        "200 OK",
+        render(
+            SUCCESS_HTML_TEMPLATE,
+            "Successfully signed in",
+            "Now, explore ownCloud on desktop.",
+        ),
+    )
+    .await;
     Ok(())
 }
 
