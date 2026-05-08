@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use html_escape::encode_text;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -11,6 +12,12 @@ use crate::gui_ipc::protocol::DaemonEvent;
 use crate::gui_ipc::GuiIpcServer;
 use ocis_client::auth::{KeychainStore, OidcAuth, PkceVerifier};
 use ocis_client::GraphClient;
+
+fn render(template: &str, title: &str, message: &str) -> String {
+    template
+        .replace("{{TITLE}}", &encode_text(title))
+        .replace("{{MESSAGE}}", &encode_text(message))
+}
 
 const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -223,7 +230,7 @@ fn decode_query_value(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_query_param;
+    use super::{extract_query_param, render};
 
     #[test]
     fn extracts_code_from_get_request() {
@@ -242,5 +249,38 @@ mod tests {
     fn returns_none_for_no_query_string() {
         let req = "GET /callback HTTP/1.1\r\n\r\n";
         assert_eq!(extract_query_param(req, "code"), None);
+    }
+
+    #[test]
+    fn render_fills_title_and_message() {
+        let template = "<title>{{TITLE}}</title><p>{{MESSAGE}}</p>";
+        assert_eq!(
+            render(template, "Hello", "World"),
+            "<title>Hello</title><p>World</p>"
+        );
+    }
+
+    #[test]
+    fn render_replaces_all_occurrences() {
+        let template = "<title>{{TITLE}}</title><h1>{{TITLE}}</h1><h2>{{MESSAGE}}</h2>";
+        assert_eq!(
+            render(template, "T", "M"),
+            "<title>T</title><h1>T</h1><h2>M</h2>"
+        );
+    }
+
+    #[test]
+    fn render_escapes_html_in_message() {
+        let template = "<h2>{{MESSAGE}}</h2>";
+        assert_eq!(
+            render(template, "Title", "<script>alert(1)</script>"),
+            "<h2>&lt;script&gt;alert(1)&lt;/script&gt;</h2>"
+        );
+    }
+
+    #[test]
+    fn render_escapes_html_in_title() {
+        let template = "<title>{{TITLE}}</title>";
+        assert_eq!(render(template, "A & B", "msg"), "<title>A &amp; B</title>");
     }
 }
