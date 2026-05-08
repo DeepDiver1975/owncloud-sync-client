@@ -4,7 +4,7 @@
 
 **Goal:** Replace bare inline OIDC callback HTTP responses with styled HTML pages (success + error) from upstream ownCloud, and assert the callback page title in the acceptance test.
 
-**Architecture:** `success.html` and `error.html` live in `crates/daemon/resources/oauth/` and are embedded at compile time via `include_str!`. A `render()` helper fills `@{TITLE}` / `@{MESSAGE}` placeholders at runtime. The Playwright acceptance helper is extended to return the callback page title, which `test_account_setup` asserts equals `"Successfully signed in"`.
+**Architecture:** `success.html` and `error.html` live in `crates/daemon/resources/oauth/` and are embedded at compile time via `include_str!`. A `render()` helper fills `{{TITLE}}` / `{{MESSAGE}}` placeholders (Handlebars-style, matching the Rust template ecosystem) at runtime. The Playwright acceptance helper is extended to return the callback page title, which `test_account_setup` asserts equals `"Successfully signed in"`.
 
 **Tech Stack:** Rust (tokio, `include_str!`), HTML/CSS with dark-mode support, Node.js Playwright (headless Chromium)
 
@@ -32,7 +32,7 @@ Create `crates/daemon/resources/oauth/success.html` with this exact content (ver
 <html lang="en">
 
 <head>
-<title>@{TITLE}</title>
+<title>{{TITLE}}</title>
 <style>
 html, body {
     height: 100%;
@@ -73,8 +73,8 @@ body {
 <div class="row">
     <div class="content">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" style="width:96px;height:96px;fill:#49851C;"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-111 111-47-47c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l64 64c9.4 9.4 24.6 9.4 33.9 0L369 209z"/></svg>
-        <h1>@{TITLE}</h1>
-        <h2>@{MESSAGE}</h2>
+        <h1>{{TITLE}}</h1>
+        <h2>{{MESSAGE}}</h2>
     </div>
 </div>
 </body>
@@ -91,7 +91,7 @@ Create `crates/daemon/resources/oauth/error.html` with this exact content:
 <html lang="en">
 
 <head>
-<title>@{TITLE}</title>
+<title>{{TITLE}}</title>
 <style>
 html, body {
     height: 100%;
@@ -132,8 +132,8 @@ body {
 <div class="row">
     <div class="content">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" style="width:96px;height:96px;fill:#E50101;"><!--!Font Awesome Free 7.0.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M320 112C434.9 112 528 205.1 528 320C528 434.9 434.9 528 320 528C205.1 528 112 434.9 112 320C112 205.1 205.1 112 320 112zM320 576C461.4 576 576 461.4 576 320C576 178.6 461.4 64 320 64C178.6 64 64 178.6 64 320C64 461.4 178.6 576 320 576zM231 231C221.6 240.4 221.6 255.6 231 264.9L286 319.9L231 374.9C221.6 384.3 221.6 399.5 231 408.8C240.4 418.1 255.6 418.2 264.9 408.8L319.9 353.8L374.9 408.8C384.3 418.2 399.5 418.2 408.8 408.8C418.1 399.4 418.2 384.2 408.8 374.9L353.8 319.9L408.8 264.9C418.2 255.5 418.2 240.3 408.8 231C399.4 221.7 384.2 221.6 374.9 231L319.9 286L264.9 231C255.5 221.6 240.3 221.6 231 231z"/></svg>
-        <h1>@{TITLE}</h1>
-        <h2>@{MESSAGE}</h2>
+        <h1>{{TITLE}}</h1>
+        <h2>{{MESSAGE}}</h2>
     </div>
 </div>
 </body>
@@ -154,7 +154,7 @@ git commit -s -m "feat(daemon): add OAuth callback HTML resource templates"
 **Files:**
 - Modify: `crates/daemon/src/oidc_callback.rs`
 
-`@{TITLE}` and `@{MESSAGE}` each appear twice in the templates (in `<title>` and `<h1>`/`<h2>`). `str::replace` replaces all occurrences, which is correct. `String::len()` returns byte count — the correct value for HTTP `Content-Length`.
+`{{TITLE}}` and `{{MESSAGE}}` each appear twice in the templates (in `<title>` and `<h1>`/`<h2>`). `str::replace` replaces all occurrences, which is correct. `String::len()` returns byte count — the correct value for HTTP `Content-Length`.
 
 - [ ] **Step 1: Write the failing unit tests**
 
@@ -163,7 +163,7 @@ In `crates/daemon/src/oidc_callback.rs`, add to the existing `#[cfg(test)]` bloc
 ```rust
     #[test]
     fn render_fills_title_and_message() {
-        let template = "<title>@{TITLE}</title><p>@{MESSAGE}</p>";
+        let template = "<title>{{TITLE}}</title><p>{{MESSAGE}}</p>";
         assert_eq!(
             render(template, "Hello", "World"),
             "<title>Hello</title><p>World</p>"
@@ -172,7 +172,7 @@ In `crates/daemon/src/oidc_callback.rs`, add to the existing `#[cfg(test)]` bloc
 
     #[test]
     fn render_replaces_all_occurrences() {
-        let template = "<title>@{TITLE}</title><h1>@{TITLE}</h1><h2>@{MESSAGE}</h2>";
+        let template = "<title>{{TITLE}}</title><h1>{{TITLE}}</h1><h2>{{MESSAGE}}</h2>";
         assert_eq!(
             render(template, "T", "M"),
             "<title>T</title><h1>T</h1><h2>M</h2>"
@@ -194,8 +194,8 @@ In `crates/daemon/src/oidc_callback.rs`, add this function after the `use` impor
 ```rust
 fn render(template: &str, title: &str, message: &str) -> String {
     template
-        .replace("@{TITLE}", title)
-        .replace("@{MESSAGE}", message)
+        .replace("{{TITLE}}", title)
+        .replace("{{MESSAGE}}", message)
 }
 ```
 

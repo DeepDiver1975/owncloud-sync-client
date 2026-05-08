@@ -14,7 +14,7 @@ The OIDC callback HTTP response shown in the browser after OIDC login is bare an
 - **Error path** — plain text `Sign-in failed: <reason>`, always HTTP 200.
 
 The upstream ownCloud desktop client ships polished `success.html` / `error.html` templates
-(centered layout, SVG icon, dark-mode support, `@{TITLE}` / `@{MESSAGE}` placeholders) that
+(centered layout, SVG icon, dark-mode support, `{{TITLE}}` / `{{MESSAGE}}` placeholders) that
 should be reused here.
 
 ---
@@ -37,16 +37,16 @@ should be reused here.
 Verbatim copy of the upstream success template.
 
 Filled at runtime:
-- `@{TITLE}` → `"Successfully signed in"`
-- `@{MESSAGE}` → `"Now, explore ownCloud on desktop."`
+- `{{TITLE}}` → `"Successfully signed in"`
+- `{{MESSAGE}}` → `"Now, explore ownCloud on desktop."`
 
 ### 2. `crates/daemon/resources/oauth/error.html`
 
 Verbatim copy of the upstream error template.
 
 Filled at runtime:
-- `@{TITLE}` → `"Sign-in failed"`
-- `@{MESSAGE}` → the error reason string from the daemon
+- `{{TITLE}}` → `"Sign-in failed"`
+- `{{MESSAGE}}` → the error reason string from the daemon
 
 ### 3. `crates/daemon/src/oidc_callback.rs` — changes
 
@@ -59,8 +59,8 @@ Filled at runtime:
 
   fn render(template: &str, title: &str, message: &str) -> String {
       template
-          .replace("@{TITLE}", title)
-          .replace("@{MESSAGE}", message)
+          .replace("{{TITLE}}", title)
+          .replace("{{MESSAGE}}", message)
   }
 
   async fn send_html_response(stream: &mut TcpStream, status: &str, html: String) {
