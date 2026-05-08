@@ -12,9 +12,15 @@ async fn test_account_setup() {
         .await
         .expect("failed to start TestEnvironment");
 
-    env.add_account()
+    let callback_title = env
+        .add_account()
         .await
         .expect("account setup via OIDC failed");
+
+    assert_eq!(
+        callback_title, "Successfully signed in",
+        "expected success page title after OIDC login"
+    );
 
     // Assert: config file has exactly 1 account with non-empty user_id and 1 folder.
     let config_path = env.config_dir.path().join("owncloud").join("owncloud.toml");
