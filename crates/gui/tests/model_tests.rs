@@ -111,3 +111,23 @@ fn add_account_waiting_carries_fields() {
         panic!("wrong variant");
     }
 }
+
+#[test]
+fn view_folder_errors_carries_ids() {
+    let account_id = Uuid::new_v4();
+    let folder_id = Uuid::new_v4();
+    let view = View::FolderErrors {
+        account_id,
+        folder_id,
+    };
+    if let View::FolderErrors {
+        account_id: aid,
+        folder_id: fid,
+    } = view
+    {
+        assert_eq!(aid, account_id);
+        assert_eq!(fid, folder_id);
+    } else {
+        panic!("expected View::FolderErrors");
+    }
+}

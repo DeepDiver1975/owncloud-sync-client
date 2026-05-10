@@ -58,4 +58,8 @@ pub enum View {
         error: Option<String>,
     },
     GeneralSettings,
+    FolderErrors {
+        account_id: Uuid,
+        folder_id: Uuid,
+    },
 }
