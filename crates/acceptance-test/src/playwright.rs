@@ -28,6 +28,7 @@ pub async fn complete_oidc_login(
   await page.fill('#oc-login-password', {password});
   await page.click('button[type="submit"]');
   const callbackPattern = 'http://127.0.0.1:{callback_port}/**';
+  // oCIS may show a consent page after login — race between consent and callback.
   await Promise.race([
     page.waitForURL('**consent**', {{ timeout: 15000 }}),
     page.waitForURL(callbackPattern, {{ timeout: 15000 }}),
@@ -56,8 +57,9 @@ pub async fn complete_oidc_login(
 
     if !output.status.success() {
         return Err(anyhow!(
-            "Playwright script exited with status: {}",
-            output.status
+            "Playwright script exited with status: {}\nstderr:\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr),
         ));
     }
 
