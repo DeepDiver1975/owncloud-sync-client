@@ -26,7 +26,7 @@ pub enum ShouldQuit {
 
 pub async fn handle_command(
     cmd: DaemonCommand,
-    scheduler: &mut SyncScheduler,
+    scheduler: Arc<Mutex<SyncScheduler>>,
     folder_manager: &mut FolderManager,
     ipc: &Arc<GuiIpcServer>,
     config: Arc<Mutex<AppConfig>>,
@@ -37,12 +37,12 @@ pub async fn handle_command(
         DaemonCommand::Subscribe => {}
 
         DaemonCommand::TriggerSync { folder_id } => {
-            scheduler.force_request_sync(folder_id);
+            scheduler.lock().await.force_request_sync(folder_id);
             ipc.broadcast(DaemonEvent::SyncStarted { folder_id });
         }
 
         DaemonCommand::PauseFolder { folder_id } => {
-            scheduler.pause(folder_id);
+            scheduler.lock().await.pause(folder_id);
             ipc.broadcast(DaemonEvent::AccountStateChanged {
                 account_id: folder_id,
                 state: "paused".into(),
@@ -50,7 +50,7 @@ pub async fn handle_command(
         }
 
         DaemonCommand::ResumeFolder { folder_id } => {
-            scheduler.resume(folder_id);
+            scheduler.lock().await.resume(folder_id);
             ipc.broadcast(DaemonEvent::AccountStateChanged {
                 account_id: folder_id,
                 state: "active".into(),
@@ -272,9 +272,9 @@ pub async fn handle_command(
                 {
                     tracing::warn!("failed to register folder with engine: {e}");
                 } else {
-                    scheduler.add_folder(folder_id);
+                    scheduler.lock().await.add_folder(folder_id);
                     live_folder_ids.write().unwrap().push(folder_id);
-                    scheduler.request_sync(folder_id);
+                    scheduler.lock().await.request_sync(folder_id);
                 }
             }
 
@@ -327,7 +327,7 @@ mod tests {
     #[tokio::test]
     async fn trigger_sync_marks_pending() {
         let folder_id = Uuid::new_v4();
-        let mut scheduler = SyncScheduler::new(vec![folder_id]);
+        let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![folder_id])));
         let (ipc, _rx) = GuiIpcServer::new();
         let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
@@ -338,7 +338,7 @@ mod tests {
 
         let result = handle_command(
             DaemonCommand::TriggerSync { folder_id },
-            &mut scheduler,
+            Arc::clone(&scheduler),
             &mut fm,
             &ipc,
             config,
@@ -354,7 +354,7 @@ mod tests {
     #[tokio::test]
     async fn pause_marks_paused() {
         let folder_id = Uuid::new_v4();
-        let mut scheduler = SyncScheduler::new(vec![folder_id]);
+        let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![folder_id])));
         let (ipc, _rx) = GuiIpcServer::new();
         let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
@@ -365,7 +365,7 @@ mod tests {
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
-            &mut scheduler,
+            Arc::clone(&scheduler),
             &mut fm,
             &ipc,
             config,
@@ -375,14 +375,15 @@ mod tests {
         .await
         .unwrap();
 
-        scheduler.request_sync(folder_id);
-        assert!(!scheduler.ready_to_run().contains(&folder_id));
+        let mut sched = scheduler.lock().await;
+        sched.request_sync(folder_id);
+        assert!(!sched.ready_to_run().contains(&folder_id));
     }
 
     #[tokio::test]
     async fn resume_unpauses() {
         let folder_id = Uuid::new_v4();
-        let mut scheduler = SyncScheduler::new(vec![folder_id]);
+        let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![folder_id])));
         let (ipc, _rx) = GuiIpcServer::new();
         let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
@@ -393,7 +394,7 @@ mod tests {
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
-            &mut scheduler,
+            Arc::clone(&scheduler),
             &mut fm,
             &ipc,
             Arc::clone(&config),
@@ -404,7 +405,7 @@ mod tests {
         .unwrap();
         handle_command(
             DaemonCommand::ResumeFolder { folder_id },
-            &mut scheduler,
+            Arc::clone(&scheduler),
             &mut fm,
             &ipc,
             config,
@@ -413,13 +414,14 @@ mod tests {
         )
         .await
         .unwrap();
-        scheduler.request_sync(folder_id);
-        assert!(scheduler.ready_to_run().contains(&folder_id));
+        let mut sched = scheduler.lock().await;
+        sched.request_sync(folder_id);
+        assert!(sched.ready_to_run().contains(&folder_id));
     }
 
     #[tokio::test]
     async fn quit_returns_should_quit() {
-        let mut scheduler = SyncScheduler::new(vec![]);
+        let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![])));
         let (ipc, _rx) = GuiIpcServer::new();
         let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
@@ -430,7 +432,7 @@ mod tests {
 
         let result = handle_command(
             DaemonCommand::Quit,
-            &mut scheduler,
+            Arc::clone(&scheduler),
             &mut fm,
             &ipc,
             config,
@@ -461,7 +463,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_account_oidc_failure_broadcasts_account_add_failed() {
-        let mut scheduler = SyncScheduler::new(vec![]);
+        let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![])));
         let (ipc, mut rx) = GuiIpcServer::new();
         let config = Arc::new(Mutex::new(AppConfig {
             general: GeneralConfig::default(),
@@ -475,7 +477,7 @@ mod tests {
             DaemonCommand::AddAccount {
                 url: "https://cloud.example.com".to_string(),
             },
-            &mut scheduler,
+            Arc::clone(&scheduler),
             &mut fm,
             &ipc,
             config,

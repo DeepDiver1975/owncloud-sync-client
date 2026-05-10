@@ -13,7 +13,7 @@ use daemon::scheduler::SyncScheduler;
 #[tokio::test]
 async fn set_account_folder_unknown_account_broadcasts_failed() {
     let (ipc, mut rx) = GuiIpcServer::new();
-    let mut scheduler = SyncScheduler::new(vec![]);
+    let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![])));
     let config = Arc::new(Mutex::new(AppConfig {
         general: GeneralConfig::default(),
         account: vec![],
@@ -28,7 +28,7 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
             account_id: unknown_account_id,
             local_path: "/tmp".to_string(),
         },
-        &mut scheduler,
+        Arc::clone(&scheduler),
         &mut fm,
         &ipc,
         config,
@@ -57,7 +57,7 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
 #[tokio::test]
 async fn set_account_folder_invalid_path_broadcasts_failed() {
     let (ipc, mut rx) = GuiIpcServer::new();
-    let mut scheduler = SyncScheduler::new(vec![]);
+    let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![])));
 
     let account_id = Uuid::new_v4();
     let config = Arc::new(Mutex::new(AppConfig {
@@ -81,7 +81,7 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
             account_id,
             local_path: nonexistent_path.to_string(),
         },
-        &mut scheduler,
+        Arc::clone(&scheduler),
         &mut fm,
         &ipc,
         config,

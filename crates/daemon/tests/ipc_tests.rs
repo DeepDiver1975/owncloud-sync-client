@@ -160,7 +160,7 @@ async fn add_account_invalid_url_broadcasts_failed() {
     use tokio::sync::Mutex;
 
     let (ipc, mut event_rx) = GuiIpcServer::new();
-    let mut scheduler = SyncScheduler::new(vec![]);
+    let scheduler = Arc::new(Mutex::new(SyncScheduler::new(vec![])));
     let config = Arc::new(Mutex::new(AppConfig {
         general: GeneralConfig::default(),
         account: vec![],
@@ -172,7 +172,7 @@ async fn add_account_invalid_url_broadcasts_failed() {
         DaemonCommand::AddAccount {
             url: "not-a-url".to_string(),
         },
-        &mut scheduler,
+        Arc::clone(&scheduler),
         &mut fm,
         &ipc,
         config,

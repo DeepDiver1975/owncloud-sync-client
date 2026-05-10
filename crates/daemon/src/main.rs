@@ -170,10 +170,9 @@ async fn main() -> Result<()> {
     loop {
         tokio::select! {
             Some(cmd) = cmd_rx.recv() => {
-                let mut sched = scheduler.lock().await;
                 match handle_command(
                     cmd,
-                    &mut sched,
+                    Arc::clone(&scheduler),
                     &mut folder_manager,
                     &gui_ipc,
                     Arc::clone(&config),
@@ -196,14 +195,18 @@ async fn main() -> Result<()> {
             }
 
             _ = scheduler_tick.tick() => {
-                let ready = scheduler.lock().await.ready_to_run();
+                let ready = {
+                    let mut sched = scheduler.lock().await;
+                    let ids = sched.ready_to_run();
+                    for &folder_id in &ids {
+                        sched.start_sync(folder_id);
+                    }
+                    ids
+                };
                 if !ready.is_empty() {
                     info!("scheduler: {} folder(s) ready to sync", ready.len());
                 }
                 for folder_id in ready {
-                    {
-                        scheduler.lock().await.start_sync(folder_id);
-                    }
                     gui_ipc.broadcast(DaemonEvent::SyncStarted { folder_id });
 
                     let engine = folder_manager.get_engine(folder_id).cloned();
