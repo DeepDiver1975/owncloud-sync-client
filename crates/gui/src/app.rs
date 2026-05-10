@@ -309,6 +309,8 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                 }
             }
         }
+
+        DaemonEvent::AccountSnapshot { .. } => {}
     }
 
     iced::Task::none()
