@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
@@ -9,6 +10,7 @@ use daemon::gui_ipc::handler::handle_command;
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use daemon::gui_ipc::GuiIpcServer;
 use daemon::scheduler::SyncScheduler;
+use ocis_client::auth::TokenManager;
 
 #[tokio::test]
 async fn set_account_folder_unknown_account_broadcasts_failed() {
@@ -34,6 +36,9 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
         config,
         file.path().to_path_buf(),
         Arc::new(std::sync::RwLock::new(vec![])),
+        Arc::new(std::sync::RwLock::new(
+            HashMap::<Uuid, Arc<TokenManager>>::new(),
+        )),
     )
     .await
     .unwrap();
@@ -87,6 +92,9 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
         config,
         file.path().to_path_buf(),
         Arc::new(std::sync::RwLock::new(vec![])),
+        Arc::new(std::sync::RwLock::new(
+            HashMap::<Uuid, Arc<TokenManager>>::new(),
+        )),
     )
     .await
     .unwrap();

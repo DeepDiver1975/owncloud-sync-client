@@ -178,6 +178,10 @@ async fn add_account_invalid_url_broadcasts_failed() {
         config,
         file.path().to_path_buf(),
         Arc::new(std::sync::RwLock::new(vec![])),
+        Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+            uuid::Uuid,
+            Arc<ocis_client::auth::TokenManager>,
+        >::new())),
     )
     .await
     .unwrap();
