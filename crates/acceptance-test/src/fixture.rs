@@ -117,7 +117,7 @@ impl TestEnvironment {
     /// Runs the full account-setup flow via daemon IPC.
     /// The GUI is running in the background; IPC commands reach the daemon through
     /// the same socket the GUI uses, exercising the same daemon code path.
-    pub async fn add_account(&mut self) -> Result<()> {
+    pub async fn add_account(&mut self) -> Result<String> {
         // 1. Send AddAccount to the daemon.
         self.daemon_ipc
             .send(DaemonCommand::AddAccount {
@@ -150,7 +150,7 @@ impl TestEnvironment {
             .ok_or_else(|| anyhow!("could not extract callback port from redirect_uri"))?;
 
         // 4. Complete OIDC login in headless browser.
-        complete_oidc_login(&auth_url, callback_port, "admin", "admin")
+        let callback_title = complete_oidc_login(&auth_url, callback_port, "admin", "admin")
             .await
             .context("Playwright OIDC login failed")?;
 
@@ -187,7 +187,7 @@ impl TestEnvironment {
             .await
             .ok_or_else(|| anyhow!("AccountFolderAdded not received"))?;
 
-        Ok(())
+        Ok(callback_title)
     }
 
     /// Reads daemon stdout until a `OIDC_AUTH_URL=<url>` line is found, then returns the URL.

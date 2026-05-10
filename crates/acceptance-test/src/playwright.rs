@@ -4,21 +4,13 @@ use tokio::process::Command;
 use url::Url;
 
 /// Completes an OIDC PKCE login using a headless Playwright/Chromium browser.
-///
-/// `auth_url` — the authorization URL emitted by the daemon on stdout (OIDC_AUTH_URL=...)
-/// `callback_port` — the local port the daemon's callback server is listening on
-///
-/// Writes a JS script to a temp file and runs it via `node`. Playwright must be
-/// installed (`npm install playwright && npx playwright install chromium`).
+/// Returns the page title shown on the callback page after login completes.
 pub async fn complete_oidc_login(
     auth_url: &Url,
     callback_port: u16,
     username: &str,
     password: &str,
-) -> Result<()> {
-    // node resolves require() relative to the script file, not the process CWD.
-    // Write the script into the workspace root (next to node_modules) so that
-    // `require('playwright')` resolves to the local installation.
+) -> Result<String> {
     let workspace_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()?;
@@ -35,8 +27,8 @@ pub async fn complete_oidc_login(
   await page.fill('#oc-login-username', {username});
   await page.fill('#oc-login-password', {password});
   await page.click('button[type="submit"]');
-  // oCIS may show a consent page after login — race between consent and callback
   const callbackPattern = 'http://127.0.0.1:{callback_port}/**';
+  // oCIS may show a consent page after login — race between consent and callback.
   await Promise.race([
     page.waitForURL('**consent**', {{ timeout: 15000 }}),
     page.waitForURL(callbackPattern, {{ timeout: 15000 }}),
@@ -45,6 +37,8 @@ pub async fn complete_oidc_login(
     await page.click('button[type="submit"]');
     await page.waitForURL(callbackPattern, {{ timeout: 15000 }});
   }}
+  const title = await page.title();
+  process.stdout.write(title + '\n');
   await browser.close();
 }})();
 "#,
@@ -59,10 +53,16 @@ pub async fn complete_oidc_login(
     tmp.write_all(script.as_bytes())?;
     tmp.flush()?;
 
-    let status = Command::new("node").arg(tmp.path()).status().await?;
+    let output = Command::new("node").arg(tmp.path()).output().await?;
 
-    if !status.success() {
-        return Err(anyhow!("Playwright script exited with status: {status}"));
+    if !output.status.success() {
+        return Err(anyhow!(
+            "Playwright script exited with status: {}\nstderr:\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr),
+        ));
     }
-    Ok(())
+
+    let title = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(title)
 }

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use html_escape::encode_text;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -12,21 +13,26 @@ use crate::gui_ipc::GuiIpcServer;
 use ocis_client::auth::{KeychainStore, OidcAuth, PkceVerifier};
 use ocis_client::GraphClient;
 
-const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
+fn render(template: &str, title: &str, message: &str) -> String {
+    template
+        .replace("{{TITLE}}", &encode_text(title))
+        .replace("{{MESSAGE}}", &encode_text(message))
+}
 
-const SUCCESS_HTML: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 67\r\nConnection: close\r\n\r\n<html><body>Sign-in complete. You can close this tab.</body></html>";
+const SUCCESS_HTML_TEMPLATE: &str = include_str!("../resources/oauth/success.html");
+const ERROR_HTML_TEMPLATE: &str = include_str!("../resources/oauth/error.html");
 
-/// Writes a plain-text 200 error response to `stream` so the browser can complete its
-/// navigation before we clean up. Without this the browser gets ERR_CONNECTION_RESET.
-async fn send_error_page(stream: &mut tokio::net::TcpStream, reason: &str) {
-    let body = format!("Sign-in failed: {reason}");
+async fn send_html_response(stream: &mut tokio::net::TcpStream, status: &str, html: String) {
+    debug_assert!(!status.contains('\r') && !status.contains('\n'));
     let resp = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        body.len(),
-        body
+        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        html.len(), // String::len() returns bytes, correct for Content-Length
+        html
     );
     let _ = stream.write_all(resp.as_bytes()).await;
 }
+
+const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run_callback(
@@ -137,7 +143,12 @@ async fn handle_callback(
         Ok(u) => u,
         Err(e) => {
             let msg = format!("invalid server URL: {e}");
-            send_error_page(&mut stream, &msg).await;
+            send_html_response(
+                &mut stream,
+                "400 Bad Request",
+                render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
+            )
+            .await;
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -148,7 +159,12 @@ async fn handle_callback(
         Ok(info) => info,
         Err(e) => {
             let msg = format!("GET /me failed: {e}");
-            send_error_page(&mut stream, &msg).await;
+            send_html_response(
+                &mut stream,
+                "400 Bad Request",
+                render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
+            )
+            .await;
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -183,7 +199,12 @@ async fn handle_callback(
 
     // Always send an HTTP response so the browser isn't left with an open connection.
     if let Err(ref e) = save_result {
-        send_error_page(&mut stream, &e.to_string()).await;
+        send_html_response(
+            &mut stream,
+            "400 Bad Request",
+            render(ERROR_HTML_TEMPLATE, "Sign-in failed", &e.to_string()),
+        )
+        .await;
         delete_keychain(&account_id_str).await.ok();
         return Err(save_result.unwrap_err());
     }
@@ -196,7 +217,18 @@ async fn handle_callback(
         url,
     });
 
-    stream.write_all(SUCCESS_HTML).await?;
+    // Best-effort write: the account is already saved and AccountAddCompleted broadcast.
+    // A write error here means the browser closed early; nothing useful to do.
+    send_html_response(
+        &mut stream,
+        "200 OK",
+        render(
+            SUCCESS_HTML_TEMPLATE,
+            "Successfully signed in",
+            "Now, explore ownCloud on desktop.",
+        ),
+    )
+    .await;
     Ok(())
 }
 
@@ -223,7 +255,7 @@ fn decode_query_value(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_query_param;
+    use super::{extract_query_param, render};
 
     #[test]
     fn extracts_code_from_get_request() {
@@ -242,5 +274,38 @@ mod tests {
     fn returns_none_for_no_query_string() {
         let req = "GET /callback HTTP/1.1\r\n\r\n";
         assert_eq!(extract_query_param(req, "code"), None);
+    }
+
+    #[test]
+    fn render_fills_title_and_message() {
+        let template = "<title>{{TITLE}}</title><p>{{MESSAGE}}</p>";
+        assert_eq!(
+            render(template, "Hello", "World"),
+            "<title>Hello</title><p>World</p>"
+        );
+    }
+
+    #[test]
+    fn render_replaces_all_occurrences() {
+        let template = "<title>{{TITLE}}</title><h1>{{TITLE}}</h1><h2>{{MESSAGE}}</h2>";
+        assert_eq!(
+            render(template, "T", "M"),
+            "<title>T</title><h1>T</h1><h2>M</h2>"
+        );
+    }
+
+    #[test]
+    fn render_escapes_html_in_message() {
+        let template = "<h2>{{MESSAGE}}</h2>";
+        assert_eq!(
+            render(template, "Title", "<script>alert(1)</script>"),
+            "<h2>&lt;script&gt;alert(1)&lt;/script&gt;</h2>"
+        );
+    }
+
+    #[test]
+    fn render_escapes_html_in_title() {
+        let template = "<title>{{TITLE}}</title>";
+        assert_eq!(render(template, "A & B", "msg"), "<title>A &amp; B</title>");
     }
 }
