@@ -272,9 +272,12 @@ pub async fn handle_command(
                 {
                     tracing::warn!("failed to register folder with engine: {e}");
                 } else {
-                    scheduler.lock().await.add_folder(folder_id);
+                    {
+                        let mut sched = scheduler.lock().await;
+                        sched.add_folder(folder_id);
+                        sched.request_sync(folder_id);
+                    }
                     live_folder_ids.write().unwrap().push(folder_id);
-                    scheduler.lock().await.request_sync(folder_id);
                 }
             }
 
