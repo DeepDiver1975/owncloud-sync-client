@@ -1,6 +1,6 @@
 use sync_engine::discovery::remote::discover_remote;
 use url::Url;
-use wiremock::matchers::{method, path_regex};
+use wiremock::matchers::{header, method, path_regex};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn propfind_response_root() -> &'static str {
@@ -41,12 +41,13 @@ async fn discovers_files_from_propfind() {
 
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/space1.*"))
+        .and(header("Authorization", "Bearer test-token"))
         .respond_with(ResponseTemplate::new(207).set_body_string(propfind_response_root()))
         .mount(&server)
         .await;
 
     let base = Url::parse(&format!("{}/dav/spaces/space1/", server.uri())).unwrap();
-    let entries = discover_remote(&base).await.unwrap();
+    let entries = discover_remote(&base, "test-token").await.unwrap();
 
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].path.file_name(), Some("hello.txt"));
@@ -72,11 +73,12 @@ async fn empty_collection_returns_empty() {
 
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/empty.*"))
+        .and(header("Authorization", "Bearer my-token"))
         .respond_with(ResponseTemplate::new(207).set_body_string(empty))
         .mount(&server)
         .await;
 
     let base = Url::parse(&format!("{}/dav/spaces/empty/", server.uri())).unwrap();
-    let entries = discover_remote(&base).await.unwrap();
+    let entries = discover_remote(&base, "my-token").await.unwrap();
     assert!(entries.is_empty());
 }
