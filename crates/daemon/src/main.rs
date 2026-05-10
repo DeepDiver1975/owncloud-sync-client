@@ -3,7 +3,7 @@
 use anyhow::Result;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::interval;
 use tracing::{error, info};
 
@@ -20,7 +20,8 @@ mod watcher;
 use config::AppConfig;
 use folder_manager::FolderManager;
 use gui_ipc::handler::{handle_command, ShouldQuit};
-use gui_ipc::{protocol::DaemonCommand, protocol::DaemonEvent, GuiIpcServer};
+use gui_ipc::protocol::{AccountSnapshot, DaemonCommand, DaemonEvent, FolderSnapshot};
+use gui_ipc::{GuiIpcServer, SnapshotProvider};
 use lock::{LockError, LockFile};
 use scheduler::SyncScheduler;
 use socket_api::server::SocketApiServer;
@@ -64,7 +65,7 @@ async fn main() -> Result<()> {
         .collect();
     let mut folder_manager =
         FolderManager::init_sync(&all_folders, &initial_config.account).await?;
-    let config = Arc::new(tokio::sync::Mutex::new(initial_config));
+    let config = Arc::new(Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
     let sync_states = folder_manager.sync_states();
@@ -75,10 +76,44 @@ async fn main() -> Result<()> {
     let (gui_ipc, _initial_rx) = GuiIpcServer::new();
 
     let folder_ids: Vec<_> = folder_manager.folders.keys().cloned().collect();
-    let mut scheduler = SyncScheduler::new(folder_ids.clone());
+    let scheduler = Arc::new(Mutex::new(SyncScheduler::new(folder_ids.clone())));
 
     // Shared live folder-ID list — updated when folders are added at runtime.
     let live_folder_ids: Arc<RwLock<Vec<uuid::Uuid>>> = Arc::new(RwLock::new(folder_ids.clone()));
+
+    // Build snapshot provider: captures config + scheduler for each new GUI subscriber.
+    let snap_config = Arc::clone(&config);
+    let snap_scheduler = Arc::clone(&scheduler);
+    let snapshot_provider: SnapshotProvider = Arc::new(move || {
+        let cfg = Arc::clone(&snap_config);
+        let sched = Arc::clone(&snap_scheduler);
+        Box::pin(async move {
+            let cfg = cfg.lock().await;
+            let sched = sched.lock().await;
+            let accounts = cfg
+                .account
+                .iter()
+                .map(|a| AccountSnapshot {
+                    account_id: a.id,
+                    url: a.url.clone(),
+                    display_name: a.display_name.clone(),
+                    folders: a
+                        .folder
+                        .iter()
+                        .map(|f| FolderSnapshot {
+                            folder_id: f.id,
+                            display_name: f.display_name.clone(),
+                            local_path: f.local_path.clone(),
+                            status: sched
+                                .folder_status(f.id)
+                                .unwrap_or_else(|| "idle".to_string()),
+                        })
+                        .collect(),
+                })
+                .collect();
+            DaemonEvent::AccountSnapshot { accounts }
+        })
+    });
 
     // Spawn SocketApiServer.
     let socket_api_clone = Arc::clone(&socket_api);
@@ -99,9 +134,6 @@ async fn main() -> Result<()> {
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<DaemonCommand>(64);
     let gui_ipc_clone = Arc::clone(&gui_ipc);
     let gui_socket_path = paths::platform_gui_socket_path();
-    // TODO(Task 4): replace this no-op provider with the real AccountSnapshot provider.
-    let snapshot_provider: gui_ipc::SnapshotProvider =
-        Arc::new(|| Box::pin(async { DaemonEvent::AccountSnapshot { accounts: vec![] } }));
     tokio::spawn(async move {
         if let Err(e) = gui_ipc_clone
             .run(&gui_socket_path, cmd_tx, snapshot_provider)
@@ -131,16 +163,17 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Main loop.
+    // Main loop — scheduler is now Arc<Mutex<>>, lock only when needed.
     let mut scheduler_tick = interval(Duration::from_millis(100));
     info!("ocsyncd ready");
 
     loop {
         tokio::select! {
             Some(cmd) = cmd_rx.recv() => {
+                let mut sched = scheduler.lock().await;
                 match handle_command(
                     cmd,
-                    &mut scheduler,
+                    &mut sched,
                     &mut folder_manager,
                     &gui_ipc,
                     Arc::clone(&config),
@@ -158,21 +191,24 @@ async fn main() -> Result<()> {
 
             Some(cmd) = poll_rx.recv() => {
                 if let DaemonCommand::TriggerSync { folder_id } = cmd {
-                    scheduler.request_sync(folder_id);
+                    scheduler.lock().await.request_sync(folder_id);
                 }
             }
 
             _ = scheduler_tick.tick() => {
-                let ready = scheduler.ready_to_run();
+                let ready = scheduler.lock().await.ready_to_run();
                 if !ready.is_empty() {
                     info!("scheduler: {} folder(s) ready to sync", ready.len());
                 }
                 for folder_id in ready {
-                    scheduler.start_sync(folder_id);
+                    {
+                        scheduler.lock().await.start_sync(folder_id);
+                    }
                     gui_ipc.broadcast(DaemonEvent::SyncStarted { folder_id });
 
                     let engine = folder_manager.get_engine(folder_id).cloned();
                     let ipc = Arc::clone(&gui_ipc);
+                    let sched = Arc::clone(&scheduler);
                     tokio::spawn(async move {
                         if let Some(engine) = engine {
                             info!("run_sync starting for folder {folder_id}");
@@ -184,12 +220,12 @@ async fn main() -> Result<()> {
                                 }
                             };
                             info!("run_sync done for folder {folder_id}: {} error(s)", errors.len());
+                            sched.lock().await.finish_sync(folder_id);
                             ipc.broadcast(DaemonEvent::SyncFinished { folder_id, errors });
                         } else {
                             info!("run_sync: no engine for folder {folder_id}");
                         }
                     });
-                    scheduler.finish_sync(folder_id);
                 }
             }
         }
