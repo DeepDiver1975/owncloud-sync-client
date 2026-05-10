@@ -271,6 +271,12 @@ impl IcedApp {
                 error.as_deref(),
             ),
             View::GeneralSettings => gui::views::general_settings::general_settings_view(),
+            View::FolderErrors { .. } => {
+                container(text("Folder Errors").style(theme::colored_text(theme::TEXT_MUTED)))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            }
         };
 
         let body = row![sidebar, content].height(Length::Fill);
