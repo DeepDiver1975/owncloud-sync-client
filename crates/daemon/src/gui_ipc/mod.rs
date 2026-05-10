@@ -2,7 +2,9 @@ pub mod handler;
 pub mod protocol;
 
 use anyhow::Result;
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{broadcast, mpsc};
@@ -11,6 +13,9 @@ use tracing::{debug, error, info, warn};
 use protocol::{read_message, write_message, DaemonCommand, DaemonEvent};
 
 const BROADCAST_CAPACITY: usize = 256;
+
+pub type SnapshotProvider =
+    Arc<dyn Fn() -> Pin<Box<dyn Future<Output = DaemonEvent> + Send>> + Send + Sync>;
 
 pub struct GuiIpcServer {
     pub event_tx: broadcast::Sender<DaemonEvent>,
@@ -32,6 +37,7 @@ impl GuiIpcServer {
         self: Arc<Self>,
         socket_path: &Path,
         cmd_tx: mpsc::Sender<DaemonCommand>,
+        snapshot: SnapshotProvider,
     ) -> Result<()> {
         let _ = std::fs::remove_file(socket_path);
         if let Some(parent) = socket_path.parent() {
@@ -46,8 +52,9 @@ impl GuiIpcServer {
                 Ok((stream, _addr)) => {
                     let server = Arc::clone(&self);
                     let tx = cmd_tx.clone();
+                    let snap = Arc::clone(&snapshot);
                     tokio::spawn(async move {
-                        if let Err(e) = handle_connection(server, stream, tx).await {
+                        if let Err(e) = handle_connection(server, stream, tx, snap).await {
                             debug!("GUI IPC connection closed: {e}");
                         }
                     });
@@ -66,6 +73,7 @@ async fn handle_connection(
     server: Arc<GuiIpcServer>,
     stream: UnixStream,
     cmd_tx: mpsc::Sender<DaemonCommand>,
+    snapshot: SnapshotProvider,
 ) -> Result<()> {
     let (reader, mut writer) = stream.into_split();
     let mut reader = tokio::io::BufReader::new(reader);
@@ -94,7 +102,12 @@ async fn handle_connection(
         } else {
             match read_message(&mut reader).await {
                 Ok(DaemonCommand::Subscribe) => {
-                    event_rx = Some(server.event_tx.subscribe());
+                    // Subscribe to broadcast first so we don't miss any events
+                    // that arrive between snapshot generation and loop entry.
+                    let rx = server.event_tx.subscribe();
+                    let snap_event = snapshot().await;
+                    write_message(&mut writer, &snap_event).await?;
+                    event_rx = Some(rx);
                 }
                 Ok(cmd) => {
                     cmd_tx.send(cmd).await?;

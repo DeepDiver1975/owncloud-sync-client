@@ -29,7 +29,10 @@ async fn subscribe_receives_ready_and_sync_started() {
     let ipc_server = Arc::clone(&ipc);
     let sp = socket_path.clone();
     tokio::spawn(async move {
-        ipc_server.run(&sp, cmd_tx).await.unwrap();
+        let no_op: daemon::gui_ipc::SnapshotProvider = std::sync::Arc::new(|| {
+            Box::pin(async { daemon::gui_ipc::protocol::DaemonEvent::Ready })
+        });
+        ipc_server.run(&sp, cmd_tx, no_op).await.unwrap();
     });
 
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -47,6 +50,16 @@ async fn subscribe_receives_ready_and_sync_started() {
         .unwrap();
 
     tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // First event is the snapshot (no-op provider emits Ready)
+    let _snap_a = tokio::time::timeout(Duration::from_secs(1), read_event(&mut read_a))
+        .await
+        .expect("timeout on client A snapshot")
+        .unwrap();
+    let _snap_b = tokio::time::timeout(Duration::from_secs(1), read_event(&mut read_b))
+        .await
+        .expect("timeout on client B snapshot")
+        .unwrap();
 
     ipc.broadcast(DaemonEvent::Ready);
 
@@ -101,7 +114,10 @@ async fn non_subscribed_client_does_not_receive_events() {
     let ipc_server = Arc::clone(&ipc);
     let sp = socket_path.clone();
     tokio::spawn(async move {
-        ipc_server.run(&sp, cmd_tx).await.unwrap();
+        let no_op: daemon::gui_ipc::SnapshotProvider = std::sync::Arc::new(|| {
+            Box::pin(async { daemon::gui_ipc::protocol::DaemonEvent::Ready })
+        });
+        ipc_server.run(&sp, cmd_tx, no_op).await.unwrap();
     });
 
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -255,6 +271,73 @@ async fn roundtrip_set_account_folder_command() {
     write_command(&mut client, &cmd).await.unwrap();
     let received = read_message(&mut server).await.unwrap();
     assert_eq!(cmd, received);
+}
+
+#[tokio::test]
+async fn subscribe_receives_account_snapshot_before_broadcasts() {
+    use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tempfile::tempdir;
+    use tokio::net::UnixStream;
+    use tokio::sync::mpsc;
+
+    let dir = tempdir().unwrap();
+    let socket_path = dir.path().join("snapshot-test.sock");
+
+    let account_id = uuid::Uuid::new_v4();
+    let folder_id = uuid::Uuid::new_v4();
+
+    let expected_snapshot = DaemonEvent::AccountSnapshot {
+        accounts: vec![AccountSnapshot {
+            account_id,
+            url: "https://ocis.example.com".to_string(),
+            display_name: "Alice".to_string(),
+            folders: vec![FolderSnapshot {
+                folder_id,
+                display_name: "Personal".to_string(),
+                local_path: "/home/alice/ownCloud".to_string(),
+                status: "idle".to_string(),
+            }],
+        }],
+    };
+
+    let snapshot_clone = expected_snapshot.clone();
+    let provider: daemon::gui_ipc::SnapshotProvider = Arc::new(move || {
+        let evt = snapshot_clone.clone();
+        Box::pin(async move { evt })
+    });
+
+    let (ipc, _) = daemon::gui_ipc::GuiIpcServer::new();
+    let (cmd_tx, _cmd_rx) = mpsc::channel::<daemon::gui_ipc::protocol::DaemonCommand>(64);
+
+    let ipc_server = Arc::clone(&ipc);
+    let sp = socket_path.clone();
+    tokio::spawn(async move {
+        ipc_server.run(&sp, cmd_tx, provider).await.unwrap();
+    });
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let stream = UnixStream::connect(&socket_path).await.unwrap();
+    let (mut reader, mut writer) = stream.into_split();
+
+    daemon::gui_ipc::protocol::write_command(
+        &mut writer,
+        &daemon::gui_ipc::protocol::DaemonCommand::Subscribe,
+    )
+    .await
+    .unwrap();
+
+    let received = tokio::time::timeout(
+        Duration::from_secs(1),
+        daemon::gui_ipc::protocol::read_event(&mut reader),
+    )
+    .await
+    .expect("timeout waiting for AccountSnapshot")
+    .unwrap();
+
+    assert_eq!(received, expected_snapshot);
 }
 
 #[tokio::test]

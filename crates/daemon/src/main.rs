@@ -99,8 +99,14 @@ async fn main() -> Result<()> {
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<DaemonCommand>(64);
     let gui_ipc_clone = Arc::clone(&gui_ipc);
     let gui_socket_path = paths::platform_gui_socket_path();
+    // TODO(Task 4): replace this no-op provider with the real AccountSnapshot provider.
+    let snapshot_provider: gui_ipc::SnapshotProvider =
+        Arc::new(|| Box::pin(async { DaemonEvent::AccountSnapshot { accounts: vec![] } }));
     tokio::spawn(async move {
-        if let Err(e) = gui_ipc_clone.run(&gui_socket_path, cmd_tx).await {
+        if let Err(e) = gui_ipc_clone
+            .run(&gui_socket_path, cmd_tx, snapshot_provider)
+            .await
+        {
             error!("GuiIpcServer error: {e}");
         }
     });
