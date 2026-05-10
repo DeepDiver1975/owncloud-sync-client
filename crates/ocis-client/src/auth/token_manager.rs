@@ -6,6 +6,7 @@ use crate::auth::keychain::KeychainStore;
 use crate::auth::oidc::{OidcAuth, TokenSet};
 use crate::error::{OcisError, Result};
 
+#[derive(Debug)]
 pub struct TokenManager {
     oidc: OidcAuth,
     token: Arc<RwLock<TokenSet>>,
@@ -36,18 +37,22 @@ impl TokenManager {
             }
         }
 
-        // Need refresh — read refresh_token before dropping the lock.
+        // Acquire write lock and recheck — a concurrent caller may have already refreshed.
         let refresh_token = {
-            let t = self.token.read().await;
+            let t = self.token.write().await;
+            if !t.is_expired() {
+                return Ok(t.access_token.clone());
+            }
             t.refresh_token.clone()
         };
 
         let refresh_token = refresh_token
             .ok_or_else(|| OcisError::Auth("token expired, no refresh token available".into()))?;
 
+        // Network call outside any lock.
         let new_token = self.oidc.refresh(&refresh_token).await?;
 
-        // Write new token into the shared arc.
+        let access_token = new_token.access_token.clone();
         {
             let mut t = self.token.write().await;
             *t = new_token.clone();
@@ -55,13 +60,12 @@ impl TokenManager {
 
         // Best-effort keychain persist — failure is non-fatal.
         let id = self.account_id.clone();
-        let token_to_save = new_token.clone();
         tokio::task::spawn_blocking(move || {
-            if let Err(e) = KeychainStore::save(&id, &token_to_save) {
+            if let Err(e) = KeychainStore::save(&id, &new_token) {
                 tracing::warn!("failed to save refreshed token to keychain: {e}");
             }
-        });
+        }); // JoinHandle intentionally dropped — fire-and-forget
 
-        Ok(new_token.access_token)
+        Ok(access_token)
     }
 }
