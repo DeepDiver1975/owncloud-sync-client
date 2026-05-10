@@ -562,3 +562,34 @@ fn pick_local_folder_cancel_sends_remove_account_and_navigates() {
     );
     assert!(matches!(app.active_view, View::SyncStatus));
 }
+
+#[test]
+fn navigate_to_folder_errors_view() {
+    let account_id = Uuid::new_v4();
+    let folder_id = Uuid::new_v4();
+    let mut app = App::default();
+    app.accounts.push(AccountView {
+        id: account_id,
+        url: "https://example.com".to_string(),
+        display_name: "Test".to_string(),
+        folders: vec![FolderView {
+            id: folder_id,
+            display_name: "Docs".to_string(),
+            local_path: "/home/user/docs".to_string(),
+            status: FolderStatus::Error,
+            progress: None,
+            errors: vec!["HTTP 503: unavailable".to_string()],
+        }],
+    });
+    let _ = update(
+        &mut app,
+        Message::NavigateTo(gui::model::View::FolderErrors {
+            account_id,
+            folder_id,
+        }),
+    );
+    assert!(matches!(
+        app.active_view,
+        gui::model::View::FolderErrors { .. }
+    ));
+}

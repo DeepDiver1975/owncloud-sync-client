@@ -133,14 +133,14 @@ fn account_section(account: &AccountView) -> Element<'_, Message> {
         );
     } else {
         for folder in &account.folders {
-            folders = folders.push(folder_row(folder));
+            folders = folders.push(folder_row(folder, account.id));
         }
     }
 
     column![header, folders].spacing(5).into()
 }
 
-fn folder_row(folder: &crate::model::FolderView) -> Element<'_, Message> {
+fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Element<'_, Message> {
     let color = status_color(&folder.status);
     let led = container(Space::new(6, 6)).style(move |_| iced::widget::container::Style {
         background: Some(iced::Background::Color(color)),
@@ -182,7 +182,10 @@ fn folder_row(folder: &crate::model::FolderView) -> Element<'_, Message> {
         FolderStatus::Idle => Some(Message::ForceSyncFolder(folder_id)),
         FolderStatus::Syncing => Some(Message::PauseFolder(folder_id)),
         FolderStatus::Paused => Some(Message::ResumeFolder(folder_id)),
-        FolderStatus::Error => None,
+        FolderStatus::Error => Some(Message::NavigateTo(View::FolderErrors {
+            account_id,
+            folder_id,
+        })),
     };
 
     let badge_text = text(badge_label).size(11).style(theme::colored_text(color));
