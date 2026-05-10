@@ -4,6 +4,22 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FolderSnapshot {
+    pub folder_id: Uuid,
+    pub display_name: String,
+    pub local_path: String,
+    pub status: String, // "idle" | "syncing" | "paused"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AccountSnapshot {
+    pub account_id: Uuid,
+    pub url: String,
+    pub display_name: String,
+    pub folders: Vec<FolderSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum DaemonCommand {
     Subscribe,
@@ -75,6 +91,9 @@ pub enum DaemonEvent {
         folder_id: Uuid,
         local_path: String,
         display_name: String,
+    },
+    AccountSnapshot {
+        accounts: Vec<AccountSnapshot>,
     },
 }
 

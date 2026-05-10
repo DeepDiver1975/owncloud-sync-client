@@ -256,3 +256,30 @@ async fn roundtrip_set_account_folder_command() {
     let received = read_message(&mut server).await.unwrap();
     assert_eq!(cmd, received);
 }
+
+#[tokio::test]
+async fn roundtrip_account_snapshot() {
+    use daemon::gui_ipc::protocol::{
+        read_event, write_message, AccountSnapshot, DaemonEvent, FolderSnapshot,
+    };
+    use tokio::io::duplex;
+    use uuid::Uuid;
+
+    let (mut client, mut server) = duplex(4096);
+    let event = DaemonEvent::AccountSnapshot {
+        accounts: vec![AccountSnapshot {
+            account_id: Uuid::new_v4(),
+            url: "https://ocis.example.com".to_string(),
+            display_name: "Alice".to_string(),
+            folders: vec![FolderSnapshot {
+                folder_id: Uuid::new_v4(),
+                display_name: "Personal".to_string(),
+                local_path: "/home/alice/ownCloud".to_string(),
+                status: "idle".to_string(),
+            }],
+        }],
+    };
+    write_message(&mut server, &event).await.unwrap();
+    let received = read_event(&mut client).await.unwrap();
+    assert_eq!(event, received);
+}
