@@ -1,13 +1,47 @@
 use camino::Utf8Path;
 use std::io::Write;
+use std::sync::Arc;
 use sync_db::SyncJournalDb;
 use sync_engine::engine::{EngineConfig, SyncEngine};
 use sync_engine::types::ConflictStrategy;
 use tempfile::TempDir;
 use url::Url;
 use uuid::Uuid;
-use wiremock::matchers::{method, path, path_regex};
+use wiremock::matchers::{header, method, path, path_regex};
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+use ocis_client::auth::oidc::TokenSet;
+use ocis_client::auth::OidcAuth;
+use ocis_client::auth::TokenManager;
+
+const DISCOVERY_DOC: &str = r#"{
+    "issuer": "https://example.com",
+    "authorization_endpoint": "https://example.com/auth",
+    "token_endpoint": "https://example.com/token"
+}"#;
+
+async fn stub_token_manager(server: &MockServer) -> Arc<TokenManager> {
+    Mock::given(method("GET"))
+        .and(path("/.well-known/openid-configuration"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(DISCOVERY_DOC))
+        .mount(server)
+        .await;
+    let oidc = OidcAuth::discover(
+        &server.uri(),
+        "test-client",
+        None,
+        "http://localhost:9999/callback",
+        false,
+    )
+    .await
+    .expect("OidcAuth::discover in test");
+    let token = TokenSet {
+        access_token: "test-token".into(),
+        refresh_token: None,
+        expires_at: i64::MAX,
+    };
+    Arc::new(TokenManager::new(oidc, token, "test-account"))
+}
 
 fn propfind_one_file(_server_uri: &str) -> &'static str {
     r#"<?xml version="1.0" encoding="utf-8"?>
@@ -38,8 +72,11 @@ fn propfind_one_file(_server_uri: &str) -> &'static str {
 async fn engine_downloads_new_remote_file() {
     let server = MockServer::start().await;
 
+    let token_manager = stub_token_manager(&server).await;
+
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/s1.*"))
+        .and(header("Authorization", "Bearer test-token"))
         .respond_with(
             ResponseTemplate::new(207)
                 .set_body_string(propfind_one_file(&server.uri()).to_string()),
@@ -71,6 +108,7 @@ async fn engine_downloads_new_remote_file() {
         conflict_strategy: ConflictStrategy::KeepBoth,
         max_parallel_transfers: 3,
         db,
+        token_manager,
     };
 
     let engine = SyncEngine::new(cfg);
@@ -86,6 +124,8 @@ async fn engine_downloads_new_remote_file() {
 async fn engine_uploads_new_local_file() {
     let server = MockServer::start().await;
 
+    let token_manager = stub_token_manager(&server).await;
+
     let empty_propfind = r#"<?xml version="1.0" encoding="utf-8"?>
 <D:multistatus xmlns:D="DAV:">
   <D:response>
@@ -99,6 +139,7 @@ async fn engine_uploads_new_local_file() {
 
     Mock::given(method("PROPFIND"))
         .and(path_regex(r"^/dav/spaces/s2.*"))
+        .and(header("Authorization", "Bearer test-token"))
         .respond_with(ResponseTemplate::new(207).set_body_string(empty_propfind))
         .mount(&server)
         .await;
@@ -127,6 +168,7 @@ async fn engine_uploads_new_local_file() {
         conflict_strategy: ConflictStrategy::KeepBoth,
         max_parallel_transfers: 3,
         db,
+        token_manager,
     };
 
     let engine = SyncEngine::new(cfg);

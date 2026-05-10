@@ -8,6 +8,7 @@ fn write_lock<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
 }
 
 use camino::Utf8PathBuf;
+use ocis_client::auth::TokenManager;
 use tokio::task::JoinSet;
 use url::Url;
 use uuid::Uuid;
@@ -29,6 +30,7 @@ pub struct EngineConfig {
     pub conflict_strategy: ConflictStrategy,
     pub max_parallel_transfers: usize,
     pub db: SyncJournalDb,
+    pub token_manager: Arc<TokenManager>,
 }
 
 pub struct SyncEngine {
@@ -50,9 +52,15 @@ impl SyncEngine {
 
         // Phase 1: Discovery
         tracing::info!("discover_remote: {}", self.cfg.space_root);
+        let bearer_token = self
+            .cfg
+            .token_manager
+            .get_valid_token()
+            .await
+            .map_err(|e| SyncError::Auth(e.to_string()))?;
         let (local_entries, remote_entries) = tokio::try_join!(
             discover_local(&self.cfg.local_root),
-            discover_remote(&self.cfg.space_root),
+            discover_remote(&self.cfg.space_root, &bearer_token),
         )?;
 
         let local_map: HashMap<Utf8PathBuf, LocalEntry> = local_entries
