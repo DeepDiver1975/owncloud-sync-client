@@ -167,7 +167,10 @@ impl IcedApp {
         .style(theme::sidebar_style);
 
         // Sidebar nav
-        let is_sync = matches!(self.app.active_view, View::SyncStatus);
+        let is_sync = matches!(
+            self.app.active_view,
+            View::SyncStatus | View::FolderErrors { .. }
+        );
         let is_add = matches!(
             self.app.active_view,
             View::AddAccount { .. } | View::AddAccountWaiting { .. } | View::PickLocalFolder { .. }
@@ -271,11 +274,15 @@ impl IcedApp {
                 error.as_deref(),
             ),
             View::GeneralSettings => gui::views::general_settings::general_settings_view(),
-            View::FolderErrors { .. } => {
-                container(text("Folder Errors").style(theme::colored_text(theme::TEXT_MUTED)))
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into()
+            View::FolderErrors {
+                account_id,
+                folder_id,
+            } => {
+                if let Some(account) = self.app.accounts.iter().find(|a| &a.id == account_id) {
+                    gui::views::folder_errors::folder_errors_view(account, *folder_id)
+                } else {
+                    gui::views::sync_status::sync_status_view(&self.app.accounts)
+                }
             }
         };
 
