@@ -309,6 +309,33 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                 }
             }
         }
+
+        DaemonEvent::AccountSnapshot { accounts } => {
+            app.accounts = accounts
+                .into_iter()
+                .map(|a| AccountView {
+                    id: a.account_id,
+                    url: a.url,
+                    display_name: a.display_name,
+                    folders: a
+                        .folders
+                        .into_iter()
+                        .map(|f| FolderView {
+                            id: f.folder_id,
+                            display_name: f.display_name,
+                            local_path: f.local_path,
+                            status: match f.status.as_str() {
+                                "syncing" => FolderStatus::Syncing,
+                                "paused" => FolderStatus::Paused,
+                                _ => FolderStatus::Idle,
+                            },
+                            progress: None,
+                            errors: vec![],
+                        })
+                        .collect(),
+                })
+                .collect();
+        }
     }
 
     iced::Task::none()

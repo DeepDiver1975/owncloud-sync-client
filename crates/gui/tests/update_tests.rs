@@ -593,3 +593,122 @@ fn navigate_to_folder_errors_view() {
         gui::model::View::FolderErrors { .. }
     ));
 }
+
+fn account_snapshot_populates_accounts_with_correct_status_mapping() {
+    use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
+    use gui::app::{update, App, Message};
+    use gui::model::{FolderStatus, View};
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let folder_idle_id = Uuid::new_v4();
+    let folder_syncing_id = Uuid::new_v4();
+    let folder_paused_id = Uuid::new_v4();
+
+    let mut app = App::default();
+    // Pre-populate with a stale account to verify it gets replaced.
+    app.accounts.push(gui::model::AccountView {
+        id: Uuid::new_v4(),
+        url: "https://old.example.com".to_string(),
+        display_name: "Old Account".to_string(),
+        folders: vec![],
+    });
+
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountSnapshot {
+            accounts: vec![AccountSnapshot {
+                account_id,
+                url: "https://ocis.example.com".to_string(),
+                display_name: "Alice".to_string(),
+                folders: vec![
+                    FolderSnapshot {
+                        folder_id: folder_idle_id,
+                        display_name: "Personal".to_string(),
+                        local_path: "/home/alice/ownCloud".to_string(),
+                        status: "idle".to_string(),
+                    },
+                    FolderSnapshot {
+                        folder_id: folder_syncing_id,
+                        display_name: "Shared".to_string(),
+                        local_path: "/home/alice/shared".to_string(),
+                        status: "syncing".to_string(),
+                    },
+                    FolderSnapshot {
+                        folder_id: folder_paused_id,
+                        display_name: "Archive".to_string(),
+                        local_path: "/home/alice/archive".to_string(),
+                        status: "paused".to_string(),
+                    },
+                ],
+            }],
+        }),
+    );
+
+    assert_eq!(
+        app.accounts.len(),
+        1,
+        "snapshot should replace all existing accounts"
+    );
+    let account = &app.accounts[0];
+    assert_eq!(account.id, account_id);
+    assert_eq!(account.url, "https://ocis.example.com");
+    assert_eq!(account.display_name, "Alice");
+    assert_eq!(account.folders.len(), 3);
+
+    let f0 = &account.folders[0];
+    assert_eq!(f0.id, folder_idle_id);
+    assert!(
+        matches!(f0.status, FolderStatus::Idle),
+        "idle string should map to Idle"
+    );
+
+    let f1 = &account.folders[1];
+    assert_eq!(f1.id, folder_syncing_id);
+    assert!(
+        matches!(f1.status, FolderStatus::Syncing),
+        "syncing string should map to Syncing"
+    );
+
+    let f2 = &account.folders[2];
+    assert_eq!(f2.id, folder_paused_id);
+    assert!(
+        matches!(f2.status, FolderStatus::Paused),
+        "paused string should map to Paused"
+    );
+
+    // View should remain unchanged (SyncStatus).
+    assert!(matches!(app.active_view, View::SyncStatus));
+}
+
+#[test]
+fn account_snapshot_unknown_status_defaults_to_idle() {
+    use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
+    use gui::app::{update, App, Message};
+    use gui::model::FolderStatus;
+    use uuid::Uuid;
+
+    let mut app = App::default();
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountSnapshot {
+            accounts: vec![AccountSnapshot {
+                account_id: Uuid::new_v4(),
+                url: "https://ocis.example.com".to_string(),
+                display_name: "Bob".to_string(),
+                folders: vec![FolderSnapshot {
+                    folder_id: Uuid::new_v4(),
+                    display_name: "Docs".to_string(),
+                    local_path: "/home/bob/docs".to_string(),
+                    status: "unknown-future-status".to_string(),
+                }],
+            }],
+        }),
+    );
+
+    assert_eq!(app.accounts.len(), 1);
+    assert!(matches!(
+        app.accounts[0].folders[0].status,
+        FolderStatus::Idle
+    ));
+}

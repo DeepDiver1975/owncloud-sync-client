@@ -80,6 +80,18 @@ impl SyncScheduler {
     pub fn state(&self, folder_id: Uuid) -> Option<&FolderScheduleState> {
         self.folders.get(&folder_id)
     }
+
+    pub fn folder_status(&self, folder_id: Uuid) -> Option<String> {
+        self.folders.get(&folder_id).map(|s| {
+            if s.paused {
+                "paused".to_string()
+            } else if s.running {
+                "syncing".to_string()
+            } else {
+                "idle".to_string()
+            }
+        })
+    }
 }
 
 #[cfg(test)]
@@ -144,5 +156,35 @@ mod tests {
         s.start_sync(id);
         s.request_sync(id);
         assert!(!s.ready_to_run().contains(&id));
+    }
+
+    #[test]
+    fn folder_status_idle() {
+        let id = Uuid::new_v4();
+        let s = SyncScheduler::new(vec![id]);
+        assert_eq!(s.folder_status(id), Some("idle".to_string()));
+    }
+
+    #[test]
+    fn folder_status_paused() {
+        let id = Uuid::new_v4();
+        let mut s = SyncScheduler::new(vec![id]);
+        s.pause(id);
+        assert_eq!(s.folder_status(id), Some("paused".to_string()));
+    }
+
+    #[test]
+    fn folder_status_syncing() {
+        let id = Uuid::new_v4();
+        let mut s = SyncScheduler::new(vec![id]);
+        s.request_sync(id);
+        s.start_sync(id);
+        assert_eq!(s.folder_status(id), Some("syncing".to_string()));
+    }
+
+    #[test]
+    fn folder_status_unknown() {
+        let s = SyncScheduler::new(vec![]);
+        assert_eq!(s.folder_status(Uuid::new_v4()), None);
     }
 }
