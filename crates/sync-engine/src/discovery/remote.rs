@@ -7,6 +7,9 @@ use crate::error::{Result, SyncError};
 use crate::report::HttpEvent;
 use crate::types::RemoteEntry;
 
+/// Fetch all remote entries under `space_root` using Depth:1 PROPFIND,
+/// recursing into collections breadth-first. Appends one `HttpEvent` per
+/// request to `http_events`.
 pub async fn discover_remote(
     space_root: &Url,
     bearer_token: &str,

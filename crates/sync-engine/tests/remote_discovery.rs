@@ -89,9 +89,6 @@ async fn empty_collection_returns_empty() {
 
 #[tokio::test]
 async fn discover_remote_records_http_events() {
-    use wiremock::matchers::{method, path_regex};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
     let server = MockServer::start().await;
 
     let propfind_response = r#"<?xml version="1.0" encoding="utf-8"?>
