@@ -27,12 +27,7 @@ async fn upload_put(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Res
     let bytes = tokio::fs::read(&req.local_path).await?;
     let client = ocis_client::build_http_client();
 
-    let sanitised_url = {
-        let mut u = req.remote_url.clone();
-        u.set_query(None);
-        u.set_fragment(None);
-        u.to_string()
-    };
+    let sanitised_url = crate::report::sanitise_url(&req.remote_url);
 
     let mut builder = client
         .put(req.remote_url.as_str())
@@ -78,12 +73,7 @@ async fn upload_put(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Res
 async fn upload_tus(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Result<String> {
     let client = ocis_client::build_http_client();
 
-    let sanitised_url = {
-        let mut u = req.remote_url.clone();
-        u.set_query(None);
-        u.set_fragment(None);
-        u.to_string()
-    };
+    let sanitised_url = crate::report::sanitise_url(&req.remote_url);
 
     let t0 = tokio::time::Instant::now();
     let create_resp = client
@@ -157,7 +147,9 @@ async fn upload_tus(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Res
     let patch_status = patch_resp.status().as_u16();
     http_events.push(HttpEvent {
         method: "PATCH".to_string(),
-        url: patch_url,
+        url: crate::report::sanitise_url(
+            &url::Url::parse(&patch_url).unwrap_or_else(|_| req.remote_url.clone()),
+        ),
         status: patch_status,
         duration_ms: t1.elapsed().as_millis() as u64,
         bytes: req.size,

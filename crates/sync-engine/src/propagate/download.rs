@@ -28,12 +28,7 @@ pub async fn propagate_download(
         })?;
 
     let status = resp.status().as_u16();
-    let sanitised_url = {
-        let mut u = req.remote_url.clone();
-        u.set_query(None);
-        u.set_fragment(None);
-        u.to_string()
-    };
+    let sanitised_url = crate::report::sanitise_url(&req.remote_url);
 
     if status != 200 {
         http_events.push(HttpEvent {
@@ -56,16 +51,6 @@ pub async fn propagate_download(
         .unwrap_or("")
         .to_string();
 
-    if let Some(ref expected) = req.expected_etag {
-        let stripped_server = server_etag.trim_matches('"');
-        let stripped_expected = expected.trim_matches('"');
-        if stripped_server != stripped_expected {
-            return Err(SyncError::Parse(format!(
-                "ETag mismatch: expected {expected}, got {server_etag}"
-            )));
-        }
-    }
-
     if let Some(parent) = req.local_dest.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
@@ -76,6 +61,25 @@ pub async fn propagate_download(
         message: e.to_string(),
     })?;
     let byte_count = bytes.len() as u64;
+
+    // Always record the event — body consumed, timing and byte count are final.
+    http_events.push(HttpEvent {
+        method: "GET".to_string(),
+        url: sanitised_url.clone(),
+        status,
+        duration_ms: t0.elapsed().as_millis() as u64,
+        bytes: byte_count,
+    });
+
+    if let Some(ref expected) = req.expected_etag {
+        let stripped_server = server_etag.trim_matches('"');
+        let stripped_expected = expected.trim_matches('"');
+        if stripped_server != stripped_expected {
+            return Err(SyncError::Parse(format!(
+                "ETag mismatch: expected {expected}, got {server_etag}"
+            )));
+        }
+    }
 
     {
         let mut file = tokio::fs::File::create(&tmp_path).await?;
@@ -88,14 +92,6 @@ pub async fn propagate_download(
         .inspect_err(|_e| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
-
-    http_events.push(HttpEvent {
-        method: "GET".to_string(),
-        url: sanitised_url,
-        status,
-        duration_ms: t0.elapsed().as_millis() as u64,
-        bytes: byte_count,
-    });
 
     Ok(server_etag)
 }

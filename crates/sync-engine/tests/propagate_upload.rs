@@ -1,6 +1,8 @@
 use std::io::Write;
 use sync_engine::propagate::upload::{propagate_upload, UploadRequest};
+use sync_engine::report::HttpEvent;
 use tempfile::NamedTempFile;
+use tempfile::TempDir;
 use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -78,12 +80,6 @@ async fn large_file_uses_tus_protocol() {
 
 #[tokio::test]
 async fn upload_put_records_http_event() {
-    use sync_engine::propagate::upload::{propagate_upload, UploadRequest};
-    use sync_engine::report::HttpEvent;
-    use tempfile::TempDir;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
     let server = MockServer::start().await;
     Mock::given(method("PUT"))
         .and(path("/dav/spaces/s1/up.txt"))
@@ -95,7 +91,7 @@ async fn upload_put_records_http_event() {
     let local = dir.path().join("up.txt");
     std::fs::write(&local, b"world").unwrap();
     let local_path = camino::Utf8PathBuf::from_path_buf(local).unwrap();
-    let remote_url = url::Url::parse(&format!("{}/dav/spaces/s1/up.txt", server.uri())).unwrap();
+    let remote_url = Url::parse(&format!("{}/dav/spaces/s1/up.txt", server.uri())).unwrap();
 
     let mut http_events: Vec<HttpEvent> = vec![];
     propagate_upload(

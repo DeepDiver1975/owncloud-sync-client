@@ -50,7 +50,7 @@ pub async fn discover_remote(
             })?;
 
         let status = resp.status().as_u16();
-        let sanitised_url = sanitise_url(&url);
+        let sanitised_url = crate::report::sanitise_url(&url);
 
         if status != 207 {
             http_events.push(HttpEvent {
@@ -85,14 +85,6 @@ pub async fn discover_remote(
     }
 
     Ok(result)
-}
-
-/// Strip query parameters from a URL, keeping only scheme + host + path.
-fn sanitise_url(url: &Url) -> String {
-    let mut u = url.clone();
-    u.set_query(None);
-    u.set_fragment(None);
-    u.to_string()
 }
 
 fn parse_propfind(xml: &str, space_root: &Url) -> Result<(Vec<RemoteEntry>, Vec<Url>)> {

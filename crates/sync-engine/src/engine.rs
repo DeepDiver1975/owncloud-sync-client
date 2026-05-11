@@ -58,7 +58,7 @@ impl SyncEngine {
             .get_valid_token()
             .await
             .map_err(|e| SyncError::Auth(e.to_string()))?;
-        let mut http_events: Vec<crate::report::HttpEvent> = Vec::new();
+        let mut http_events: Vec<crate::report::HttpEvent> = Vec::new(); // built into SyncReport in Task 4
         let (local_entries, remote_entries) = tokio::try_join!(
             discover_local(&self.cfg.local_root),
             discover_remote(&self.cfg.space_root, &bearer_token, &mut http_events),
@@ -138,7 +138,7 @@ impl SyncEngine {
                             local_dest: local_path.clone(),
                             expected_etag: None,
                         };
-                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new();
+                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new(); // replaced in Task 4
                         match propagate_download(req, &mut _task_http_events).await {
                             Ok(etag) => {
                                 // Record journal baseline after successful download.
@@ -188,7 +188,7 @@ impl SyncEngine {
                             checksum: None,
                             tus_threshold: 5 * 1024 * 1024,
                         };
-                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new();
+                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new(); // replaced in Task 4
                         match propagate_upload(req, &mut _task_http_events).await {
                             Ok(etag) => {
                                 // Record journal baseline after successful upload.
@@ -242,7 +242,7 @@ impl SyncEngine {
                             local_dest: local_path.clone(),
                             expected_etag: None,
                         };
-                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new();
+                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new(); // replaced in Task 4
                         match propagate_download(req, &mut _task_http_events).await {
                             Ok(etag) => {
                                 let size = tokio::fs::metadata(&local_path)

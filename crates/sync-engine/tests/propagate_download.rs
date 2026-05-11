@@ -1,5 +1,6 @@
 use camino::Utf8Path;
 use sync_engine::propagate::download::{propagate_download, DownloadRequest};
+use sync_engine::report::HttpEvent;
 use tempfile::TempDir;
 use url::Url;
 use wiremock::matchers::{method, path};
@@ -72,12 +73,6 @@ async fn fails_on_etag_mismatch() {
 
 #[tokio::test]
 async fn download_records_http_event() {
-    use sync_engine::propagate::download::{propagate_download, DownloadRequest};
-    use sync_engine::report::HttpEvent;
-    use tempfile::TempDir;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/dav/spaces/s1/file.txt"))
@@ -91,7 +86,7 @@ async fn download_records_http_event() {
 
     let dir = TempDir::new().unwrap();
     let dest = camino::Utf8PathBuf::from_path_buf(dir.path().join("file.txt")).unwrap();
-    let remote_url = url::Url::parse(&format!("{}/dav/spaces/s1/file.txt", server.uri())).unwrap();
+    let remote_url = Url::parse(&format!("{}/dav/spaces/s1/file.txt", server.uri())).unwrap();
 
     let mut http_events: Vec<HttpEvent> = vec![];
     propagate_download(

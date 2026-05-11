@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Strip query parameters and fragments from a URL for safe logging.
+pub(crate) fn sanitise_url(url: &url::Url) -> String {
+    let mut u = url.clone();
+    u.set_query(None);
+    u.set_fragment(None);
+    u.to_string()
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HttpEvent {
     pub method: String,
