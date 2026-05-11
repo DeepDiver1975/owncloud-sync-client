@@ -33,14 +33,10 @@ pub struct HandleContext<'a> {
     pub config: Arc<Mutex<AppConfig>>,
     pub config_path: PathBuf,
     pub live_folder_ids: Arc<std::sync::RwLock<Vec<Uuid>>>,
-    pub token_managers:
-        Arc<std::sync::RwLock<std::collections::HashMap<Uuid, Arc<TokenManager>>>>,
+    pub token_managers: Arc<std::sync::RwLock<std::collections::HashMap<Uuid, Arc<TokenManager>>>>,
 }
 
-pub async fn handle_command(
-    cmd: DaemonCommand,
-    ctx: &mut HandleContext<'_>,
-) -> Result<ShouldQuit> {
+pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> Result<ShouldQuit> {
     let HandleContext {
         scheduler,
         folder_manager,
@@ -409,9 +405,10 @@ mod tests {
                 config,
                 config_path: file.path().to_path_buf(),
                 live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
-                token_managers: Arc::new(std::sync::RwLock::new(
-                    std::collections::HashMap::<Uuid, Arc<TokenManager>>::new(),
-                )),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
             },
         )
         .await
@@ -441,9 +438,10 @@ mod tests {
                 config,
                 config_path: file.path().to_path_buf(),
                 live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
-                token_managers: Arc::new(std::sync::RwLock::new(
-                    std::collections::HashMap::<Uuid, Arc<TokenManager>>::new(),
-                )),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
             },
         )
         .await
@@ -475,9 +473,10 @@ mod tests {
                 config: Arc::clone(&config),
                 config_path: file.path().to_path_buf(),
                 live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
-                token_managers: Arc::new(std::sync::RwLock::new(
-                    std::collections::HashMap::<Uuid, Arc<TokenManager>>::new(),
-                )),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
             },
         )
         .await
@@ -491,9 +490,10 @@ mod tests {
                 config,
                 config_path: file.path().to_path_buf(),
                 live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
-                token_managers: Arc::new(std::sync::RwLock::new(
-                    std::collections::HashMap::<Uuid, Arc<TokenManager>>::new(),
-                )),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
             },
         )
         .await
@@ -523,9 +523,10 @@ mod tests {
                 config,
                 config_path: file.path().to_path_buf(),
                 live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
-                token_managers: Arc::new(std::sync::RwLock::new(
-                    std::collections::HashMap::<Uuid, Arc<TokenManager>>::new(),
-                )),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
             },
         )
         .await
@@ -573,9 +574,10 @@ mod tests {
                 config,
                 config_path: file.path().to_path_buf(),
                 live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
-                token_managers: Arc::new(std::sync::RwLock::new(
-                    std::collections::HashMap::<Uuid, Arc<TokenManager>>::new(),
-                )),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
             },
         )
         .await

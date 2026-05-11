@@ -179,12 +179,10 @@ async fn add_account_invalid_url_broadcasts_failed() {
             config,
             config_path: file.path().to_path_buf(),
             live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
-            token_managers: Arc::new(std::sync::RwLock::new(
-                std::collections::HashMap::<
-                    uuid::Uuid,
-                    Arc<ocis_client::auth::TokenManager>,
-                >::new(),
-            )),
+            token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                uuid::Uuid,
+                Arc<ocis_client::auth::TokenManager>,
+            >::new())),
         },
     )
     .await
