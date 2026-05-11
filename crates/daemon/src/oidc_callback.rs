@@ -171,6 +171,7 @@ async fn handle_callback(
                 render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
             )
             .await;
+            token_managers.write().unwrap().remove(&account_id);
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -187,6 +188,7 @@ async fn handle_callback(
                 render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
             )
             .await;
+            token_managers.write().unwrap().remove(&account_id);
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -227,6 +229,7 @@ async fn handle_callback(
             render(ERROR_HTML_TEMPLATE, "Sign-in failed", &e.to_string()),
         )
         .await;
+        token_managers.write().unwrap().remove(&account_id);
         delete_keychain(&account_id_str).await.ok();
         return Err(save_result.unwrap_err());
     }

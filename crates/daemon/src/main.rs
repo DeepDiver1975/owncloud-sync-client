@@ -136,12 +136,10 @@ async fn main() -> Result<()> {
         .iter()
         .flat_map(|a| a.folder.clone())
         .collect();
-    let mut folder_manager = FolderManager::init_sync(
-        &all_folders,
-        &initial_config.account,
-        &token_managers.read().unwrap(),
-    )
-    .await?;
+    let guard = token_managers.read().unwrap();
+    let mut folder_manager =
+        FolderManager::init_sync(&all_folders, &initial_config.account, &*guard).await?;
+    drop(guard);
     let config = Arc::new(Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
