@@ -18,6 +18,10 @@ path = "tests/duplicate_account.rs"
 name = "sync"
 path = "tests/sync.rs"
 
+[[test]]
+name = "tray"
+path = "tests/tray.rs"
+
 [dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }
