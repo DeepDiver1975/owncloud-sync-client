@@ -28,8 +28,9 @@ mod inner {
             let icon = load_icon()?;
 
             let menu = Menu::new();
-            let open_item = MenuItem::new("Open", true, None);
-            let quit_item = MenuItem::new("Quit", true, None);
+            use tray_icon::menu::MenuId;
+            let open_item = MenuItem::with_id(MenuId::new("open"), "Open", true, None);
+            let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
             menu.append(&open_item)?;
             menu.append(&quit_item)?;
 
@@ -54,7 +55,7 @@ mod inner {
                     // so we poll at 50 ms intervals to stay async-friendly.
                     match MenuEvent::receiver().try_recv() {
                         Ok(event) => {
-                            let msg = if event.id.0.contains("Quit") {
+                            let msg = if event.id == tray_icon::menu::MenuId::new("quit") {
                                 super::Message::Quit
                             } else {
                                 super::Message::ToggleWindow
