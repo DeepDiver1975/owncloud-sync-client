@@ -58,9 +58,10 @@ impl SyncEngine {
             .get_valid_token()
             .await
             .map_err(|e| SyncError::Auth(e.to_string()))?;
+        let mut http_events: Vec<crate::report::HttpEvent> = Vec::new();
         let (local_entries, remote_entries) = tokio::try_join!(
             discover_local(&self.cfg.local_root),
-            discover_remote(&self.cfg.space_root, &bearer_token),
+            discover_remote(&self.cfg.space_root, &bearer_token, &mut http_events),
         )?;
 
         let local_map: HashMap<Utf8PathBuf, LocalEntry> = local_entries

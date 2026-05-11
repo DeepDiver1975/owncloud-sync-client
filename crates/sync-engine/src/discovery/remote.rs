@@ -4,11 +4,14 @@ use std::time::SystemTime;
 use url::Url;
 
 use crate::error::{Result, SyncError};
+use crate::report::HttpEvent;
 use crate::types::RemoteEntry;
 
-/// Fetch all remote entries under `space_root` using Depth:1 PROPFIND,
-/// recursing into collections breadth-first.
-pub async fn discover_remote(space_root: &Url, bearer_token: &str) -> Result<Vec<RemoteEntry>> {
+pub async fn discover_remote(
+    space_root: &Url,
+    bearer_token: &str,
+    http_events: &mut Vec<HttpEvent>,
+) -> Result<Vec<RemoteEntry>> {
     let client = ocis_client::build_http_client();
     let mut result = Vec::new();
     let mut queue = VecDeque::from([space_root.clone()]);
@@ -26,6 +29,7 @@ pub async fn discover_remote(space_root: &Url, bearer_token: &str) -> Result<Vec
   </D:prop>
 </D:propfind>"#;
 
+        let t0 = tokio::time::Instant::now();
         let resp = client
             .request(
                 reqwest::Method::from_bytes(b"PROPFIND").unwrap(),
@@ -42,9 +46,19 @@ pub async fn discover_remote(space_root: &Url, bearer_token: &str) -> Result<Vec
                 message: e.to_string(),
             })?;
 
-        if resp.status().as_u16() != 207 {
+        let status = resp.status().as_u16();
+        let sanitised_url = sanitise_url(&url);
+
+        if status != 207 {
+            http_events.push(HttpEvent {
+                method: "PROPFIND".to_string(),
+                url: sanitised_url,
+                status,
+                duration_ms: t0.elapsed().as_millis() as u64,
+                bytes: 0,
+            });
             return Err(SyncError::Http {
-                status: resp.status().as_u16(),
+                status,
                 message: "PROPFIND failed".into(),
             });
         }
@@ -54,12 +68,28 @@ pub async fn discover_remote(space_root: &Url, bearer_token: &str) -> Result<Vec
             message: e.to_string(),
         })?;
 
+        http_events.push(HttpEvent {
+            method: "PROPFIND".to_string(),
+            url: sanitised_url,
+            status,
+            duration_ms: t0.elapsed().as_millis() as u64,
+            bytes: text.len() as u64,
+        });
+
         let (files, dirs) = parse_propfind(&text, space_root)?;
         result.extend(files);
         queue.extend(dirs);
     }
 
     Ok(result)
+}
+
+/// Strip query parameters from a URL, keeping only scheme + host + path.
+fn sanitise_url(url: &Url) -> String {
+    let mut u = url.clone();
+    u.set_query(None);
+    u.set_fragment(None);
+    u.to_string()
 }
 
 fn parse_propfind(xml: &str, space_root: &Url) -> Result<(Vec<RemoteEntry>, Vec<Url>)> {
