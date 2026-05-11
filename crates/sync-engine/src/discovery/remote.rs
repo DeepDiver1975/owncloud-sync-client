@@ -185,6 +185,17 @@ fn parse_propfind(xml: &str, space_root: &Url) -> Result<(Vec<RemoteEntry>, Vec<
                             }
                             dirs.push(sub_url);
                         }
+                        // Also emit as a RemoteEntry so the reconciler can see it
+                        let path = Utf8PathBuf::from(rel.trim_end_matches('/'));
+                        files.push(RemoteEntry {
+                            path,
+                            etag: etag.clone(),
+                            mtime: SystemTime::UNIX_EPOCH,
+                            size: 0,
+                            file_id: file_id.clone(),
+                            permissions: 0,
+                            is_dir: true,
+                        });
                     } else {
                         let path = Utf8PathBuf::from(rel);
                         files.push(RemoteEntry {

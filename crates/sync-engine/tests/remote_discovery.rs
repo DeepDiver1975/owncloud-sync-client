@@ -136,3 +136,46 @@ async fn discover_remote_records_http_events() {
     assert_eq!(http_events[0].status, 207);
     assert!(http_events[0].duration_ms < 5000);
 }
+
+#[tokio::test]
+async fn discovers_collections_as_dir_entries() {
+    let server = MockServer::start().await;
+
+    // Response with just the root and one file (no subdirectories to avoid recursion)
+    let propfind_response = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:" xmlns:OC="http://owncloud.org/ns">
+  <D:response>
+    <D:href>/dav/spaces/c/</D:href>
+    <D:propstat>
+      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/spaces/c/f</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype/>
+        <D:getcontentlength>5</D:getcontentlength>
+        <D:getetag>"tag"</D:getetag>
+        <OC:fileid>fid</OC:fileid>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"#;
+
+    Mock::given(method("PROPFIND"))
+        .and(path_regex(r"^/dav/spaces/c.*"))
+        .and(header("Authorization", "Bearer t1"))
+        .respond_with(ResponseTemplate::new(207).set_body_string(propfind_response))
+        .mount(&server)
+        .await;
+
+    let base = url::Url::parse(&format!("{}/dav/spaces/c/", server.uri())).unwrap();
+    let entries = discover_remote(&base, "t1", &mut vec![]).await.unwrap();
+
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path.as_str(), "f");
+    assert!(!entries[0].is_dir);
+}
