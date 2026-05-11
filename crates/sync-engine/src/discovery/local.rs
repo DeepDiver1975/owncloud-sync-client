@@ -43,6 +43,7 @@ fn walk_dir(dir: &Utf8Path, entries: &mut Vec<LocalEntry>) -> Result<()> {
                 size: meta.len(),
                 inode,
                 is_virtual: false,
+                is_dir: false,
             });
         }
     }

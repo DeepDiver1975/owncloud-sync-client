@@ -194,6 +194,7 @@ fn parse_propfind(xml: &str, space_root: &Url) -> Result<(Vec<RemoteEntry>, Vec<
                             size,
                             file_id: file_id.clone(),
                             permissions: 0,
+                            is_dir: false,
                         });
                     }
                 }

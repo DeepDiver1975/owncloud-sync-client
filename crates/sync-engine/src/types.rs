@@ -11,6 +11,7 @@ pub struct LocalEntry {
     pub size: u64,
     pub inode: u64,
     pub is_virtual: bool,
+    pub is_dir: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +22,7 @@ pub struct RemoteEntry {
     pub size: u64,
     pub file_id: String,
     pub permissions: u32,
+    pub is_dir: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

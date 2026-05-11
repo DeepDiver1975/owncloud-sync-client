@@ -19,6 +19,7 @@ fn local(size: u64, mtime: SystemTime) -> LocalEntry {
         size,
         inode: 1,
         is_virtual: false,
+        is_dir: false,
     }
 }
 
@@ -30,6 +31,7 @@ fn remote(size: u64, etag: &str, mtime: SystemTime) -> RemoteEntry {
         size,
         file_id: "fid".into(),
         permissions: 0,
+        is_dir: false,
     }
 }
 
