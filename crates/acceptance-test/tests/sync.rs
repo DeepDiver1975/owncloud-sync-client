@@ -216,13 +216,22 @@ async fn test_initial_sync_empty_remote() {
         return;
     }
     let (env, report) = env_after_initial_sync().await;
-    assert_eq!(report.remote_entries, 0, "expected no remote files");
-    assert_eq!(report.downloads, 0, "expected no downloads");
-    let local_files: Vec<_> = std::fs::read_dir(env.sync_dir.path())
+    // oCIS personal spaces are never truly empty — the server pre-seeds default folders.
+    // Assert that every discovered remote entry was downloaded (none skipped/ignored).
+    assert_eq!(
+        report.downloads, report.remote_entries,
+        "expected all remote entries to be downloaded: remote={}, dl={}",
+        report.remote_entries, report.downloads
+    );
+    let local_count = std::fs::read_dir(env.sync_dir.path())
         .expect("read sync dir")
         .filter_map(|e| e.ok())
-        .collect();
-    assert!(local_files.is_empty(), "expected empty local sync dir");
+        .count();
+    assert_eq!(
+        local_count, report.remote_entries,
+        "local file count ({local_count}) should match remote_entries ({})",
+        report.remote_entries
+    );
 }
 
 #[tokio::test]
@@ -265,8 +274,17 @@ async fn test_initial_sync_preseeded_remote() {
         _ => panic!("SyncFinished missing report"),
     };
 
-    assert_eq!(report.remote_entries, 3, "expected 3 remote files");
-    assert_eq!(report.downloads, 3, "expected 3 downloads");
+    // oCIS personal spaces have server-seeded default files; we added 3 on top of those.
+    assert!(
+        report.remote_entries >= 3,
+        "expected at least 3 remote entries, got {}",
+        report.remote_entries
+    );
+    assert_eq!(
+        report.downloads, report.remote_entries,
+        "expected all remote entries to be downloaded: remote={}, dl={}",
+        report.remote_entries, report.downloads
+    );
 
     for (name, content) in [
         ("file1.txt", b"content1" as &[u8]),
