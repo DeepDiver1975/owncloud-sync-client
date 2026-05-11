@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use acceptance_test::{fixture::TestEnvironment, poll::poll_until};
 use daemon::gui_ipc::protocol::DaemonEvent;
+use sync_engine::SyncReport;
 
 fn skip_if_no_acceptance() -> bool {
     if std::env::var("OCIS_ACCEPTANCE").is_err() {
@@ -19,16 +20,25 @@ async fn env_with_account() -> TestEnvironment {
     env
 }
 
-async fn env_after_initial_sync() -> TestEnvironment {
+async fn env_after_initial_sync() -> (TestEnvironment, SyncReport) {
     let mut env = env_with_account().await;
-    env.daemon_ipc
+    let event = env
+        .daemon_ipc
         .wait_for(
             |e| matches!(e, DaemonEvent::SyncFinished { errors, .. } if errors.is_empty()),
             Duration::from_secs(60),
         )
         .await
         .expect("initial SyncFinished not received");
-    env
+
+    let report = match event {
+        DaemonEvent::SyncFinished {
+            report: Some(r), ..
+        } => r,
+        _ => panic!("SyncFinished missing report"),
+    };
+
+    (env, report)
 }
 
 #[tokio::test]
@@ -70,7 +80,7 @@ async fn test_upload_new_file() {
     if skip_if_no_acceptance() {
         return;
     }
-    let env = env_after_initial_sync().await;
+    let (env, _report) = env_after_initial_sync().await;
 
     let local_path = env.sync_dir.path().join("upload_new.txt");
     std::fs::write(&local_path, b"new content").expect("write local file");
@@ -197,5 +207,74 @@ async fn test_conflict_resolution() {
             "timed out waiting for conflict resolution to produce two conflict.txt files"
         );
         tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+#[tokio::test]
+async fn test_initial_sync_empty_remote() {
+    if skip_if_no_acceptance() {
+        return;
+    }
+    let (_env, report) = env_after_initial_sync().await;
+    assert_eq!(report.remote_entries, 0, "expected no remote files");
+    assert_eq!(report.downloads, 0, "expected no downloads");
+    let local_files: Vec<_> = std::fs::read_dir(_env.sync_dir.path())
+        .expect("read sync dir")
+        .filter_map(|e| e.ok())
+        .collect();
+    assert!(local_files.is_empty(), "expected empty local sync dir");
+}
+
+#[tokio::test]
+async fn test_initial_sync_preseeded_remote() {
+    if skip_if_no_acceptance() {
+        return;
+    }
+    let mut env = TestEnvironment::start()
+        .await
+        .expect("TestEnvironment::start");
+
+    env.ocis_client
+        .put("file1.txt", b"content1")
+        .await
+        .expect("seed file1");
+    env.ocis_client
+        .put("file2.txt", b"content2")
+        .await
+        .expect("seed file2");
+    env.ocis_client
+        .put("file3.txt", b"content3")
+        .await
+        .expect("seed file3");
+
+    env.add_account().await.expect("add_account");
+
+    let event = env
+        .daemon_ipc
+        .wait_for(
+            |e| matches!(e, DaemonEvent::SyncFinished { errors, .. } if errors.is_empty()),
+            Duration::from_secs(60),
+        )
+        .await
+        .expect("SyncFinished not received within 60s");
+
+    let report = match event {
+        DaemonEvent::SyncFinished {
+            report: Some(r), ..
+        } => r,
+        _ => panic!("SyncFinished missing report"),
+    };
+
+    assert_eq!(report.remote_entries, 3, "expected 3 remote files");
+    assert_eq!(report.downloads, 3, "expected 3 downloads");
+
+    for (name, content) in [
+        ("file1.txt", b"content1" as &[u8]),
+        ("file2.txt", b"content2"),
+        ("file3.txt", b"content3"),
+    ] {
+        let path = env.sync_dir.path().join(name);
+        let actual = std::fs::read(&path).unwrap_or_else(|_| panic!("{name} not found locally"));
+        assert_eq!(actual.as_slice(), content, "{name} content mismatch");
     }
 }
