@@ -695,6 +695,7 @@ fn tray_subscription_is_merged_compile_check() {
     let _: iced::Subscription<gui::app::Message> = handle.tray_events();
 }
 
+
 #[test]
 fn account_snapshot_unknown_status_defaults_to_idle() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
