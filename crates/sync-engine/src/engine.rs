@@ -19,6 +19,7 @@ use crate::error::{Result, SyncError};
 use crate::propagate::download::{propagate_download, DownloadRequest};
 use crate::propagate::upload::{propagate_upload, UploadRequest};
 use crate::reconcile::{reconcile, JournalBaseline};
+use crate::report::{HttpEvent, SyncReport};
 use crate::state::{FileStatus, FolderStatus, SyncState};
 use crate::types::{ConflictStrategy, LocalEntry, RemoteEntry, SyncInstruction};
 use sync_db::{JournalEntry, SyncJournalDb};
@@ -44,7 +45,10 @@ impl SyncEngine {
         Self { cfg, state }
     }
 
-    pub async fn run_sync(&self) -> Result<()> {
+    pub async fn run_sync(&self) -> Result<SyncReport> {
+        let t_start = tokio::time::Instant::now();
+        let mut http_events: Vec<HttpEvent> = Vec::new();
+
         {
             let mut s = write_lock(&self.state);
             s.status = FolderStatus::Syncing;
@@ -60,8 +64,11 @@ impl SyncEngine {
             .map_err(|e| SyncError::Auth(e.to_string()))?;
         let (local_entries, remote_entries) = tokio::try_join!(
             discover_local(&self.cfg.local_root),
-            discover_remote(&self.cfg.space_root, &bearer_token),
+            discover_remote(&self.cfg.space_root, &bearer_token, &mut http_events),
         )?;
+
+        let remote_count = remote_entries.len();
+        let local_count = local_entries.len();
 
         let local_map: HashMap<Utf8PathBuf, LocalEntry> = local_entries
             .into_iter()
@@ -84,8 +91,9 @@ impl SyncEngine {
             local_map.keys().cloned().collect();
         all_paths.extend(remote_map.keys().cloned());
 
-        // Phase 2: Reconcile — load journal baselines from DB.
+        // Phase 2: Reconcile
         let mut instructions: Vec<(Utf8PathBuf, SyncInstruction, Option<RemoteEntry>)> = Vec::new();
+        let mut n_ignored = 0usize;
         for path in all_paths {
             let loc = local_map.get(&path).cloned();
             let rem = remote_map.get(&path).cloned();
@@ -104,11 +112,34 @@ impl SyncEngine {
             let instr = reconcile(loc, rem.clone(), journal, self.cfg.conflict_strategy);
             if instr != SyncInstruction::Ignore {
                 instructions.push((path, instr, rem));
+            } else {
+                n_ignored += 1;
             }
         }
 
-        // Phase 3: Propagate
-        let mut join_set: JoinSet<Result<()>> = JoinSet::new();
+        let n_downloads = instructions
+            .iter()
+            .filter(|(_, i, _)| *i == SyncInstruction::Download)
+            .count();
+        let n_uploads = instructions
+            .iter()
+            .filter(|(_, i, _)| *i == SyncInstruction::Upload)
+            .count();
+        let n_conflicts = instructions
+            .iter()
+            .filter(|(_, i, _)| *i == SyncInstruction::Conflict)
+            .count();
+        let n_del_local = instructions
+            .iter()
+            .filter(|(_, i, _)| *i == SyncInstruction::DeleteLocal)
+            .count();
+        let n_del_remote = instructions
+            .iter()
+            .filter(|(_, i, _)| *i == SyncInstruction::DeleteRemote)
+            .count();
+
+        // Phase 3: Propagate — each task owns its Vec<HttpEvent> and returns it.
+        let mut join_set: JoinSet<(Vec<HttpEvent>, Result<()>)> = JoinSet::new();
         let semaphore = Arc::new(tokio::sync::Semaphore::new(self.cfg.max_parallel_transfers));
 
         for (rel_path, instruction, rem_entry) in instructions {
@@ -126,8 +157,10 @@ impl SyncEngine {
 
             match instruction {
                 SyncInstruction::Download => {
+                    let bearer_token_dl = bearer_token.clone();
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
+                        let mut task_http: Vec<HttpEvent> = Vec::new();
                         {
                             let mut s = write_lock(&state);
                             s.set_file_status(rel_clone.clone(), FileStatus::Syncing);
@@ -136,10 +169,11 @@ impl SyncEngine {
                             remote_url,
                             local_dest: local_path.clone(),
                             expected_etag: None,
+                            bearer_token: bearer_token_dl,
                         };
-                        match propagate_download(req).await {
+                        let result = propagate_download(req, &mut task_http).await;
+                        match result {
                             Ok(etag) => {
-                                // Record journal baseline after successful download.
                                 let size = tokio::fs::metadata(&local_path)
                                     .await
                                     .map(|m| m.len())
@@ -157,20 +191,22 @@ impl SyncEngine {
                                 let _ = db.upsert_entry(&entry).await;
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
-                                Ok(())
+                                (task_http, Ok(()))
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
-                                Err(e)
+                                (task_http, Err(e))
                             }
                         }
                     });
                 }
 
                 SyncInstruction::Upload => {
+                    let bearer_token_ul = bearer_token.clone();
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
+                        let mut task_http: Vec<HttpEvent> = Vec::new();
                         {
                             let mut s = write_lock(&state);
                             s.set_file_status(rel_clone.clone(), FileStatus::Syncing);
@@ -185,10 +221,11 @@ impl SyncEngine {
                             size,
                             checksum: None,
                             tus_threshold: 5 * 1024 * 1024,
+                            bearer_token: bearer_token_ul,
                         };
-                        match propagate_upload(req).await {
+                        let result = propagate_upload(req, &mut task_http).await;
+                        match result {
                             Ok(etag) => {
-                                // Record journal baseline after successful upload.
                                 let entry = JournalEntry {
                                     path: rel_clone.to_string(),
                                     etag: Some(etag.trim_matches('"').to_string()),
@@ -202,27 +239,26 @@ impl SyncEngine {
                                 let _ = db.upsert_entry(&entry).await;
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
-                                Ok(())
+                                (task_http, Ok(()))
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
-                                Err(e)
+                                (task_http, Err(e))
                             }
                         }
                     });
                 }
 
                 SyncInstruction::Conflict => {
-                    // Keep both: rename local file to a conflict copy, then download remote.
+                    let bearer_token_cf = bearer_token.clone();
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
+                        let mut task_http: Vec<HttpEvent> = Vec::new();
                         {
                             let mut s = write_lock(&state);
                             s.set_file_status(rel_clone.clone(), FileStatus::Syncing);
                         }
-
-                        // Derive conflict filename: insert timestamp before extension.
                         let conflict_path = make_conflict_path(&local_path);
                         if let Err(e) = tokio::fs::rename(&local_path, &conflict_path).await {
                             let mut s = write_lock(&state);
@@ -230,16 +266,16 @@ impl SyncEngine {
                                 rel_clone,
                                 FileStatus::Error(format!("conflict rename: {e}")),
                             );
-                            return Err(SyncError::Io(e));
+                            return (task_http, Err(SyncError::Io(e)));
                         }
-
-                        // Download remote version to the original path.
                         let req = DownloadRequest {
                             remote_url,
                             local_dest: local_path.clone(),
                             expected_etag: None,
+                            bearer_token: bearer_token_cf,
                         };
-                        match propagate_download(req).await {
+                        let result = propagate_download(req, &mut task_http).await;
+                        match result {
                             Ok(etag) => {
                                 let size = tokio::fs::metadata(&local_path)
                                     .await
@@ -258,31 +294,43 @@ impl SyncEngine {
                                 let _ = db.upsert_entry(&entry).await;
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
-                                Ok(())
+                                (task_http, Ok(()))
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
-                                Err(e)
+                                (task_http, Err(e))
                             }
                         }
                     });
                 }
 
+                SyncInstruction::DeleteLocal => {
+                    tracing::warn!("DeleteLocal not yet implemented for path {:?}", rel_path);
+                }
+                SyncInstruction::DeleteRemote => {
+                    tracing::warn!("DeleteRemote not yet implemented for path {:?}", rel_path);
+                }
                 _ => {}
             }
         }
 
         let mut had_error = false;
+        let mut error_messages: Vec<String> = Vec::new();
         while let Some(res) = join_set.join_next().await {
             match res {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => {
+                Ok((task_http, Ok(()))) => {
+                    http_events.extend(task_http);
+                }
+                Ok((task_http, Err(e))) => {
+                    http_events.extend(task_http);
                     tracing::warn!("Transfer error: {e}");
+                    error_messages.push(e.to_string());
                     had_error = true;
                 }
                 Err(join_err) => {
                     tracing::error!("Task panicked: {join_err}");
+                    error_messages.push(format!("task panicked: {join_err}"));
                     had_error = true;
                 }
             }
@@ -297,7 +345,56 @@ impl SyncEngine {
             }
         }
 
-        Ok(())
+        let duration_ms = t_start.elapsed().as_millis() as u64;
+
+        let report = SyncReport {
+            folder_id: self.cfg.folder_id,
+            remote_entries: remote_count,
+            local_entries: local_count,
+            downloads: n_downloads,
+            uploads: n_uploads,
+            conflicts: n_conflicts,
+            deletes_local: n_del_local,
+            deletes_remote: n_del_remote,
+            ignored: n_ignored,
+            errors: error_messages,
+            http_events,
+            duration_ms,
+        };
+
+        tracing::info!(
+            "sync done folder={} remote={} local={} dl={} ul={} conflict={} \
+             del_local={} del_remote={} errors={} ms={}",
+            self.cfg.folder_id,
+            report.remote_entries,
+            report.local_entries,
+            report.downloads,
+            report.uploads,
+            report.conflicts,
+            report.deletes_local,
+            report.deletes_remote,
+            report.errors.len(),
+            report.duration_ms,
+        );
+
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            if let Ok(json) = serde_json::to_string(&report) {
+                tracing::debug!("sync_report {json}");
+            }
+        }
+
+        for ev in &report.http_events {
+            tracing::debug!(
+                "http {} {} {} {}ms {}B",
+                ev.method,
+                ev.url,
+                ev.status,
+                ev.duration_ms,
+                ev.bytes
+            );
+        }
+
+        Ok(report)
     }
 
     pub fn state(&self) -> Arc<RwLock<SyncState>> {
@@ -305,8 +402,6 @@ impl SyncEngine {
     }
 }
 
-/// Build a conflict copy path by inserting a timestamp before the file extension.
-/// e.g. `hello.txt` → `hello_conflict_20240501T120000.txt`
 fn make_conflict_path(original: &Utf8PathBuf) -> Utf8PathBuf {
     let ts = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)

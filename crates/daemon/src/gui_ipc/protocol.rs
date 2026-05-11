@@ -1,5 +1,6 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
+use sync_engine::SyncReport;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use uuid::Uuid;
 
@@ -60,6 +61,7 @@ pub enum DaemonEvent {
     SyncFinished {
         folder_id: Uuid,
         errors: Vec<String>,
+        report: Option<SyncReport>, // None only if run_sync panicked
     },
     FileStatusChanged {
         path: String,

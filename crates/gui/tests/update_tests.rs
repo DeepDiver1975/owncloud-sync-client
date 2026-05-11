@@ -103,6 +103,7 @@ fn daemon_event_sync_finished_no_errors_sets_idle() {
         Message::DaemonEvent(DaemonEvent::SyncFinished {
             folder_id,
             errors: vec![],
+            report: None,
         }),
     );
     let folder = &app.accounts[0].folders[0];
@@ -118,6 +119,7 @@ fn daemon_event_sync_finished_with_errors_sets_error_status() {
         Message::DaemonEvent(DaemonEvent::SyncFinished {
             folder_id,
             errors: vec!["conflict".to_string()],
+            report: None,
         }),
     );
     let folder = &app.accounts[0].folders[0];
