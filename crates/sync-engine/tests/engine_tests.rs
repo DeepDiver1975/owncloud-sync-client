@@ -112,7 +112,21 @@ async fn engine_downloads_new_remote_file() {
     };
 
     let engine = SyncEngine::new(cfg);
-    engine.run_sync().await.unwrap();
+    let report = engine.run_sync().await.unwrap();
+    assert_eq!(report.remote_entries, 1);
+    assert_eq!(report.local_entries, 0);
+    assert_eq!(report.downloads, 1);
+    assert_eq!(report.uploads, 0);
+    assert!(report.errors.is_empty());
+    assert!(
+        report.http_events.len() >= 2,
+        "expected PROPFIND + GET events"
+    );
+    assert!(report.http_events.iter().any(|e| e.method == "PROPFIND"));
+    assert!(report
+        .http_events
+        .iter()
+        .any(|e| e.method == "GET" && e.status == 200));
 
     let dest = local_root.join("remote.txt");
     assert!(dest.exists(), "remote.txt should have been downloaded");
@@ -172,7 +186,14 @@ async fn engine_uploads_new_local_file() {
     };
 
     let engine = SyncEngine::new(cfg);
-    engine.run_sync().await.unwrap();
+    let report = engine.run_sync().await.unwrap();
+    assert_eq!(report.uploads, 1);
+    assert_eq!(report.downloads, 0);
+    assert!(report.errors.is_empty());
+    assert!(report
+        .http_events
+        .iter()
+        .any(|e| e.method == "PUT" && e.status == 201));
 
     server.verify().await;
 }
