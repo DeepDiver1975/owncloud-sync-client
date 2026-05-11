@@ -688,6 +688,13 @@ fn tray_handle_noop_build_succeeds() {
     let _sub = handle.tray_events(); // must compile and not panic
 }
 
+#[cfg(not(feature = "tray-icon"))]
+#[test]
+fn tray_subscription_is_merged_compile_check() {
+    let handle = gui::tray::TrayHandle::build().unwrap();
+    let _: iced::Subscription<gui::app::Message> = handle.tray_events();
+}
+
 #[test]
 fn account_snapshot_unknown_status_defaults_to_idle() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};

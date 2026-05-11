@@ -7,6 +7,7 @@ use gui::model::View;
 use gui::spawn::ensure_daemon_running;
 use gui::subscription::next_message;
 use gui::theme;
+use gui::tray::TrayHandle;
 
 use daemon::paths::platform_gui_socket_path;
 
@@ -79,6 +80,10 @@ struct IcedApp {
 
 impl IcedApp {
     fn init() -> (Self, Task<Message>) {
+        let tray = TrayHandle::build()
+            .map_err(|e| tracing::warn!("tray icon unavailable: {e}"))
+            .ok();
+
         let event_rx: EventRxCarrier = Arc::new(Mutex::new(None));
         let init_task = Task::perform(
             async {
@@ -102,7 +107,7 @@ impl IcedApp {
         );
         (
             Self {
-                app: App::default(),
+                app: App { tray, ..App::default() },
                 event_rx,
             },
             init_task,
@@ -297,7 +302,7 @@ impl IcedApp {
 
     fn subscription(&self) -> Subscription<Message> {
         let rx = self.event_rx.clone();
-        Subscription::run_with_id(
+        let daemon_sub = Subscription::run_with_id(
             "daemon-events",
             iced::stream::channel(16, move |mut output| async move {
                 loop {
@@ -306,8 +311,6 @@ impl IcedApp {
                         if let Some(receiver) = guard.as_mut() {
                             let m = next_message(receiver).await;
                             if matches!(m, Some(Message::DaemonDisconnected)) {
-                                // Nil the receiver so we don't hammer a closed channel.
-                                // The reconnect Task will swap in a fresh one via DaemonConnected.
                                 *guard = None;
                             }
                             m
@@ -322,6 +325,15 @@ impl IcedApp {
                     }
                 }
             }),
-        )
+        );
+
+        let tray_sub = self
+            .app
+            .tray
+            .as_ref()
+            .map(|t| t.tray_events())
+            .unwrap_or(Subscription::none());
+
+        Subscription::batch([daemon_sub, tray_sub])
     }
 }
