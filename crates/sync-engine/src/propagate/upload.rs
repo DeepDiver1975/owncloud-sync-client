@@ -10,6 +10,7 @@ pub struct UploadRequest {
     pub size: u64,
     pub checksum: Option<String>,
     pub tus_threshold: u64,
+    pub bearer_token: String,
 }
 
 pub async fn propagate_upload(
@@ -31,6 +32,7 @@ async fn upload_put(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Res
 
     let mut builder = client
         .put(req.remote_url.as_str())
+        .bearer_auth(&req.bearer_token)
         .header("Content-Length", req.size.to_string())
         .body(bytes);
 
@@ -78,6 +80,7 @@ async fn upload_tus(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Res
     let t0 = tokio::time::Instant::now();
     let create_resp = client
         .post(req.remote_url.as_str())
+        .bearer_auth(&req.bearer_token)
         .header("Tus-Resumable", "1.0.0")
         .header("Upload-Length", req.size.to_string())
         .header("Content-Length", "0")
@@ -132,6 +135,7 @@ async fn upload_tus(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Res
     let t1 = tokio::time::Instant::now();
     let patch_resp = client
         .patch(&patch_url)
+        .bearer_auth(&req.bearer_token)
         .header("Tus-Resumable", "1.0.0")
         .header("Upload-Offset", "0")
         .header("Content-Type", "application/offset+octet-stream")

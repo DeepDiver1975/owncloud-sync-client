@@ -28,6 +28,7 @@ async fn small_file_uses_plain_put() {
         size: 5,
         checksum: None,
         tus_threshold: 1024 * 1024 * 5,
+        bearer_token: String::new(),
     };
 
     let mut http_events = vec![];
@@ -69,6 +70,7 @@ async fn large_file_uses_tus_protocol() {
         size: 6,
         checksum: None,
         tus_threshold: 4, // force TUS for any file > 4 bytes
+        bearer_token: String::new(),
     };
 
     let mut http_events = vec![];
@@ -101,6 +103,7 @@ async fn upload_put_records_http_event() {
             size: 5,
             checksum: None,
             tus_threshold: 5 * 1024 * 1024,
+            bearer_token: String::new(),
         },
         &mut http_events,
     )

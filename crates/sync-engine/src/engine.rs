@@ -203,6 +203,7 @@ impl SyncEngine {
                 }
 
                 SyncInstruction::Upload => {
+                    let bearer_token_ul = bearer_token.clone();
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
                         let mut task_http: Vec<HttpEvent> = Vec::new();
@@ -220,6 +221,7 @@ impl SyncEngine {
                             size,
                             checksum: None,
                             tus_threshold: 5 * 1024 * 1024,
+                            bearer_token: bearer_token_ul,
                         };
                         let result = propagate_upload(req, &mut task_http).await;
                         match result {

@@ -161,6 +161,7 @@ async fn engine_uploads_new_local_file() {
 
     Mock::given(method("PUT"))
         .and(path("/dav/spaces/s2/local.txt"))
+        .and(header("Authorization", "Bearer test-token")) // ← add this line
         .respond_with(ResponseTemplate::new(201).insert_header("etag", r#""up_etag""#))
         .expect(1)
         .mount(&server)
