@@ -33,6 +33,16 @@ fn walk_dir(dir: &Utf8Path, entries: &mut Vec<LocalEntry>) -> Result<()> {
             .unwrap_or_else(|p| Utf8PathBuf::from(p.to_string_lossy().as_ref()));
 
         if meta.is_dir() {
+            let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+            let inode = meta.ino();
+            entries.push(LocalEntry {
+                path: path.clone(),
+                mtime,
+                size: 0,
+                inode,
+                is_virtual: false,
+                is_dir: true,
+            });
             subdirs.push(path);
         } else if meta.is_file() {
             let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
