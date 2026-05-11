@@ -295,16 +295,22 @@ async fn main() -> Result<()> {
                     tokio::spawn(async move {
                         if let Some(engine) = engine {
                             info!("run_sync starting for folder {folder_id}");
-                            let errors = match engine.run_sync().await {
-                                Ok(_) => vec![],
+                            let (errors, report) = match engine.run_sync().await {
+                                Ok(r) => {
+                                    info!("run_sync done for folder {folder_id}: 0 error(s)");
+                                    (vec![], Some(r))
+                                }
                                 Err(e) => {
                                     info!("run_sync error for folder {folder_id}: {e}");
-                                    vec![e.to_string()]
+                                    (vec![e.to_string()], None)
                                 }
                             };
-                            info!("run_sync done for folder {folder_id}: {} error(s)", errors.len());
                             sched.lock().await.finish_sync(folder_id);
-                            ipc.broadcast(DaemonEvent::SyncFinished { folder_id, errors });
+                            ipc.broadcast(DaemonEvent::SyncFinished {
+                                folder_id,
+                                errors,
+                                report,
+                            });
                         } else {
                             info!("run_sync: no engine for folder {folder_id}");
                         }

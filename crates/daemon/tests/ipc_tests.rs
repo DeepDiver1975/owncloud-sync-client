@@ -346,6 +346,53 @@ async fn subscribe_receives_account_snapshot_before_broadcasts() {
     assert_eq!(received, expected_snapshot);
 }
 
+#[test]
+fn sync_finished_with_report_roundtrip() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use sync_engine::{HttpEvent, SyncReport};
+    use uuid::Uuid;
+
+    let report = SyncReport {
+        folder_id: Uuid::nil(),
+        remote_entries: 3,
+        local_entries: 0,
+        downloads: 3,
+        uploads: 0,
+        conflicts: 0,
+        deletes_local: 0,
+        deletes_remote: 0,
+        ignored: 0,
+        errors: vec![],
+        http_events: vec![HttpEvent {
+            method: "GET".to_string(),
+            url: "http://localhost/dav/spaces/abc/file.txt".to_string(),
+            status: 200,
+            duration_ms: 42,
+            bytes: 1234,
+        }],
+        duration_ms: 500,
+    };
+
+    let event = DaemonEvent::SyncFinished {
+        folder_id: Uuid::nil(),
+        errors: vec![],
+        report: Some(report.clone()),
+    };
+
+    let json = serde_json::to_string(&event).unwrap();
+    let decoded: DaemonEvent = serde_json::from_str(&json).unwrap();
+
+    if let DaemonEvent::SyncFinished {
+        report: Some(decoded_report),
+        ..
+    } = decoded
+    {
+        assert_eq!(decoded_report, report);
+    } else {
+        panic!("decoded event was not SyncFinished with Some(report)");
+    }
+}
+
 #[tokio::test]
 async fn roundtrip_account_snapshot() {
     use daemon::gui_ipc::protocol::{
