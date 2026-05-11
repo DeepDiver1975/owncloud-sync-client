@@ -207,7 +207,9 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
             }
         }
 
-        DaemonEvent::SyncFinished { folder_id, errors } => {
+        DaemonEvent::SyncFinished {
+            folder_id, errors, ..
+        } => {
             if let Some(folder) = find_folder_mut(app, folder_id) {
                 folder.progress = None;
                 if errors.is_empty() {

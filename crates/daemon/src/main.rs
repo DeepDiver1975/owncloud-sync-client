@@ -296,6 +296,7 @@ async fn main() -> Result<()> {
                     tokio::spawn(async move {
                         if let Some(engine) = engine {
                             info!("run_sync starting for folder {folder_id}");
+                            let start = std::time::Instant::now();
                             let (errors, report) = match engine.run_sync().await {
                                 Ok(r) => {
                                     info!("run_sync done for folder {folder_id}: 0 error(s)");
@@ -316,7 +317,7 @@ async fn main() -> Result<()> {
                                         ignored: 0,
                                         errors: vec![err_str.clone()],
                                         http_events: vec![],
-                                        duration_ms: 0,
+                                        duration_ms: start.elapsed().as_millis() as u64,
                                     };
                                     (vec![err_str], Some(partial))
                                 }
