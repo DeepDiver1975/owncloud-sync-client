@@ -86,6 +86,7 @@ async fn engine_downloads_new_remote_file() {
 
     Mock::given(method("GET"))
         .and(path("/dav/spaces/s1/remote.txt"))
+        .and(header("Authorization", "Bearer test-token")) // ← add this line
         .respond_with(
             ResponseTemplate::new(200)
                 .set_body_bytes(b"remote content")

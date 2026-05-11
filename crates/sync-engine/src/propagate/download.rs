@@ -9,6 +9,7 @@ pub struct DownloadRequest {
     pub remote_url: Url,
     pub local_dest: Utf8PathBuf,
     pub expected_etag: Option<String>,
+    pub bearer_token: String,
 }
 
 pub async fn propagate_download(
@@ -20,6 +21,7 @@ pub async fn propagate_download(
     let t0 = tokio::time::Instant::now();
     let resp = client
         .get(req.remote_url.as_str())
+        .bearer_auth(&req.bearer_token)
         .send()
         .await
         .map_err(|e| SyncError::Http {

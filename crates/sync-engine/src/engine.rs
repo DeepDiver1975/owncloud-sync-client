@@ -157,6 +157,7 @@ impl SyncEngine {
 
             match instruction {
                 SyncInstruction::Download => {
+                    let bearer_token_dl = bearer_token.clone();
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
                         let mut task_http: Vec<HttpEvent> = Vec::new();
@@ -168,6 +169,7 @@ impl SyncEngine {
                             remote_url,
                             local_dest: local_path.clone(),
                             expected_etag: None,
+                            bearer_token: bearer_token_dl,
                         };
                         let result = propagate_download(req, &mut task_http).await;
                         match result {
@@ -247,6 +249,7 @@ impl SyncEngine {
                 }
 
                 SyncInstruction::Conflict => {
+                    let bearer_token_cf = bearer_token.clone();
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
                         let mut task_http: Vec<HttpEvent> = Vec::new();
@@ -267,6 +270,7 @@ impl SyncEngine {
                             remote_url,
                             local_dest: local_path.clone(),
                             expected_etag: None,
+                            bearer_token: bearer_token_cf,
                         };
                         let result = propagate_download(req, &mut task_http).await;
                         match result {

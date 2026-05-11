@@ -28,6 +28,7 @@ async fn downloads_file_atomically() {
         remote_url: Url::parse(&format!("{}/dav/spaces/space1/notes.txt", server.uri())).unwrap(),
         local_dest: dest.clone(),
         expected_etag: None,
+        bearer_token: String::new(),
     };
 
     let mut http_events = vec![];
@@ -61,6 +62,7 @@ async fn fails_on_etag_mismatch() {
         remote_url: Url::parse(&format!("{}/dav/spaces/space1/stale.txt", server.uri())).unwrap(),
         local_dest: dest.clone(),
         expected_etag: Some("expected_different_etag".into()),
+        bearer_token: String::new(),
     };
 
     let mut http_events = vec![];
@@ -94,6 +96,7 @@ async fn download_records_http_event() {
             remote_url,
             local_dest: dest,
             expected_etag: None,
+            bearer_token: String::new(),
         },
         &mut http_events,
     )
