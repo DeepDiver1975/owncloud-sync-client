@@ -5,7 +5,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
-use ocis_client::auth::{KeychainStore, OidcAuth};
+use ocis_client::auth::{KeychainStore, OidcAuth, TokenManager};
 use ocis_client::GraphClient;
 
 use super::protocol::{DaemonCommand, DaemonEvent};
@@ -15,8 +15,10 @@ use crate::folder_manager::FolderManager;
 use crate::oidc_callback;
 use crate::scheduler::SyncScheduler;
 
-const OCIS_CLIENT_ID: &str = "xdXOt13JKxym1B1QcEncf2XDkLAexMBFwiT9j6EfhhHFJhs2KM9jbjTmf8JBXE69";
-const OCIS_CLIENT_SECRET: &str = "UBntmLjC2yYCeHwsyj73Uwo9TAaecAetRwMw0xYcvNL9yRdLSUi0hUAHfvCHFeFh";
+pub(crate) const OCIS_CLIENT_ID: &str =
+    "xdXOt13JKxym1B1QcEncf2XDkLAexMBFwiT9j6EfhhHFJhs2KM9jbjTmf8JBXE69";
+pub(crate) const OCIS_CLIENT_SECRET: &str =
+    "UBntmLjC2yYCeHwsyj73Uwo9TAaecAetRwMw0xYcvNL9yRdLSUi0hUAHfvCHFeFh";
 
 #[derive(Debug, PartialEq)]
 pub enum ShouldQuit {
@@ -24,15 +26,26 @@ pub enum ShouldQuit {
     No,
 }
 
-pub async fn handle_command(
-    cmd: DaemonCommand,
-    scheduler: Arc<Mutex<SyncScheduler>>,
-    folder_manager: &mut FolderManager,
-    ipc: &Arc<GuiIpcServer>,
-    config: Arc<Mutex<AppConfig>>,
-    config_path: PathBuf,
-    live_folder_ids: Arc<std::sync::RwLock<Vec<Uuid>>>,
-) -> Result<ShouldQuit> {
+pub struct HandleContext<'a> {
+    pub scheduler: Arc<Mutex<SyncScheduler>>,
+    pub folder_manager: &'a mut FolderManager,
+    pub ipc: Arc<GuiIpcServer>,
+    pub config: Arc<Mutex<AppConfig>>,
+    pub config_path: PathBuf,
+    pub live_folder_ids: Arc<std::sync::RwLock<Vec<Uuid>>>,
+    pub token_managers: Arc<std::sync::RwLock<std::collections::HashMap<Uuid, Arc<TokenManager>>>>,
+}
+
+pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> Result<ShouldQuit> {
+    let HandleContext {
+        scheduler,
+        folder_manager,
+        ipc,
+        config,
+        config_path,
+        live_folder_ids,
+        token_managers,
+    } = ctx;
     match cmd {
         DaemonCommand::Subscribe => {}
 
@@ -88,6 +101,9 @@ pub async fn handle_command(
             ipc.broadcast(DaemonEvent::AccountAddStarted { account_id });
 
             let ipc_clone = Arc::clone(ipc);
+            let config_clone = Arc::clone(config);
+            let config_path_clone = config_path.clone();
+            let token_managers_clone = Arc::clone(token_managers);
             tokio::spawn(async move {
                 let oidc = match OidcAuth::discover(
                     &url,
@@ -138,8 +154,9 @@ pub async fn handle_command(
                     account_id,
                     url,
                     ipc_clone,
-                    config,
-                    config_path,
+                    config_clone,
+                    config_path_clone,
+                    token_managers_clone,
                 )
                 .await;
             });
@@ -148,7 +165,7 @@ pub async fn handle_command(
         DaemonCommand::RemoveAccount { account_id } => {
             let mut cfg = config.lock().await;
             cfg.account.retain(|a| a.id != account_id);
-            cfg.save(&config_path)?;
+            cfg.save(config_path)?;
             drop(cfg);
             ipc.broadcast(DaemonEvent::AccountStateChanged {
                 account_id,
@@ -208,6 +225,46 @@ pub async fn handle_command(
                 }
             };
 
+            // Step 3b: Retrieve existing TokenManager or build one via re-discovery.
+            let tm = {
+                let managers = token_managers.read().unwrap();
+                managers.get(&account_id).cloned()
+            };
+            let token_manager = match tm {
+                Some(tm) => tm,
+                None => {
+                    let insecure = config.lock().await.general.insecure;
+                    let url_str = account_url.clone();
+                    let ts = token_set.clone();
+                    let aid = account_id.to_string();
+                    match OidcAuth::discover(
+                        &url_str,
+                        OCIS_CLIENT_ID,
+                        Some(OCIS_CLIENT_SECRET.to_string()),
+                        "http://localhost:9999/callback",
+                        insecure,
+                    )
+                    .await
+                    {
+                        Ok(oidc) => {
+                            let tm = Arc::new(TokenManager::new(oidc, ts, aid));
+                            token_managers
+                                .write()
+                                .unwrap()
+                                .insert(account_id, Arc::clone(&tm));
+                            tm
+                        }
+                        Err(e) => {
+                            ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                                account_id,
+                                reason: format!("OIDC re-discovery failed: {e}"),
+                            });
+                            return Ok(ShouldQuit::No);
+                        }
+                    }
+                }
+            };
+
             // Step 4: Construct GraphClient.
             let base_url = match url::Url::parse(&account_url) {
                 Ok(u) => u,
@@ -260,14 +317,14 @@ pub async fn handle_command(
                 if let Some(account) = cfg.account.iter_mut().find(|a| a.id == account_id) {
                     account.folder.push(new_folder_config.clone());
                 }
-                cfg.save(&config_path)?;
+                cfg.save(config_path)?;
                 cfg.account.iter().find(|a| a.id == account_id).cloned()
             };
 
             // Register the new folder with the engine and scheduler so sync runs immediately.
             if let Some(account) = account_config {
                 if let Err(e) = folder_manager
-                    .add_folder(&new_folder_config, &account)
+                    .add_folder(&new_folder_config, &account, Arc::clone(&token_manager))
                     .await
                 {
                     tracing::warn!("failed to register folder with engine: {e}");
@@ -341,12 +398,18 @@ mod tests {
 
         let result = handle_command(
             DaemonCommand::TriggerSync { folder_id },
-            Arc::clone(&scheduler),
-            &mut fm,
-            &ipc,
-            config,
-            file.path().to_path_buf(),
-            Arc::new(std::sync::RwLock::new(vec![])),
+            &mut HandleContext {
+                scheduler: Arc::clone(&scheduler),
+                folder_manager: &mut fm,
+                ipc,
+                config,
+                config_path: file.path().to_path_buf(),
+                live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
+            },
         )
         .await
         .unwrap();
@@ -368,12 +431,18 @@ mod tests {
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
-            Arc::clone(&scheduler),
-            &mut fm,
-            &ipc,
-            config,
-            file.path().to_path_buf(),
-            Arc::new(std::sync::RwLock::new(vec![])),
+            &mut HandleContext {
+                scheduler: Arc::clone(&scheduler),
+                folder_manager: &mut fm,
+                ipc,
+                config,
+                config_path: file.path().to_path_buf(),
+                live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
+            },
         )
         .await
         .unwrap();
@@ -397,23 +466,35 @@ mod tests {
 
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
-            Arc::clone(&scheduler),
-            &mut fm,
-            &ipc,
-            Arc::clone(&config),
-            file.path().to_path_buf(),
-            Arc::new(std::sync::RwLock::new(vec![])),
+            &mut HandleContext {
+                scheduler: Arc::clone(&scheduler),
+                folder_manager: &mut fm,
+                ipc: Arc::clone(&ipc),
+                config: Arc::clone(&config),
+                config_path: file.path().to_path_buf(),
+                live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
+            },
         )
         .await
         .unwrap();
         handle_command(
             DaemonCommand::ResumeFolder { folder_id },
-            Arc::clone(&scheduler),
-            &mut fm,
-            &ipc,
-            config,
-            file.path().to_path_buf(),
-            Arc::new(std::sync::RwLock::new(vec![])),
+            &mut HandleContext {
+                scheduler: Arc::clone(&scheduler),
+                folder_manager: &mut fm,
+                ipc,
+                config,
+                config_path: file.path().to_path_buf(),
+                live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
+            },
         )
         .await
         .unwrap();
@@ -435,12 +516,18 @@ mod tests {
 
         let result = handle_command(
             DaemonCommand::Quit,
-            Arc::clone(&scheduler),
-            &mut fm,
-            &ipc,
-            config,
-            file.path().to_path_buf(),
-            Arc::new(std::sync::RwLock::new(vec![])),
+            &mut HandleContext {
+                scheduler: Arc::clone(&scheduler),
+                folder_manager: &mut fm,
+                ipc,
+                config,
+                config_path: file.path().to_path_buf(),
+                live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
+            },
         )
         .await
         .unwrap();
@@ -480,12 +567,18 @@ mod tests {
             DaemonCommand::AddAccount {
                 url: "https://cloud.example.com".to_string(),
             },
-            Arc::clone(&scheduler),
-            &mut fm,
-            &ipc,
-            config,
-            file.path().to_path_buf(),
-            Arc::new(std::sync::RwLock::new(vec![])),
+            &mut HandleContext {
+                scheduler: Arc::clone(&scheduler),
+                folder_manager: &mut fm,
+                ipc,
+                config,
+                config_path: file.path().to_path_buf(),
+                live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+                token_managers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    Uuid,
+                    Arc<TokenManager>,
+                >::new())),
+            },
         )
         .await
         .unwrap();

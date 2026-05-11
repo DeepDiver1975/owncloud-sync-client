@@ -31,6 +31,10 @@ pub enum SyncError {
     /// The sync was cancelled externally.
     #[error("Sync cancelled")]
     Cancelled,
+
+    /// Authentication failed or token could not be refreshed.
+    #[error("Auth error: {0}")]
+    Auth(String),
 }
 
 impl From<vfs_core::VfsError> for SyncError {

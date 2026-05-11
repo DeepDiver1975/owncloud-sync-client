@@ -44,6 +44,11 @@ pub async fn run_callback(
     ipc: Arc<GuiIpcServer>,
     config: Arc<tokio::sync::Mutex<AppConfig>>,
     config_path: std::path::PathBuf,
+    token_managers: Arc<
+        std::sync::RwLock<
+            std::collections::HashMap<uuid::Uuid, Arc<ocis_client::auth::TokenManager>>,
+        >,
+    >,
 ) {
     let result = tokio::time::timeout(
         SIGN_IN_TIMEOUT,
@@ -56,6 +61,7 @@ pub async fn run_callback(
             Arc::clone(&ipc),
             config,
             config_path,
+            token_managers,
         ),
     )
     .await;
@@ -89,6 +95,11 @@ async fn handle_callback(
     ipc: Arc<GuiIpcServer>,
     config: Arc<tokio::sync::Mutex<AppConfig>>,
     config_path: std::path::PathBuf,
+    token_managers: Arc<
+        std::sync::RwLock<
+            std::collections::HashMap<uuid::Uuid, Arc<ocis_client::auth::TokenManager>>,
+        >,
+    >,
 ) -> anyhow::Result<()> {
     let (mut stream, _peer) = listener.accept().await?;
 
@@ -128,6 +139,17 @@ async fn handle_callback(
             .map_err(|e| anyhow::anyhow!("keychain save failed: {e}"))?;
     }
 
+    // Store TokenManager so SetAccountFolder can use it for token refresh.
+    {
+        use ocis_client::auth::TokenManager;
+        let tm = Arc::new(TokenManager::new(
+            oidc.clone(),
+            tokens.clone(),
+            account_id.to_string(),
+        ));
+        token_managers.write().unwrap().insert(account_id, tm);
+    }
+
     // Helper closure to delete keychain entry on failure.
     let delete_keychain = |id: &str| {
         let id = id.to_string();
@@ -149,6 +171,7 @@ async fn handle_callback(
                 render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
             )
             .await;
+            token_managers.write().unwrap().remove(&account_id);
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -165,6 +188,7 @@ async fn handle_callback(
                 render(ERROR_HTML_TEMPLATE, "Sign-in failed", &msg),
             )
             .await;
+            token_managers.write().unwrap().remove(&account_id);
             delete_keychain(&account_id_str).await.ok();
             anyhow::bail!("{msg}");
         }
@@ -205,6 +229,7 @@ async fn handle_callback(
             render(ERROR_HTML_TEMPLATE, "Sign-in failed", &e.to_string()),
         )
         .await;
+        token_managers.write().unwrap().remove(&account_id);
         delete_keychain(&account_id_str).await.ok();
         return Err(save_result.unwrap_err());
     }

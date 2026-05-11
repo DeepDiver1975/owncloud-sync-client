@@ -9,6 +9,7 @@ use crate::config::{AccountConfig, FolderConfig};
 use crate::paths::platform_config_dir;
 use crate::vfs_factory::create_vfs;
 use crate::watcher::FolderWatcher;
+use ocis_client::auth::TokenManager;
 use sync_db::SyncJournalDb;
 use sync_engine::engine::{EngineConfig, SyncEngine};
 use sync_engine::state::SyncState;
@@ -33,6 +34,7 @@ impl FolderManager {
     pub async fn init_sync(
         folder_configs: &[FolderConfig],
         account_configs: &[AccountConfig],
+        token_managers: &std::collections::HashMap<uuid::Uuid, Arc<TokenManager>>,
     ) -> Result<Self> {
         let mut folders = HashMap::new();
         let mut states: HashMap<Uuid, SyncState> = HashMap::new();
@@ -45,6 +47,25 @@ impl FolderManager {
             let account = account_configs
                 .iter()
                 .find(|a| a.folder.iter().any(|f| f.id == fc.id));
+
+            let account_id = match account {
+                Some(a) => a.id,
+                None => {
+                    tracing::warn!("no account found for folder {}; skipping", fc.id);
+                    continue;
+                }
+            };
+
+            let token_manager = match token_managers.get(&account_id) {
+                Some(tm) => Arc::clone(tm),
+                None => {
+                    tracing::warn!(
+                        "no token manager for account {account_id}; skipping folder {}",
+                        fc.id
+                    );
+                    continue;
+                }
+            };
 
             let root = Utf8PathBuf::from(&fc.local_path);
 
@@ -69,6 +90,7 @@ impl FolderManager {
                 conflict_strategy: ConflictStrategy::KeepBoth,
                 max_parallel_transfers: 4,
                 db,
+                token_manager,
             });
 
             let watcher = FolderWatcher::watch(root.as_std_path())?;
@@ -92,7 +114,12 @@ impl FolderManager {
     }
 
     /// Register a single new folder at runtime (called after `SetAccountFolder`).
-    pub async fn add_folder(&mut self, fc: &FolderConfig, account: &AccountConfig) -> Result<()> {
+    pub async fn add_folder(
+        &mut self,
+        fc: &FolderConfig,
+        account: &AccountConfig,
+        token_manager: Arc<TokenManager>,
+    ) -> Result<()> {
         let db_dir = platform_config_dir();
         std::fs::create_dir_all(&db_dir)
             .with_context(|| format!("create config dir {}", db_dir.display()))?;
@@ -118,6 +145,7 @@ impl FolderManager {
             conflict_strategy: ConflictStrategy::KeepBoth,
             max_parallel_transfers: 4,
             db,
+            token_manager,
         });
 
         let watcher = FolderWatcher::watch(root.as_std_path())?;
@@ -180,8 +208,12 @@ impl FolderManager {
 mod tests {
     use super::*;
     use crate::config::{AccountConfig, FolderConfig};
+    use ocis_client::auth::oidc::TokenSet;
+    use ocis_client::auth::{OidcAuth, TokenManager};
     use tempfile::tempdir;
     use uuid::Uuid;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn make_folder_config(local_path: &str) -> FolderConfig {
         FolderConfig {
@@ -206,6 +238,40 @@ mod tests {
         }
     }
 
+    async fn make_token_manager(account_id: Uuid) -> (MockServer, Arc<TokenManager>) {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/.well-known/openid-configuration"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(format!(
+                r#"{{
+                    "issuer": "{uri}",
+                    "authorization_endpoint": "{uri}/auth",
+                    "token_endpoint": "{uri}/token"
+                }}"#,
+                uri = server.uri()
+            )))
+            .mount(&server)
+            .await;
+
+        let oidc = OidcAuth::discover(
+            &server.uri(),
+            "test-client",
+            None,
+            "http://localhost:9999/callback",
+            false,
+        )
+        .await
+        .unwrap();
+
+        let token = TokenSet {
+            access_token: "test".into(),
+            refresh_token: None,
+            expires_at: i64::MAX,
+        };
+        let tm = Arc::new(TokenManager::new(oidc, token, account_id.to_string()));
+        (server, tm)
+    }
+
     #[tokio::test]
     async fn init_two_folders() {
         let dir1 = tempdir().unwrap();
@@ -216,7 +282,11 @@ mod tests {
 
         let account = make_account_config(vec![fc1.clone(), fc2.clone()]);
 
-        let fm = FolderManager::init_sync(&[fc1.clone(), fc2.clone()], &[account])
+        let (_server, tm) = make_token_manager(account.id).await;
+        let mut token_managers = std::collections::HashMap::new();
+        token_managers.insert(account.id, tm);
+
+        let fm = FolderManager::init_sync(&[fc1.clone(), fc2.clone()], &[account], &token_managers)
             .await
             .unwrap();
 

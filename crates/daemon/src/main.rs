@@ -19,13 +19,74 @@ mod watcher;
 
 use config::AppConfig;
 use folder_manager::FolderManager;
-use gui_ipc::handler::{handle_command, ShouldQuit};
+use gui_ipc::handler::{handle_command, HandleContext, ShouldQuit};
 use gui_ipc::protocol::{AccountSnapshot, DaemonCommand, DaemonEvent, FolderSnapshot};
 use gui_ipc::{GuiIpcServer, SnapshotProvider};
 use lock::{LockError, LockFile};
 use scheduler::SyncScheduler;
 use socket_api::server::SocketApiServer;
 use socket_api::transport::unix::UnixTransport;
+
+async fn build_token_managers(
+    config: &AppConfig,
+    insecure: bool,
+) -> std::collections::HashMap<uuid::Uuid, Arc<ocis_client::auth::TokenManager>> {
+    use ocis_client::auth::{KeychainStore, OidcAuth, TokenManager};
+
+    let mut map = std::collections::HashMap::new();
+    for account in &config.account {
+        let account_id_str = account.id.to_string();
+        let token_set = match tokio::task::spawn_blocking({
+            let id = account_id_str.clone();
+            move || KeychainStore::load(&id)
+        })
+        .await
+        {
+            Ok(Ok(Some(t))) => t,
+            Ok(Ok(None)) => {
+                tracing::warn!("no keychain entry for account {}; skipping", account.id);
+                continue;
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(
+                    "keychain load error for account {}: {e}; skipping",
+                    account.id
+                );
+                continue;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "keychain task panicked for account {}: {e}; skipping",
+                    account.id
+                );
+                continue;
+            }
+        };
+
+        let oidc = match OidcAuth::discover(
+            &account.url,
+            gui_ipc::handler::OCIS_CLIENT_ID,
+            Some(gui_ipc::handler::OCIS_CLIENT_SECRET.to_string()),
+            "http://localhost:9999/callback",
+            insecure,
+        )
+        .await
+        {
+            Ok(o) => o,
+            Err(e) => {
+                tracing::warn!(
+                    "OIDC re-discovery failed for account {}: {e}; skipping",
+                    account.id
+                );
+                continue;
+            }
+        };
+
+        let tm = Arc::new(TokenManager::new(oidc, token_set, account_id_str));
+        map.insert(account.id, tm);
+    }
+    map
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -58,13 +119,29 @@ async fn main() -> Result<()> {
 
     let poll_secs = initial_config.general.poll_interval_secs;
 
+    let insecure = initial_config.general.insecure;
+    let token_managers_map = build_token_managers(&initial_config, insecure).await;
+    info!(
+        "TokenManagers: {} account(s) have credentials",
+        token_managers_map.len()
+    );
+    let token_managers: Arc<
+        std::sync::RwLock<
+            std::collections::HashMap<uuid::Uuid, Arc<ocis_client::auth::TokenManager>>,
+        >,
+    > = Arc::new(std::sync::RwLock::new(token_managers_map));
+
     let all_folders: Vec<_> = initial_config
         .account
         .iter()
         .flat_map(|a| a.folder.clone())
         .collect();
+    let init_managers: std::collections::HashMap<_, _> = {
+        let guard = token_managers.read().unwrap();
+        guard.iter().map(|(k, v)| (*k, Arc::clone(v))).collect()
+    };
     let mut folder_manager =
-        FolderManager::init_sync(&all_folders, &initial_config.account).await?;
+        FolderManager::init_sync(&all_folders, &initial_config.account, &init_managers).await?;
     let config = Arc::new(Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
@@ -172,12 +249,15 @@ async fn main() -> Result<()> {
             Some(cmd) = cmd_rx.recv() => {
                 match handle_command(
                     cmd,
-                    Arc::clone(&scheduler),
-                    &mut folder_manager,
-                    &gui_ipc,
-                    Arc::clone(&config),
-                    config_path.clone(),
-                    Arc::clone(&live_folder_ids),
+                    &mut HandleContext {
+                        scheduler: Arc::clone(&scheduler),
+                        folder_manager: &mut folder_manager,
+                        ipc: Arc::clone(&gui_ipc),
+                        config: Arc::clone(&config),
+                        config_path: config_path.clone(),
+                        live_folder_ids: Arc::clone(&live_folder_ids),
+                        token_managers: Arc::clone(&token_managers),
+                    },
                 ).await {
                     Ok(ShouldQuit::Yes) => {
                         info!("Quit command received; shutting down");
