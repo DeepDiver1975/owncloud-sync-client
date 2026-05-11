@@ -138,7 +138,8 @@ impl SyncEngine {
                             local_dest: local_path.clone(),
                             expected_etag: None,
                         };
-                        match propagate_download(req).await {
+                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new();
+                        match propagate_download(req, &mut _task_http_events).await {
                             Ok(etag) => {
                                 // Record journal baseline after successful download.
                                 let size = tokio::fs::metadata(&local_path)
@@ -187,7 +188,8 @@ impl SyncEngine {
                             checksum: None,
                             tus_threshold: 5 * 1024 * 1024,
                         };
-                        match propagate_upload(req).await {
+                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new();
+                        match propagate_upload(req, &mut _task_http_events).await {
                             Ok(etag) => {
                                 // Record journal baseline after successful upload.
                                 let entry = JournalEntry {
@@ -240,7 +242,8 @@ impl SyncEngine {
                             local_dest: local_path.clone(),
                             expected_etag: None,
                         };
-                        match propagate_download(req).await {
+                        let mut _task_http_events: Vec<crate::report::HttpEvent> = Vec::new();
+                        match propagate_download(req, &mut _task_http_events).await {
                             Ok(etag) => {
                                 let size = tokio::fs::metadata(&local_path)
                                     .await

@@ -3,6 +3,7 @@ use tokio::io::AsyncWriteExt as _;
 use url::Url;
 
 use crate::error::{Result, SyncError};
+use crate::report::HttpEvent;
 
 pub struct DownloadRequest {
     pub remote_url: Url,
@@ -10,14 +11,13 @@ pub struct DownloadRequest {
     pub expected_etag: Option<String>,
 }
 
-/// Download `req.remote_url` to `req.local_dest`.
-///
-/// Streams into a `.tmp` sibling file and atomically renames on success.
-/// If `expected_etag` is set and does not match the server's ETag, the temp
-/// file is removed and an error is returned.
-pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
+pub async fn propagate_download(
+    req: DownloadRequest,
+    http_events: &mut Vec<HttpEvent>,
+) -> Result<String> {
     let client = ocis_client::build_http_client();
 
+    let t0 = tokio::time::Instant::now();
     let resp = client
         .get(req.remote_url.as_str())
         .send()
@@ -28,7 +28,21 @@ pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
         })?;
 
     let status = resp.status().as_u16();
+    let sanitised_url = {
+        let mut u = req.remote_url.clone();
+        u.set_query(None);
+        u.set_fragment(None);
+        u.to_string()
+    };
+
     if status != 200 {
+        http_events.push(HttpEvent {
+            method: "GET".to_string(),
+            url: sanitised_url,
+            status,
+            duration_ms: t0.elapsed().as_millis() as u64,
+            bytes: 0,
+        });
         return Err(SyncError::Http {
             status,
             message: format!("GET failed: {}", resp.status()),
@@ -57,12 +71,13 @@ pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
     }
 
     let tmp_path = req.local_dest.with_extension("tmp");
-    {
-        let bytes = resp.bytes().await.map_err(|e| SyncError::Http {
-            status: 0,
-            message: e.to_string(),
-        })?;
+    let bytes = resp.bytes().await.map_err(|e| SyncError::Http {
+        status: 0,
+        message: e.to_string(),
+    })?;
+    let byte_count = bytes.len() as u64;
 
+    {
         let mut file = tokio::fs::File::create(&tmp_path).await?;
         file.write_all(&bytes).await?;
         file.flush().await?;
@@ -73,6 +88,14 @@ pub async fn propagate_download(req: DownloadRequest) -> Result<String> {
         .inspect_err(|_e| {
             let _ = std::fs::remove_file(&tmp_path);
         })?;
+
+    http_events.push(HttpEvent {
+        method: "GET".to_string(),
+        url: sanitised_url,
+        status,
+        duration_ms: t0.elapsed().as_millis() as u64,
+        bytes: byte_count,
+    });
 
     Ok(server_etag)
 }
