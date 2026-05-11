@@ -26,6 +26,7 @@ use lock::{LockError, LockFile};
 use scheduler::SyncScheduler;
 use socket_api::server::SocketApiServer;
 use socket_api::transport::unix::UnixTransport;
+use sync_engine::SyncReport;
 
 async fn build_token_managers(
     config: &AppConfig,
@@ -302,7 +303,22 @@ async fn main() -> Result<()> {
                                 }
                                 Err(e) => {
                                     info!("run_sync error for folder {folder_id}: {e}");
-                                    (vec![e.to_string()], None)
+                                    let err_str = e.to_string();
+                                    let partial = SyncReport {
+                                        folder_id,
+                                        remote_entries: 0,
+                                        local_entries: 0,
+                                        downloads: 0,
+                                        uploads: 0,
+                                        conflicts: 0,
+                                        deletes_local: 0,
+                                        deletes_remote: 0,
+                                        ignored: 0,
+                                        errors: vec![err_str.clone()],
+                                        http_events: vec![],
+                                        duration_ms: 0,
+                                    };
+                                    (vec![err_str], Some(partial))
                                 }
                             };
                             sched.lock().await.finish_sync(folder_id);
