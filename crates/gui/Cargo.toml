@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 iced = { version = "0.13", features = ["tokio", "svg"] }
 tray-icon = { version = "0.19", optional = true }
+png = { version = "0.17", optional = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
 uuid = { workspace = true }
@@ -28,7 +29,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = ["tray-icon"]
-tray-icon = ["dep:tray-icon"]
+tray-icon = ["dep:tray-icon", "dep:png"]
 test-accessibility = ["dep:accesskit", "dep:accesskit_unix"]
 
 [build-dependencies]
