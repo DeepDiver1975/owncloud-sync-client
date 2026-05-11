@@ -27,4 +27,11 @@ accesskit_unix = { version = "0.21", optional = true, default-features = false, 
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [features]
+default = ["tray-icon"]
+tray-icon = ["dep:tray-icon"]
 test-accessibility = ["dep:accesskit", "dep:accesskit_unix"]
+
+[build-dependencies]
+resvg = "0.42"
+tiny-skia = "0.11"
+png = "0.17"
