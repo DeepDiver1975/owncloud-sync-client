@@ -14,7 +14,10 @@ fn main() {
     let mut pixmap = tiny_skia::Pixmap::new(size, size)
         .expect("failed to allocate pixmap");
 
-    let scale = size as f32 / tree.size().width();
+    let scale = f32::min(
+        size as f32 / tree.size().width(),
+        size as f32 / tree.size().height(),
+    );
     let transform = tiny_skia::Transform::from_scale(scale, scale);
     resvg::render(&tree, transform, &mut pixmap.as_mut());
 
