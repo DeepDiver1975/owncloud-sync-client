@@ -139,7 +139,7 @@ impl SyncEngine {
             .count();
 
         // Phase 3: Propagate — each task owns its Vec<HttpEvent> and returns it.
-        let mut join_set: JoinSet<Result<Vec<HttpEvent>>> = JoinSet::new();
+        let mut join_set: JoinSet<(Vec<HttpEvent>, Result<()>)> = JoinSet::new();
         let semaphore = Arc::new(tokio::sync::Semaphore::new(self.cfg.max_parallel_transfers));
 
         for (rel_path, instruction, rem_entry) in instructions {
@@ -169,7 +169,8 @@ impl SyncEngine {
                             local_dest: local_path.clone(),
                             expected_etag: None,
                         };
-                        match propagate_download(req, &mut task_http).await {
+                        let result = propagate_download(req, &mut task_http).await;
+                        match result {
                             Ok(etag) => {
                                 let size = tokio::fs::metadata(&local_path)
                                     .await
@@ -188,12 +189,12 @@ impl SyncEngine {
                                 let _ = db.upsert_entry(&entry).await;
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
-                                Ok(task_http)
+                                (task_http, Ok(()))
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
-                                Err(e)
+                                (task_http, Err(e))
                             }
                         }
                     });
@@ -218,7 +219,8 @@ impl SyncEngine {
                             checksum: None,
                             tus_threshold: 5 * 1024 * 1024,
                         };
-                        match propagate_upload(req, &mut task_http).await {
+                        let result = propagate_upload(req, &mut task_http).await;
+                        match result {
                             Ok(etag) => {
                                 let entry = JournalEntry {
                                     path: rel_clone.to_string(),
@@ -233,12 +235,12 @@ impl SyncEngine {
                                 let _ = db.upsert_entry(&entry).await;
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
-                                Ok(task_http)
+                                (task_http, Ok(()))
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
-                                Err(e)
+                                (task_http, Err(e))
                             }
                         }
                     });
@@ -259,14 +261,15 @@ impl SyncEngine {
                                 rel_clone,
                                 FileStatus::Error(format!("conflict rename: {e}")),
                             );
-                            return Err(SyncError::Io(e));
+                            return (task_http, Err(SyncError::Io(e)));
                         }
                         let req = DownloadRequest {
                             remote_url,
                             local_dest: local_path.clone(),
                             expected_etag: None,
                         };
-                        match propagate_download(req, &mut task_http).await {
+                        let result = propagate_download(req, &mut task_http).await;
+                        match result {
                             Ok(etag) => {
                                 let size = tokio::fs::metadata(&local_path)
                                     .await
@@ -285,17 +288,23 @@ impl SyncEngine {
                                 let _ = db.upsert_entry(&entry).await;
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
-                                Ok(task_http)
+                                (task_http, Ok(()))
                             }
                             Err(e) => {
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
-                                Err(e)
+                                (task_http, Err(e))
                             }
                         }
                     });
                 }
 
+                SyncInstruction::DeleteLocal => {
+                    tracing::warn!("DeleteLocal not yet implemented for path {:?}", rel_path);
+                }
+                SyncInstruction::DeleteRemote => {
+                    tracing::warn!("DeleteRemote not yet implemented for path {:?}", rel_path);
+                }
                 _ => {}
             }
         }
@@ -304,10 +313,11 @@ impl SyncEngine {
         let mut error_messages: Vec<String> = Vec::new();
         while let Some(res) = join_set.join_next().await {
             match res {
-                Ok(Ok(task_http)) => {
+                Ok((task_http, Ok(()))) => {
                     http_events.extend(task_http);
                 }
-                Ok(Err(e)) => {
+                Ok((task_http, Err(e))) => {
+                    http_events.extend(task_http);
                     tracing::warn!("Transfer error: {e}");
                     error_messages.push(e.to_string());
                     had_error = true;
