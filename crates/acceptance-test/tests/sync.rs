@@ -215,10 +215,10 @@ async fn test_initial_sync_empty_remote() {
     if skip_if_no_acceptance() {
         return;
     }
-    let (_env, report) = env_after_initial_sync().await;
+    let (env, report) = env_after_initial_sync().await;
     assert_eq!(report.remote_entries, 0, "expected no remote files");
     assert_eq!(report.downloads, 0, "expected no downloads");
-    let local_files: Vec<_> = std::fs::read_dir(_env.sync_dir.path())
+    let local_files: Vec<_> = std::fs::read_dir(env.sync_dir.path())
         .expect("read sync dir")
         .filter_map(|e| e.ok())
         .collect();
