@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use daemon::config::{AccountConfig, AppConfig, GeneralConfig};
 use daemon::folder_manager::FolderManager;
-use daemon::gui_ipc::handler::handle_command;
+use daemon::gui_ipc::handler::{handle_command, HandleContext};
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use daemon::gui_ipc::GuiIpcServer;
 use daemon::scheduler::SyncScheduler;
@@ -30,15 +30,17 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
             account_id: unknown_account_id,
             local_path: "/tmp".to_string(),
         },
-        Arc::clone(&scheduler),
-        &mut fm,
-        &ipc,
-        config,
-        file.path().to_path_buf(),
-        Arc::new(std::sync::RwLock::new(vec![])),
-        Arc::new(std::sync::RwLock::new(
-            HashMap::<Uuid, Arc<TokenManager>>::new(),
-        )),
+        &mut HandleContext {
+            scheduler: Arc::clone(&scheduler),
+            folder_manager: &mut fm,
+            ipc,
+            config,
+            config_path: file.path().to_path_buf(),
+            live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+            token_managers: Arc::new(std::sync::RwLock::new(
+                HashMap::<Uuid, Arc<TokenManager>>::new(),
+            )),
+        },
     )
     .await
     .unwrap();
@@ -86,15 +88,17 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
             account_id,
             local_path: nonexistent_path.to_string(),
         },
-        Arc::clone(&scheduler),
-        &mut fm,
-        &ipc,
-        config,
-        file.path().to_path_buf(),
-        Arc::new(std::sync::RwLock::new(vec![])),
-        Arc::new(std::sync::RwLock::new(
-            HashMap::<Uuid, Arc<TokenManager>>::new(),
-        )),
+        &mut HandleContext {
+            scheduler: Arc::clone(&scheduler),
+            folder_manager: &mut fm,
+            ipc,
+            config,
+            config_path: file.path().to_path_buf(),
+            live_folder_ids: Arc::new(std::sync::RwLock::new(vec![])),
+            token_managers: Arc::new(std::sync::RwLock::new(
+                HashMap::<Uuid, Arc<TokenManager>>::new(),
+            )),
+        },
     )
     .await
     .unwrap();

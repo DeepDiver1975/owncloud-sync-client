@@ -19,7 +19,7 @@ mod watcher;
 
 use config::AppConfig;
 use folder_manager::FolderManager;
-use gui_ipc::handler::{handle_command, ShouldQuit};
+use gui_ipc::handler::{handle_command, HandleContext, ShouldQuit};
 use gui_ipc::protocol::{AccountSnapshot, DaemonCommand, DaemonEvent, FolderSnapshot};
 use gui_ipc::{GuiIpcServer, SnapshotProvider};
 use lock::{LockError, LockFile};
@@ -136,10 +136,12 @@ async fn main() -> Result<()> {
         .iter()
         .flat_map(|a| a.folder.clone())
         .collect();
-    let guard = token_managers.read().unwrap();
+    let init_managers: std::collections::HashMap<_, _> = {
+        let guard = token_managers.read().unwrap();
+        guard.iter().map(|(k, v)| (*k, Arc::clone(v))).collect()
+    };
     let mut folder_manager =
-        FolderManager::init_sync(&all_folders, &initial_config.account, &*guard).await?;
-    drop(guard);
+        FolderManager::init_sync(&all_folders, &initial_config.account, &init_managers).await?;
     let config = Arc::new(Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
@@ -247,13 +249,15 @@ async fn main() -> Result<()> {
             Some(cmd) = cmd_rx.recv() => {
                 match handle_command(
                     cmd,
-                    Arc::clone(&scheduler),
-                    &mut folder_manager,
-                    &gui_ipc,
-                    Arc::clone(&config),
-                    config_path.clone(),
-                    Arc::clone(&live_folder_ids),
-                    Arc::clone(&token_managers),
+                    &mut HandleContext {
+                        scheduler: Arc::clone(&scheduler),
+                        folder_manager: &mut folder_manager,
+                        ipc: Arc::clone(&gui_ipc),
+                        config: Arc::clone(&config),
+                        config_path: config_path.clone(),
+                        live_folder_ids: Arc::clone(&live_folder_ids),
+                        token_managers: Arc::clone(&token_managers),
+                    },
                 ).await {
                     Ok(ShouldQuit::Yes) => {
                         info!("Quit command received; shutting down");
