@@ -136,3 +136,109 @@ async fn discover_remote_records_http_events() {
     assert_eq!(http_events[0].status, 207);
     assert!(http_events[0].duration_ms < 5000);
 }
+
+#[tokio::test]
+async fn discovers_collections_as_dir_entries() {
+    let server = MockServer::start().await;
+
+    // Root request returns root + photos/ collection + img.jpg file
+    let root_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:" xmlns:OC="http://owncloud.org/ns">
+  <D:response>
+    <D:href>/dav/spaces/space1/</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype><D:collection/></D:resourcetype>
+        <D:getcontentlength>0</D:getcontentlength>
+        <D:getetag>"rootetag"</D:getetag>
+        <OC:fileid>root-id</OC:fileid>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/spaces/space1/photos/</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype><D:collection/></D:resourcetype>
+        <D:getcontentlength>0</D:getcontentlength>
+        <D:getetag>"photosetag"</D:getetag>
+        <OC:fileid>photos-id</OC:fileid>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/spaces/space1/photos/img.jpg</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype/>
+        <D:getcontentlength>1234</D:getcontentlength>
+        <D:getetag>"imgetag"</D:getetag>
+        <OC:fileid>img-id</OC:fileid>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"#;
+
+    // Recursive request for photos/ returns just itself and img.jpg
+    let photos_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:" xmlns:OC="http://owncloud.org/ns">
+  <D:response>
+    <D:href>/dav/spaces/space1/photos/</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype><D:collection/></D:resourcetype>
+        <D:getcontentlength>0</D:getcontentlength>
+        <D:getetag>"photosetag"</D:getetag>
+        <OC:fileid>photos-id</OC:fileid>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/spaces/space1/photos/img.jpg</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:resourcetype/>
+        <D:getcontentlength>1234</D:getcontentlength>
+        <D:getetag>"imgetag"</D:getetag>
+        <OC:fileid>img-id</OC:fileid>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"#;
+
+    Mock::given(method("PROPFIND"))
+        .and(path_regex(r"^/dav/spaces/space1/$"))
+        .and(header("Authorization", "Bearer test-token"))
+        .respond_with(ResponseTemplate::new(207).set_body_string(root_xml))
+        .mount(&server)
+        .await;
+
+    Mock::given(method("PROPFIND"))
+        .and(path_regex(r"^/dav/spaces/space1/photos/"))
+        .and(header("Authorization", "Bearer test-token"))
+        .respond_with(ResponseTemplate::new(207).set_body_string(photos_xml))
+        .mount(&server)
+        .await;
+
+    let base = Url::parse(&format!("{}/dav/spaces/space1/", server.uri())).unwrap();
+    let entries = discover_remote(&base, "test-token", &mut vec![])
+        .await
+        .unwrap();
+
+    let dir_entries: Vec<_> = entries.iter().filter(|e| e.is_dir).collect();
+    assert_eq!(dir_entries.len(), 1, "expected one dir entry (photos/)");
+    assert_eq!(
+        dir_entries[0].path.as_str(),
+        "photos",
+        "dir path should be 'photos'"
+    );
+
+    let file_entries: Vec<_> = entries.iter().filter(|e| !e.is_dir).collect();
+    assert_eq!(file_entries.len(), 1, "expected one file entry (img.jpg)");
+    assert_eq!(file_entries[0].path.file_name(), Some("img.jpg"));
+}

@@ -32,10 +32,11 @@ pub async fn delete_remote(url: &Url) -> Result<()> {
 }
 
 /// Send a WebDAV MKCOL for `url`.
-pub async fn mkdir_remote(url: &Url) -> Result<()> {
+pub async fn mkdir_remote(url: Url, bearer_token: &str) -> Result<()> {
     let client = ocis_client::build_http_client();
     let resp = client
         .request(reqwest::Method::from_bytes(b"MKCOL").unwrap(), url.as_str())
+        .bearer_auth(bearer_token)
         .send()
         .await
         .map_err(|e| SyncError::Http {
@@ -44,14 +45,14 @@ pub async fn mkdir_remote(url: &Url) -> Result<()> {
         })?;
 
     let status = resp.status().as_u16();
-    if status != 201 && status != 200 && status != 405 {
-        // 405 = already exists, which is fine.
-        return Err(SyncError::Http {
+    if matches!(status, 201 | 200 | 405) {
+        Ok(())
+    } else {
+        Err(SyncError::Http {
             status,
-            message: format!("MKCOL failed: {}", resp.status()),
-        });
+            message: "MKCOL failed".into(),
+        })
     }
-    Ok(())
 }
 
 /// Send a WebDAV MOVE from `from_url` to `to_url`.

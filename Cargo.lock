@@ -31,6 +31,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sync-engine",
  "tempfile",
  "tokio",
  "tracing",

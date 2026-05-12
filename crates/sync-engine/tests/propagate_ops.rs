@@ -31,7 +31,7 @@ async fn mkdir_remote_sends_mkcol() {
         .await;
 
     let url = Url::parse(&format!("{}/dav/spaces/space1/newdir/", server.uri())).unwrap();
-    mkdir_remote(&url).await.unwrap();
+    mkdir_remote(url, "test-token").await.unwrap();
     server.verify().await;
 }
 

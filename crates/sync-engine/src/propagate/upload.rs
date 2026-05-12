@@ -7,6 +7,7 @@ use crate::report::HttpEvent;
 pub struct UploadRequest {
     pub local_path: Utf8PathBuf,
     pub remote_url: Url,
+    pub space_root: Url,
     pub size: u64,
     pub checksum: Option<String>,
     pub tus_threshold: u64,
@@ -24,17 +25,48 @@ pub async fn propagate_upload(
     }
 }
 
+async fn ensure_parent_collections(
+    remote_url: &Url,
+    space_root: &Url,
+    bearer_token: &str,
+) -> Result<()> {
+    use crate::propagate::ops::mkdir_remote;
+
+    let root_path = space_root.path().trim_end_matches('/');
+    let file_path = remote_url.path();
+
+    // Strip the root prefix to get the relative path (e.g. "photos/img.jpg")
+    let rel = file_path
+        .strip_prefix(root_path)
+        .unwrap_or(file_path)
+        .trim_start_matches('/');
+
+    // Collect ancestor segments (e.g. for "a/b/c.txt" → ["a", "a/b"])
+    let parts: Vec<&str> = rel.split('/').collect();
+    // All but the last segment are directory components
+    for i in 1..parts.len() {
+        let ancestor_rel = parts[..i].join("/");
+        let mut ancestor_url = space_root
+            .join(&ancestor_rel)
+            .map_err(|e| SyncError::Parse(e.to_string()))?;
+        if !ancestor_url.path().ends_with('/') {
+            ancestor_url.set_path(&format!("{}/", ancestor_url.path()));
+        }
+        mkdir_remote(ancestor_url, bearer_token).await?;
+    }
+    Ok(())
+}
+
 async fn upload_put(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Result<String> {
     let bytes = tokio::fs::read(&req.local_path).await?;
     let client = ocis_client::build_http_client();
-
     let sanitised_url = crate::report::sanitise_url(&req.remote_url);
 
     let mut builder = client
         .put(req.remote_url.as_str())
         .bearer_auth(&req.bearer_token)
         .header("Content-Length", req.size.to_string())
-        .body(bytes);
+        .body(bytes.clone());
 
     if let Some(ref cs) = req.checksum {
         builder = builder.header("OC-Checksum", format!("SHA256:{cs}"));
@@ -49,16 +81,62 @@ async fn upload_put(req: UploadRequest, http_events: &mut Vec<HttpEvent>) -> Res
     let status = resp.status().as_u16();
     http_events.push(HttpEvent {
         method: "PUT".to_string(),
-        url: sanitised_url,
+        url: sanitised_url.clone(),
         status,
         duration_ms: t0.elapsed().as_millis() as u64,
         bytes: req.size,
     });
 
+    if status == 409 {
+        // Parent collection missing — create ancestors and retry
+        ensure_parent_collections(&req.remote_url, &req.space_root, &req.bearer_token).await?;
+
+        let mut retry_builder = client
+            .put(req.remote_url.as_str())
+            .bearer_auth(&req.bearer_token)
+            .header("Content-Length", req.size.to_string())
+            .body(bytes);
+
+        if let Some(ref cs) = req.checksum {
+            retry_builder = retry_builder.header("OC-Checksum", format!("SHA256:{cs}"));
+        }
+
+        let t1 = tokio::time::Instant::now();
+        let retry_resp = retry_builder.send().await.map_err(|e| SyncError::Http {
+            status: 0,
+            message: e.to_string(),
+        })?;
+
+        let retry_status = retry_resp.status().as_u16();
+        http_events.push(HttpEvent {
+            method: "PUT".to_string(),
+            url: sanitised_url,
+            status: retry_status,
+            duration_ms: t1.elapsed().as_millis() as u64,
+            bytes: req.size,
+        });
+
+        if retry_status != 200 && retry_status != 201 && retry_status != 204 {
+            return Err(SyncError::Http {
+                status: retry_status,
+                message: format!("PUT retry failed: {retry_status}"),
+            });
+        }
+
+        let etag = retry_resp
+            .headers()
+            .get("etag")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        return Ok(etag);
+    }
+
     if status != 200 && status != 201 && status != 204 {
         return Err(SyncError::Http {
             status,
-            message: format!("PUT failed: {}", resp.status()),
+            message: format!("PUT failed: {}", status),
         });
     }
 

@@ -10,6 +10,7 @@ fn local_entry_fields() {
         size: 100,
         inode: 42,
         is_virtual: false,
+        is_dir: false,
     };
     assert_eq!(e.size, 100);
     assert!(!e.is_virtual);
@@ -24,6 +25,7 @@ fn remote_entry_fields() {
         size: 200,
         file_id: "file-uuid".into(),
         permissions: 0o644,
+        is_dir: false,
     };
     assert_eq!(e.etag, "abc123");
 }

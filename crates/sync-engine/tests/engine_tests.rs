@@ -199,3 +199,66 @@ async fn engine_uploads_new_local_file() {
 
     server.verify().await;
 }
+
+#[tokio::test]
+async fn engine_creates_remote_dir_on_upload() {
+    let dir = TempDir::new().unwrap();
+    let local_root = Utf8Path::from_path(dir.path()).unwrap();
+
+    // Create a local subdirectory
+    std::fs::create_dir(dir.path().join("photos")).unwrap();
+
+    let server = MockServer::start().await;
+
+    // PROPFIND returns empty space root (no remote entries)
+    let empty_propfind = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/dav/spaces/testspace/</D:href>
+    <D:propstat>
+      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"#;
+
+    Mock::given(method("PROPFIND"))
+        .respond_with(ResponseTemplate::new(207).set_body_string(empty_propfind))
+        .mount(&server)
+        .await;
+
+    // MKCOL for photos/ returns 201
+    Mock::given(method("MKCOL"))
+        .and(path("/dav/spaces/testspace/photos"))
+        .respond_with(ResponseTemplate::new(201))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let space_root = Url::parse(&format!("{}/dav/spaces/testspace/", server.uri())).unwrap();
+    let db_file = tempfile::NamedTempFile::new().unwrap();
+    let db = SyncJournalDb::open(db_file.path()).await.unwrap();
+    let token_manager = stub_token_manager(&server).await;
+
+    let cfg = EngineConfig {
+        folder_id: Uuid::new_v4(),
+        local_root: local_root.to_owned(),
+        space_root,
+        conflict_strategy: ConflictStrategy::KeepBoth,
+        max_parallel_transfers: 2,
+        db,
+        token_manager,
+    };
+
+    let engine = SyncEngine::new(cfg);
+    let report = engine.run_sync().await.unwrap();
+
+    assert_eq!(report.uploads, 1, "expected 1 upload (the photos dir)");
+    assert!(
+        report.errors.is_empty(),
+        "expected no errors: {:?}",
+        report.errors
+    );
+
+    server.verify().await;
+}

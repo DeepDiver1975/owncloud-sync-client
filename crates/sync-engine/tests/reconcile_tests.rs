@@ -19,6 +19,7 @@ fn local(size: u64, mtime: SystemTime) -> LocalEntry {
         size,
         inode: 1,
         is_virtual: false,
+        is_dir: false,
     }
 }
 
@@ -30,6 +31,7 @@ fn remote(size: u64, etag: &str, mtime: SystemTime) -> RemoteEntry {
         size,
         file_id: "fid".into(),
         permissions: 0,
+        is_dir: false,
     }
 }
 
@@ -163,4 +165,61 @@ fn both_present_no_journal_conflict() {
         ConflictStrategy::KeepBoth,
     );
     assert_eq!(instr, SyncInstruction::Conflict);
+}
+
+fn local_dir(name: &str) -> LocalEntry {
+    LocalEntry {
+        path: Utf8PathBuf::from(name),
+        mtime: t(1),
+        size: 0,
+        inode: 2,
+        is_virtual: false,
+        is_dir: true,
+    }
+}
+
+fn remote_dir(name: &str, etag: &str) -> RemoteEntry {
+    RemoteEntry {
+        path: Utf8PathBuf::from(name),
+        etag: etag.into(),
+        mtime: t(1),
+        size: 0,
+        file_id: "did".into(),
+        permissions: 0,
+        is_dir: true,
+    }
+}
+
+#[test]
+fn new_local_dir_yields_upload() {
+    let instr = reconcile(
+        Some(local_dir("subdir")),
+        None,
+        None,
+        ConflictStrategy::KeepBoth,
+    );
+    assert_eq!(instr, SyncInstruction::Upload);
+}
+
+#[test]
+fn new_remote_dir_yields_download() {
+    let instr = reconcile(
+        None,
+        Some(remote_dir("subdir", "etag-dir")),
+        None,
+        ConflictStrategy::KeepBoth,
+    );
+    assert_eq!(instr, SyncInstruction::Download);
+}
+
+#[test]
+fn synced_dir_yields_ignore() {
+    // Both sides have the directory with matching etag; journal records it as synced.
+    let instr = reconcile(
+        Some(local_dir("subdir")),
+        Some(remote_dir("subdir", "etag-dir")),
+        Some(journal("etag-dir", 0)),
+        ConflictStrategy::KeepBoth,
+    );
+    assert_eq!(instr, SyncInstruction::Ignore);
 }

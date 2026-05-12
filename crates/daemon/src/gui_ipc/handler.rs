@@ -34,6 +34,7 @@ pub struct HandleContext<'a> {
     pub config_path: PathBuf,
     pub live_folder_ids: Arc<std::sync::RwLock<Vec<Uuid>>>,
     pub token_managers: Arc<std::sync::RwLock<std::collections::HashMap<Uuid, Arc<TokenManager>>>>,
+    pub watcher_tx: tokio::sync::mpsc::Sender<(Uuid, notify::Event)>,
 }
 
 pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> Result<ShouldQuit> {
@@ -45,6 +46,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
         config_path,
         live_folder_ids,
         token_managers,
+        watcher_tx,
     } = ctx;
     match cmd {
         DaemonCommand::Subscribe => {}
@@ -335,6 +337,15 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                         sched.request_sync(folder_id);
                     }
                     live_folder_ids.write().unwrap().push(folder_id);
+                    if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
+                        let tx = watcher_tx.clone();
+                        let fid = folder_id;
+                        tokio::spawn(async move {
+                            while let Some(event) = watcher.next_event().await {
+                                let _ = tx.send((fid, event)).await;
+                            }
+                        });
+                    }
                 }
             }
 
@@ -396,6 +407,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let mut fm = FolderManager::empty();
 
+        let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
         let result = handle_command(
             DaemonCommand::TriggerSync { folder_id },
             &mut HandleContext {
@@ -409,6 +421,7 @@ mod tests {
                     Uuid,
                     Arc<TokenManager>,
                 >::new())),
+                watcher_tx,
             },
         )
         .await
@@ -429,6 +442,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let mut fm = FolderManager::empty();
 
+        let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
             &mut HandleContext {
@@ -442,6 +456,7 @@ mod tests {
                     Uuid,
                     Arc<TokenManager>,
                 >::new())),
+                watcher_tx,
             },
         )
         .await
@@ -464,6 +479,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let mut fm = FolderManager::empty();
 
+        let (watcher_tx1, _watcher_rx1) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
         handle_command(
             DaemonCommand::PauseFolder { folder_id },
             &mut HandleContext {
@@ -477,10 +493,12 @@ mod tests {
                     Uuid,
                     Arc<TokenManager>,
                 >::new())),
+                watcher_tx: watcher_tx1,
             },
         )
         .await
         .unwrap();
+        let (watcher_tx2, _watcher_rx2) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
         handle_command(
             DaemonCommand::ResumeFolder { folder_id },
             &mut HandleContext {
@@ -494,6 +512,7 @@ mod tests {
                     Uuid,
                     Arc<TokenManager>,
                 >::new())),
+                watcher_tx: watcher_tx2,
             },
         )
         .await
@@ -514,6 +533,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let mut fm = FolderManager::empty();
 
+        let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
         let result = handle_command(
             DaemonCommand::Quit,
             &mut HandleContext {
@@ -527,6 +547,7 @@ mod tests {
                     Uuid,
                     Arc<TokenManager>,
                 >::new())),
+                watcher_tx,
             },
         )
         .await
@@ -562,6 +583,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let mut fm = FolderManager::empty();
 
+        let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
         // OIDC discovery against a non-existent server must broadcast AccountAddFailed.
         let result = handle_command(
             DaemonCommand::AddAccount {
@@ -578,6 +600,7 @@ mod tests {
                     Uuid,
                     Arc<TokenManager>,
                 >::new())),
+                watcher_tx,
             },
         )
         .await
