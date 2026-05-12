@@ -287,6 +287,7 @@ impl SyncEngine {
 
                 SyncInstruction::Upload => {
                     let bearer_token_ul = bearer_token.clone();
+                    let space_root_ul = self.cfg.space_root.clone();
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
                         let mut task_http: Vec<HttpEvent> = Vec::new();
@@ -301,6 +302,7 @@ impl SyncEngine {
                         let req = UploadRequest {
                             local_path: local_path.clone(),
                             remote_url,
+                            space_root: space_root_ul,
                             size,
                             checksum: None,
                             tus_threshold: 5 * 1024 * 1024,
