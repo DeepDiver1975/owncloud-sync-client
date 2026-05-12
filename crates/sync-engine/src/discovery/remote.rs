@@ -18,6 +18,9 @@ pub async fn discover_remote(
     let client = ocis_client::build_http_client();
     let mut result = Vec::new();
     let mut queue = VecDeque::from([space_root.clone()]);
+    let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+    visited.insert(space_root.path().to_string());
+    let mut seen_entries: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     while let Some(url) = queue.pop_front() {
         let body = r#"<?xml version="1.0" encoding="utf-8"?>
@@ -79,15 +82,28 @@ pub async fn discover_remote(
             bytes: text.len() as u64,
         });
 
-        let (files, dirs) = parse_propfind(&text, space_root)?;
-        result.extend(files);
-        queue.extend(dirs);
+        let (files, dirs) = parse_propfind(&text, space_root, &url)?;
+        for entry in files {
+            if seen_entries.insert(entry.path.as_str().to_string()) {
+                result.push(entry);
+            }
+        }
+        for dir_url in dirs {
+            let path_key = dir_url.path().trim_end_matches('/').to_string();
+            if visited.insert(path_key) {
+                queue.push_back(dir_url);
+            }
+        }
     }
 
     Ok(result)
 }
 
-fn parse_propfind(xml: &str, space_root: &Url) -> Result<(Vec<RemoteEntry>, Vec<Url>)> {
+fn parse_propfind(
+    xml: &str,
+    space_root: &Url,
+    current_url: &Url,
+) -> Result<(Vec<RemoteEntry>, Vec<Url>)> {
     use quick_xml::events::Event;
     use quick_xml::reader::Reader;
 
@@ -169,12 +185,16 @@ fn parse_propfind(xml: &str, space_root: &Url) -> Result<(Vec<RemoteEntry>, Vec<
                     }
 
                     let root_path = space_root.path().trim_end_matches('/');
+                    let current_path = current_url.path().trim_end_matches('/');
                     let rel = href
                         .strip_prefix(root_path)
                         .unwrap_or(&href)
                         .trim_start_matches('/');
 
-                    if rel.is_empty() || href.trim_end_matches('/') == root_path {
+                    if rel.is_empty()
+                        || href.trim_end_matches('/') == root_path
+                        || href.trim_end_matches('/') == current_path
+                    {
                         continue;
                     }
 
