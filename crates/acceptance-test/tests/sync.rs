@@ -3,6 +3,7 @@ use std::time::Duration;
 use acceptance_test::{fixture::TestEnvironment, poll::poll_until};
 use daemon::gui_ipc::protocol::DaemonEvent;
 use sync_engine::SyncReport;
+use uuid::Uuid;
 
 fn skip_if_no_acceptance() -> bool {
     if std::env::var("OCIS_ACCEPTANCE").is_err() {
@@ -306,14 +307,14 @@ async fn test_upload_new_directory() {
     }
     let (env, _) = env_after_initial_sync().await;
 
-    // Use a name that does not collide with oCIS default space contents
-    let local_dir = env.sync_dir.path().join("test-new-dir-upload");
+    let dir_name = format!("test-new-dir-{}", Uuid::new_v4().simple());
+    let local_dir = env.sync_dir.path().join(&dir_name);
     std::fs::create_dir(&local_dir).expect("create local dir");
 
     poll_until(
         || async {
             env.ocis_client
-                .collection_exists("test-new-dir-upload")
+                .collection_exists(&dir_name)
                 .await
                 .unwrap_or(false)
         },
@@ -321,7 +322,7 @@ async fn test_upload_new_directory() {
         Duration::from_secs(1),
     )
     .await
-    .expect("test-new-dir-upload/ did not appear on remote within 30s");
+    .expect("new directory did not appear on remote within 30s");
 }
 
 #[tokio::test]
@@ -331,29 +332,21 @@ async fn test_upload_file_in_new_subdirectory() {
     }
     let (env, _) = env_after_initial_sync().await;
 
-    // Use a name that does not collide with oCIS default space contents
-    let local_dir = env.sync_dir.path().join("test-subdir-upload");
+    let dir_name = format!("test-subdir-{}", Uuid::new_v4().simple());
+    let local_dir = env.sync_dir.path().join(&dir_name);
     std::fs::create_dir(&local_dir).expect("create subdir");
     std::fs::write(local_dir.join("readme.txt"), b"hello docs").expect("write readme");
 
+    let file_path = format!("{dir_name}/readme.txt");
     poll_until(
-        || async {
-            env.ocis_client
-                .exists("test-subdir-upload/readme.txt")
-                .await
-                .unwrap_or(false)
-        },
+        || async { env.ocis_client.exists(&file_path).await.unwrap_or(false) },
         Duration::from_secs(30),
         Duration::from_secs(1),
     )
     .await
-    .expect("test-subdir-upload/readme.txt did not appear on remote");
+    .expect("readme.txt did not appear on remote");
 
-    let content = env
-        .ocis_client
-        .get("test-subdir-upload/readme.txt")
-        .await
-        .expect("get content");
+    let content = env.ocis_client.get(&file_path).await.expect("get content");
     assert_eq!(content.as_ref(), b"hello docs");
 }
 
