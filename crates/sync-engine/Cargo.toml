@@ -16,6 +16,7 @@ camino = { workspace = true }
 reqwest = { workspace = true }
 quick-xml = { workspace = true }
 url = { workspace = true }
+percent-encoding = "2"
 # async trait
 async-trait = { workspace = true }
 # local crates
