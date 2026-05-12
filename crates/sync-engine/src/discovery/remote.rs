@@ -1,4 +1,5 @@
 use camino::Utf8PathBuf;
+use percent_encoding::percent_decode_str;
 use std::collections::{HashSet, VecDeque};
 use std::time::SystemTime;
 use url::Url;
@@ -6,6 +7,11 @@ use url::Url;
 use crate::error::{Result, SyncError};
 use crate::report::HttpEvent;
 use crate::types::RemoteEntry;
+
+fn decode_href_path(s: &str) -> String {
+    // TODO: add NFC/NFD Unicode normalization here per platform (macOS NFD vs Windows/Linux NFC)
+    percent_decode_str(s).decode_utf8_lossy().into_owned()
+}
 
 /// Fetch all remote entries under `space_root` using Depth:1 PROPFIND,
 /// recursing into collections breadth-first. Appends one `HttpEvent` per
@@ -186,10 +192,12 @@ fn parse_propfind(
 
                     let root_path = space_root.path().trim_end_matches('/');
                     let current_path = current_url.path().trim_end_matches('/');
-                    let rel = href
+                    let rel_encoded = href
                         .strip_prefix(root_path)
                         .unwrap_or(&href)
                         .trim_start_matches('/');
+                    let rel = decode_href_path(rel_encoded);
+                    let rel = rel.as_str();
 
                     if rel.is_empty()
                         || href.trim_end_matches('/') == root_path
