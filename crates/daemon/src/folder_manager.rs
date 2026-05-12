@@ -20,7 +20,7 @@ pub struct ManagedFolder {
     pub config: FolderConfig,
     pub engine: Arc<SyncEngine>,
     pub vfs: Arc<dyn Vfs>,
-    pub watcher: FolderWatcher,
+    pub watcher: Option<FolderWatcher>,
 }
 
 pub struct FolderManager {
@@ -102,7 +102,7 @@ impl FolderManager {
                     config: fc.clone(),
                     engine: Arc::new(engine),
                     vfs,
-                    watcher,
+                    watcher: Some(watcher),
                 },
             );
         }
@@ -161,11 +161,16 @@ impl FolderManager {
                 config: fc.clone(),
                 engine: Arc::new(engine),
                 vfs,
-                watcher,
+                watcher: Some(watcher),
             },
         );
 
         Ok(())
+    }
+
+    /// Take the watcher out of a managed folder (consuming it for use in a forwarding task).
+    pub fn take_watcher(&mut self, folder_id: Uuid) -> Option<FolderWatcher> {
+        self.folders.get_mut(&folder_id)?.watcher.take()
     }
 
     pub fn empty() -> Self {

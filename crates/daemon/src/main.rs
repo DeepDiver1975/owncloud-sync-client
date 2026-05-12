@@ -146,6 +146,22 @@ async fn main() -> Result<()> {
     let config = Arc::new(Mutex::new(initial_config));
     info!("FolderManager: {} folders", folder_manager.folders.len());
 
+    // Watcher channel: all FolderWatcher events are forwarded here.
+    let (watcher_tx, mut watcher_rx) =
+        tokio::sync::mpsc::channel::<(uuid::Uuid, notify::Event)>(256);
+
+    // Spawn per-folder watcher forwarding tasks for all initial folders.
+    for folder_id in folder_manager.folders.keys().cloned().collect::<Vec<_>>() {
+        if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
+            let tx = watcher_tx.clone();
+            tokio::spawn(async move {
+                while let Some(event) = watcher.next_event().await {
+                    let _ = tx.send((folder_id, event)).await;
+                }
+            });
+        }
+    }
+
     let sync_states = folder_manager.sync_states();
     let folder_roots = folder_manager.folder_roots();
     let shared_vfs = folder_manager.shared_vfs();
@@ -243,6 +259,11 @@ async fn main() -> Result<()> {
 
     // Main loop — scheduler is now Arc<Mutex<>>, lock only when needed.
     let mut scheduler_tick = interval(Duration::from_millis(100));
+
+    // Per-folder debounce deadlines: trigger sync 500ms after the last FS event.
+    let mut debounce_map: std::collections::HashMap<uuid::Uuid, tokio::time::Instant> =
+        std::collections::HashMap::new();
+
     info!("ocsyncd ready");
 
     loop {
@@ -258,6 +279,7 @@ async fn main() -> Result<()> {
                         config_path: config_path.clone(),
                         live_folder_ids: Arc::clone(&live_folder_ids),
                         token_managers: Arc::clone(&token_managers),
+                        watcher_tx: watcher_tx.clone(),
                     },
                 ).await {
                     Ok(ShouldQuit::Yes) => {
@@ -273,6 +295,11 @@ async fn main() -> Result<()> {
                 if let DaemonCommand::TriggerSync { folder_id } = cmd {
                     scheduler.lock().await.request_sync(folder_id);
                 }
+            }
+
+            Some((folder_id, _event)) = watcher_rx.recv() => {
+                let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
+                debounce_map.insert(folder_id, deadline);
             }
 
             _ = scheduler_tick.tick() => {
@@ -332,6 +359,18 @@ async fn main() -> Result<()> {
                             info!("run_sync: no engine for folder {folder_id}");
                         }
                     });
+                }
+
+                // Drain debounce entries that have reached their deadline.
+                let now = tokio::time::Instant::now();
+                let due: Vec<uuid::Uuid> = debounce_map
+                    .iter()
+                    .filter(|(_, &deadline)| now >= deadline)
+                    .map(|(&id, _)| id)
+                    .collect();
+                for id in due {
+                    debounce_map.remove(&id);
+                    scheduler.lock().await.request_sync(id);
                 }
             }
         }

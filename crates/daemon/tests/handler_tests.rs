@@ -25,6 +25,7 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
 
     let unknown_account_id = Uuid::new_v4();
 
+    let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
     let result = handle_command(
         DaemonCommand::SetAccountFolder {
             account_id: unknown_account_id,
@@ -40,6 +41,7 @@ async fn set_account_folder_unknown_account_broadcasts_failed() {
             token_managers: Arc::new(std::sync::RwLock::new(
                 HashMap::<Uuid, Arc<TokenManager>>::new(),
             )),
+            watcher_tx,
         },
     )
     .await
@@ -83,6 +85,7 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
 
     let nonexistent_path = "/this/path/definitely/does/not/exist/on/this/system";
 
+    let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(Uuid, notify::Event)>(1);
     let result = handle_command(
         DaemonCommand::SetAccountFolder {
             account_id,
@@ -98,6 +101,7 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
             token_managers: Arc::new(std::sync::RwLock::new(
                 HashMap::<Uuid, Arc<TokenManager>>::new(),
             )),
+            watcher_tx,
         },
     )
     .await

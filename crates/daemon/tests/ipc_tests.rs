@@ -168,6 +168,7 @@ async fn add_account_invalid_url_broadcasts_failed() {
     let file = NamedTempFile::new().unwrap();
     let mut fm = FolderManager::empty();
 
+    let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(uuid::Uuid, notify::Event)>(1);
     handle_command(
         DaemonCommand::AddAccount {
             url: "not-a-url".to_string(),
@@ -183,6 +184,7 @@ async fn add_account_invalid_url_broadcasts_failed() {
                 uuid::Uuid,
                 Arc<ocis_client::auth::TokenManager>,
             >::new())),
+            watcher_tx,
         },
     )
     .await
