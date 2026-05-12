@@ -92,11 +92,17 @@ impl SyncEngine {
         all_paths.extend(remote_map.keys().cloned());
 
         // Phase 2: Reconcile
-        let mut instructions: Vec<(Utf8PathBuf, SyncInstruction, Option<RemoteEntry>)> = Vec::new();
+        let mut instructions: Vec<(Utf8PathBuf, SyncInstruction, Option<RemoteEntry>, bool)> =
+            Vec::new();
         let mut n_ignored = 0usize;
         for path in all_paths {
             let loc = local_map.get(&path).cloned();
             let rem = remote_map.get(&path).cloned();
+            let is_dir = loc
+                .as_ref()
+                .map(|e| e.is_dir)
+                .or_else(|| rem.as_ref().map(|e| e.is_dir))
+                .unwrap_or(false);
             let journal = self
                 .cfg
                 .db
@@ -111,7 +117,7 @@ impl SyncEngine {
                 });
             let instr = reconcile(loc, rem.clone(), journal, self.cfg.conflict_strategy);
             if instr != SyncInstruction::Ignore {
-                instructions.push((path, instr, rem));
+                instructions.push((path, instr, rem, is_dir));
             } else {
                 n_ignored += 1;
             }
@@ -119,30 +125,107 @@ impl SyncEngine {
 
         let n_downloads = instructions
             .iter()
-            .filter(|(_, i, _)| *i == SyncInstruction::Download)
+            .filter(|(_, i, _, _)| *i == SyncInstruction::Download)
             .count();
         let n_uploads = instructions
             .iter()
-            .filter(|(_, i, _)| *i == SyncInstruction::Upload)
+            .filter(|(_, i, _, _)| *i == SyncInstruction::Upload)
             .count();
         let n_conflicts = instructions
             .iter()
-            .filter(|(_, i, _)| *i == SyncInstruction::Conflict)
+            .filter(|(_, i, _, _)| *i == SyncInstruction::Conflict)
             .count();
         let n_del_local = instructions
             .iter()
-            .filter(|(_, i, _)| *i == SyncInstruction::DeleteLocal)
+            .filter(|(_, i, _, _)| *i == SyncInstruction::DeleteLocal)
             .count();
         let n_del_remote = instructions
             .iter()
-            .filter(|(_, i, _)| *i == SyncInstruction::DeleteRemote)
+            .filter(|(_, i, _, _)| *i == SyncInstruction::DeleteRemote)
             .count();
 
-        // Phase 3: Propagate — each task owns its Vec<HttpEvent> and returns it.
+        // Partition instructions: directories must be processed before files.
+        let (dir_instructions, file_instructions): (Vec<_>, Vec<_>) = instructions
+            .into_iter()
+            .partition(|(_, _, _, is_dir)| *is_dir);
+
+        // Phase 3a: Process directory instructions sequentially so that parent
+        // WebDAV collections exist before any file transfers attempt to use them.
+        let mut had_error = false;
+        let mut error_messages: Vec<String> = Vec::new();
+
+        for (rel_path, instruction, rem_entry, _) in dir_instructions {
+            let local_path = self.cfg.local_root.join(&rel_path);
+            let remote_url = self
+                .cfg
+                .space_root
+                .join(rel_path.as_str())
+                .map_err(|e| SyncError::Parse(e.to_string()))?;
+
+            match instruction {
+                SyncInstruction::Upload => {
+                    use crate::propagate::ops::mkdir_remote;
+                    match mkdir_remote(remote_url, &bearer_token).await {
+                        Ok(()) => {
+                            let entry = JournalEntry {
+                                path: rel_path.to_string(),
+                                etag: Some(String::new()),
+                                mtime: None,
+                                size: Some(0),
+                                inode: None,
+                                file_id: None,
+                                checksum: None,
+                                is_virtual: 0,
+                            };
+                            let _ = self.cfg.db.upsert_entry(&entry).await;
+                            let mut s = write_lock(&self.state);
+                            s.set_file_status(rel_path, FileStatus::Ok);
+                        }
+                        Err(e) => {
+                            tracing::warn!("MKCOL failed for {rel_path}: {e}");
+                            had_error = true;
+                            error_messages.push(e.to_string());
+                            let mut s = write_lock(&self.state);
+                            s.set_file_status(rel_path, FileStatus::Error(e.to_string()));
+                        }
+                    }
+                }
+                SyncInstruction::Download => match tokio::fs::create_dir_all(&local_path).await {
+                    Ok(()) => {
+                        let entry = JournalEntry {
+                            path: rel_path.to_string(),
+                            etag: Some(String::new()),
+                            mtime: None,
+                            size: Some(0),
+                            inode: None,
+                            file_id: rem_entry.as_ref().map(|r| r.file_id.clone()),
+                            checksum: None,
+                            is_virtual: 0,
+                        };
+                        let _ = self.cfg.db.upsert_entry(&entry).await;
+                        let mut s = write_lock(&self.state);
+                        s.set_file_status(rel_path, FileStatus::Ok);
+                    }
+                    Err(e) => {
+                        tracing::warn!("create_dir_all failed for {rel_path}: {e}");
+                        had_error = true;
+                        error_messages.push(e.to_string());
+                        let mut s = write_lock(&self.state);
+                        s.set_file_status(rel_path, FileStatus::Error(e.to_string()));
+                    }
+                },
+                _ => {
+                    tracing::warn!("unhandled dir instruction {:?} for {rel_path}", instruction);
+                }
+            }
+        }
+
+        // Phase 3b: Propagate file instructions in parallel — each task owns its
+        // Vec<HttpEvent> and returns it.
         let mut join_set: JoinSet<(Vec<HttpEvent>, Result<()>)> = JoinSet::new();
         let semaphore = Arc::new(tokio::sync::Semaphore::new(self.cfg.max_parallel_transfers));
 
-        for (rel_path, instruction, rem_entry) in instructions {
+        for (rel_path, instruction, rem_entry, _) in file_instructions {
             let local_path = self.cfg.local_root.join(&rel_path);
             let remote_url = self
                 .cfg
@@ -315,8 +398,6 @@ impl SyncEngine {
             }
         }
 
-        let mut had_error = false;
-        let mut error_messages: Vec<String> = Vec::new();
         while let Some(res) = join_set.join_next().await {
             match res {
                 Ok((task_http, Ok(()))) => {
