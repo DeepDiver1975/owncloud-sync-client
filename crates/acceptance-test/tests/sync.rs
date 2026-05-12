@@ -296,3 +296,78 @@ async fn test_initial_sync_preseeded_remote() {
         assert_eq!(actual.as_slice(), content, "{name} content mismatch");
     }
 }
+
+#[tokio::test]
+async fn test_upload_new_directory() {
+    if skip_if_no_acceptance() {
+        return;
+    }
+    let (env, _) = env_after_initial_sync().await;
+
+    let local_dir = env.sync_dir.path().join("photos");
+    std::fs::create_dir(&local_dir).expect("create local dir");
+
+    poll_until(
+        || async {
+            env.ocis_client
+                .collection_exists("photos")
+                .await
+                .unwrap_or(false)
+        },
+        Duration::from_secs(30),
+        Duration::from_secs(1),
+    )
+    .await
+    .expect("photos/ did not appear on remote within 30s");
+}
+
+#[tokio::test]
+async fn test_upload_file_in_new_subdirectory() {
+    if skip_if_no_acceptance() {
+        return;
+    }
+    let (env, _) = env_after_initial_sync().await;
+
+    let local_dir = env.sync_dir.path().join("docs");
+    std::fs::create_dir(&local_dir).expect("create docs dir");
+    std::fs::write(local_dir.join("readme.txt"), b"hello docs").expect("write readme");
+
+    poll_until(
+        || async {
+            env.ocis_client
+                .exists("docs/readme.txt")
+                .await
+                .unwrap_or(false)
+        },
+        Duration::from_secs(30),
+        Duration::from_secs(1),
+    )
+    .await
+    .expect("docs/readme.txt did not appear on remote");
+
+    let content = env
+        .ocis_client
+        .get("docs/readme.txt")
+        .await
+        .expect("get content");
+    assert_eq!(content.as_ref(), b"hello docs");
+}
+
+#[tokio::test]
+async fn test_watch_driven_upload() {
+    if skip_if_no_acceptance() {
+        return;
+    }
+    let (env, _) = env_after_initial_sync().await;
+
+    let local_path = env.sync_dir.path().join("watched.txt");
+    std::fs::write(&local_path, b"watched content").expect("write watched.txt");
+
+    poll_until(
+        || async { env.ocis_client.exists("watched.txt").await.unwrap_or(false) },
+        Duration::from_secs(10),
+        Duration::from_millis(500),
+    )
+    .await
+    .expect("watched.txt did not appear within 10s (watcher-driven sync expected)");
+}

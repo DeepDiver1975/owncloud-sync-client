@@ -96,4 +96,18 @@ impl OcisClient {
             .await?;
         Ok(resp.status() == StatusCode::OK)
     }
+
+    pub async fn collection_exists(&self, path: &str) -> Result<bool> {
+        let resp = self
+            .client
+            .request(
+                reqwest::Method::from_bytes(b"PROPFIND").unwrap(),
+                self.webdav_url(path)?,
+            )
+            .basic_auth(&self.username, Some(&self.password))
+            .header("Depth", "0")
+            .send()
+            .await?;
+        Ok(resp.status().as_u16() == 207)
+    }
 }
