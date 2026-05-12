@@ -54,7 +54,7 @@ pub enum View {
         account_id: Uuid,
         display_name: String,
         url: String,
-        local_path_input: String,
+        local_path: Option<String>,
         error: Option<String>,
     },
     GeneralSettings,

@@ -41,7 +41,8 @@ pub enum Message {
     ToggleWindow,
     AddAccountUrlChanged(String),
     AddAccountSubmit,
-    PickLocalFolderPathChanged(String),
+    PickLocalFolderBrowse,
+    PickLocalFolderPicked(Option<String>),
     PickLocalFolderSubmit,
     PickLocalFolderCancel,
     PauseFolder(Uuid),
@@ -101,12 +102,31 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             iced::Task::none()
         }
 
-        Message::PickLocalFolderPathChanged(path) => {
+        Message::PickLocalFolderBrowse => {
+            iced::Task::perform(
+                async {
+                    rfd::AsyncFileDialog::new()
+                        .pick_folder()
+                        .await
+                        // rfd guarantees a valid path; on macOS/Windows paths are always
+                        // UTF-8. On Linux with a non-UTF-8 locale this falls back to lossy
+                        // conversion, which the daemon will reject as a non-existent path.
+                        .map(|h| h.path().to_string_lossy().into_owned())
+                },
+                Message::PickLocalFolderPicked,
+            )
+        }
+
+        Message::PickLocalFolderPicked(maybe_path) => {
             if let View::PickLocalFolder {
-                local_path_input, ..
+                local_path, error, ..
             } = &mut app.active_view
             {
-                *local_path_input = path;
+                if let Some(path) = maybe_path {
+                    *local_path = Some(path);
+                    *error = None;
+                }
+                // None means user dismissed the picker — no change
             }
             iced::Task::none()
         }
@@ -114,22 +134,24 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
         Message::PickLocalFolderSubmit => {
             if let View::PickLocalFolder {
                 account_id,
-                local_path_input,
+                local_path,
                 error,
                 ..
             } = &mut app.active_view
             {
-                if local_path_input.is_empty() {
-                    *error = Some("Please enter a local folder path".to_string());
-                    return iced::Task::none();
+                match local_path.clone() {
+                    Some(path) => {
+                        let aid = *account_id;
+                        *error = None;
+                        app.daemon.send(DaemonCommand::SetAccountFolder {
+                            account_id: aid,
+                            local_path: path,
+                        });
+                    }
+                    None => {
+                        tracing::warn!("PickLocalFolderSubmit fired with no path selected");
+                    }
                 }
-                let aid = *account_id;
-                let path = local_path_input.clone();
-                *error = None;
-                app.daemon.send(DaemonCommand::SetAccountFolder {
-                    account_id: aid,
-                    local_path: path,
-                });
             }
             iced::Task::none()
         }
@@ -272,7 +294,7 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                 account_id,
                 display_name,
                 url,
-                local_path_input: String::new(),
+                local_path: None,
                 error: None,
             };
         }

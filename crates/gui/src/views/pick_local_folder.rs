@@ -1,5 +1,5 @@
 use iced::{
-    widget::{button, column, container, row, text, text_input},
+    widget::{button, column, container, row, text},
     Alignment, Element, Length,
 };
 
@@ -9,7 +9,7 @@ use crate::theme;
 pub fn pick_local_folder_view<'a>(
     display_name: &'a str,
     url: &'a str,
-    local_path_input: &'a str,
+    local_path: Option<&'a str>,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
     let heading = text("Choose a local folder")
@@ -23,30 +23,69 @@ pub fn pick_local_folder_view<'a>(
     .size(13)
     .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let path_label = text("Local folder path")
+    let folder_label = text("Local folder")
         .size(11)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let path_field = text_input("~/ownCloud", local_path_input)
-        .on_input(Message::PickLocalFolderPathChanged)
-        .on_submit(Message::PickLocalFolderSubmit)
-        .padding([9, 11])
-        .size(13)
-        .style(theme::text_input_style);
+    let folder_well = match local_path {
+        None => container(
+            text("No folder selected")
+                .size(13)
+                .style(theme::colored_text(theme::TEXT_MUTED)),
+        )
+        .style(theme::folder_well_empty_style)
+        .padding([10, 12])
+        .width(Length::Fill),
 
-    let confirm_btn = button(text("Start Syncing").size(13))
-        .on_press(Message::PickLocalFolderSubmit)
-        .padding([9, 18])
-        .style(theme::primary_button_style);
+        Some(path) => container(
+            row![
+                text("📁").size(14),
+                text(path)
+                    .size(13)
+                    .style(theme::colored_text(theme::TEXT_PRIMARY)),
+            ]
+            .spacing(8)
+            .align_y(Alignment::Center),
+        )
+        .style(theme::folder_well_style)
+        .padding([10, 12])
+        .width(Length::Fill),
+    };
+
+    let browse_label = if local_path.is_none() {
+        "Choose folder…"
+    } else {
+        "Change folder…"
+    };
+
+    let browse_btn = button(text(browse_label).size(13))
+        .on_press(Message::PickLocalFolderBrowse)
+        .padding([8, 14])
+        .style(theme::ghost_button_style);
+
+    let confirm_btn = {
+        let b = button(text("Start Syncing").size(13))
+            .padding([9, 18])
+            .style(theme::primary_button_style);
+        if local_path.is_some() {
+            b.on_press(Message::PickLocalFolderSubmit)
+        } else {
+            b
+        }
+    };
 
     let cancel_btn = button(text("Cancel").size(13))
         .on_press(Message::PickLocalFolderCancel)
         .padding([8, 14])
         .style(theme::ghost_button_style);
 
-    let mut col = column![heading, caption, column![path_label, path_field].spacing(4),]
-        .spacing(14)
-        .max_width(420);
+    let mut col = column![
+        heading,
+        caption,
+        column![folder_label, folder_well, browse_btn].spacing(6),
+    ]
+    .spacing(14)
+    .max_width(420);
 
     if let Some(err) = error {
         let banner = container(

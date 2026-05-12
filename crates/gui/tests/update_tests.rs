@@ -365,92 +365,6 @@ fn account_add_completed_adds_account_and_navigates_to_pick_folder() {
 }
 
 #[test]
-fn pick_local_folder_path_changed_updates_input() {
-    use gui::app::{update, App, Message};
-    use gui::model::View;
-    use uuid::Uuid;
-
-    let account_id = Uuid::new_v4();
-    let mut app = App {
-        active_view: View::PickLocalFolder {
-            account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
-            local_path_input: String::new(),
-            error: None,
-        },
-        ..App::default()
-    };
-    let _ = update(
-        &mut app,
-        Message::PickLocalFolderPathChanged("/some/path".to_string()),
-    );
-    if let View::PickLocalFolder {
-        local_path_input, ..
-    } = &app.active_view
-    {
-        assert_eq!(local_path_input, "/some/path");
-    } else {
-        panic!("expected PickLocalFolder view");
-    }
-}
-
-#[test]
-fn pick_local_folder_submit_empty_path_sets_error() {
-    use gui::app::{update, App, Message};
-    use gui::model::View;
-    use uuid::Uuid;
-
-    let account_id = Uuid::new_v4();
-    let mut app = App {
-        active_view: View::PickLocalFolder {
-            account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
-            local_path_input: String::new(),
-            error: None,
-        },
-        ..App::default()
-    };
-    let _ = update(&mut app, Message::PickLocalFolderSubmit);
-    if let View::PickLocalFolder { error, .. } = &app.active_view {
-        assert!(error.is_some(), "expected error for empty path");
-    } else {
-        panic!("expected PickLocalFolder view");
-    }
-}
-
-#[test]
-fn pick_local_folder_submit_valid_path_sends_command() {
-    use daemon::gui_ipc::protocol::DaemonCommand;
-    use gui::app::{update, App, Message};
-    use gui::daemon_conn::DaemonConnection;
-    use gui::model::View;
-    use uuid::Uuid;
-
-    let (conn, mut rx) = DaemonConnection::connected_for_test();
-    let account_id = Uuid::new_v4();
-    let mut app = App {
-        daemon: conn,
-        active_view: View::PickLocalFolder {
-            account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
-            local_path_input: "/home/alice/owncloud".to_string(),
-            error: None,
-        },
-        ..App::default()
-    };
-    let _ = update(&mut app, Message::PickLocalFolderSubmit);
-    let cmd = rx.try_recv().expect("expected a command to be sent");
-    assert!(
-        matches!(cmd, DaemonCommand::SetAccountFolder { account_id: aid, local_path: ref p }
-            if aid == account_id && p == "/home/alice/owncloud"),
-        "unexpected command: {cmd:?}"
-    );
-}
-
-#[test]
 fn account_folder_added_adds_folder_and_navigates_to_sync_status() {
     use daemon::gui_ipc::protocol::DaemonEvent;
     use gui::app::{update, App, Message};
@@ -464,7 +378,7 @@ fn account_folder_added_adds_folder_and_navigates_to_sync_status() {
             account_id,
             display_name: "Alice".to_string(),
             url: "https://cloud.example.com".to_string(),
-            local_path_input: "/home/alice/owncloud".to_string(),
+            local_path: None,
             error: None,
         },
         ..App::default()
@@ -502,7 +416,7 @@ fn account_set_folder_failed_sets_inline_error() {
             account_id,
             display_name: "Alice".to_string(),
             url: "https://cloud.example.com".to_string(),
-            local_path_input: "/home/alice/owncloud".to_string(),
+            local_path: None,
             error: None,
         },
         ..App::default()
@@ -551,7 +465,7 @@ fn pick_local_folder_cancel_sends_remove_account_and_navigates() {
             account_id,
             display_name: "Alice".to_string(),
             url: "https://cloud.example.com".to_string(),
-            local_path_input: String::new(),
+            local_path: None,
             error: None,
         },
         ..App::default()
@@ -563,6 +477,121 @@ fn pick_local_folder_cancel_sends_remove_account_and_navigates() {
         "unexpected command: {cmd:?}"
     );
     assert!(matches!(app.active_view, View::SyncStatus));
+}
+
+#[test]
+fn pick_local_folder_picked_some_sets_path_and_clears_error() {
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::PickLocalFolder {
+            account_id,
+            display_name: "Alice".to_string(),
+            url: "https://cloud.example.com".to_string(),
+            local_path: None,
+            error: Some("previous error".to_string()),
+        },
+        ..App::default()
+    };
+    let _ = update(
+        &mut app,
+        Message::PickLocalFolderPicked(Some("/home/alice/owncloud".to_string())),
+    );
+    if let View::PickLocalFolder { local_path, error, .. } = &app.active_view {
+        assert_eq!(local_path.as_deref(), Some("/home/alice/owncloud"));
+        assert!(error.is_none(), "error should be cleared after a successful pick");
+    } else {
+        panic!("expected PickLocalFolder view");
+    }
+}
+
+#[test]
+fn pick_local_folder_picked_none_does_not_change_path() {
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::PickLocalFolder {
+            account_id,
+            display_name: "Alice".to_string(),
+            url: "https://cloud.example.com".to_string(),
+            local_path: Some("/home/alice/existing".to_string()),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::PickLocalFolderPicked(None));
+    if let View::PickLocalFolder { local_path, .. } = &app.active_view {
+        assert_eq!(
+            local_path.as_deref(),
+            Some("/home/alice/existing"),
+            "dismissing the picker must not change the existing path"
+        );
+    } else {
+        panic!("expected PickLocalFolder view");
+    }
+}
+
+#[test]
+fn pick_local_folder_submit_with_path_sends_command() {
+    use daemon::gui_ipc::protocol::DaemonCommand;
+    use gui::app::{update, App, Message};
+    use gui::daemon_conn::DaemonConnection;
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let (conn, mut rx) = DaemonConnection::connected_for_test();
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        daemon: conn,
+        active_view: View::PickLocalFolder {
+            account_id,
+            display_name: "Alice".to_string(),
+            url: "https://cloud.example.com".to_string(),
+            local_path: Some("/home/alice/owncloud".to_string()),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::PickLocalFolderSubmit);
+    let cmd = rx.try_recv().expect("expected a command to be sent");
+    assert!(
+        matches!(cmd, DaemonCommand::SetAccountFolder { account_id: aid, local_path: ref p }
+            if aid == account_id && p == "/home/alice/owncloud"),
+        "unexpected command: {cmd:?}"
+    );
+}
+
+#[test]
+fn pick_local_folder_submit_without_path_sends_no_command() {
+    use gui::app::{update, App, Message};
+    use gui::daemon_conn::DaemonConnection;
+    use gui::model::View;
+    use uuid::Uuid;
+
+    let (conn, mut rx) = DaemonConnection::connected_for_test();
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        daemon: conn,
+        active_view: View::PickLocalFolder {
+            account_id,
+            display_name: "Alice".to_string(),
+            url: "https://cloud.example.com".to_string(),
+            local_path: None,
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::PickLocalFolderSubmit);
+    assert!(
+        rx.try_recv().is_err(),
+        "submit with no path must not send any daemon command"
+    );
 }
 
 #[test]

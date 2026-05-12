@@ -269,13 +269,13 @@ impl IcedApp {
             View::PickLocalFolder {
                 display_name,
                 url,
-                local_path_input,
+                local_path,
                 error,
                 ..
             } => gui::views::pick_local_folder::pick_local_folder_view(
                 display_name,
                 url,
-                local_path_input,
+                local_path.as_deref(),
                 error.as_deref(),
             ),
             View::GeneralSettings => gui::views::general_settings::general_settings_view(),

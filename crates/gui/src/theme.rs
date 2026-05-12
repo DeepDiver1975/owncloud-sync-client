@@ -173,6 +173,30 @@ pub fn error_banner_style(_theme: &iced::Theme) -> container::Style {
     }
 }
 
+pub fn folder_well_style(_theme: &iced::Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(BG_CARD)),
+        border: Border {
+            color: BORDER_DEFAULT,
+            width: 1.0,
+            radius: 6.0.into(),
+        },
+        ..Default::default()
+    }
+}
+
+pub fn folder_well_empty_style(_theme: &iced::Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(BG_SURFACE)),
+        border: Border {
+            color: BORDER_SUBTLE,
+            width: 1.0,
+            radius: 6.0.into(),
+        },
+        ..Default::default()
+    }
+}
+
 pub fn status_badge_style(color: Color) -> impl Fn(&iced::Theme) -> container::Style {
     move |_| container::Style {
         background: Some(Background::Color(Color { a: 0.12, ..color })),
