@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::time::SystemTime;
 use url::Url;
 
@@ -18,9 +18,9 @@ pub async fn discover_remote(
     let client = ocis_client::build_http_client();
     let mut result = Vec::new();
     let mut queue = VecDeque::from([space_root.clone()]);
-    let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
-    visited.insert(space_root.path().to_string());
-    let mut seen_entries: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut visited: HashSet<String> = HashSet::new();
+    visited.insert(space_root.path().trim_end_matches('/').to_string());
+    let mut seen_entries: HashSet<String> = HashSet::new();
 
     while let Some(url) = queue.pop_front() {
         let body = r#"<?xml version="1.0" encoding="utf-8"?>
@@ -84,7 +84,7 @@ pub async fn discover_remote(
 
         let (files, dirs) = parse_propfind(&text, space_root, &url)?;
         for entry in files {
-            if seen_entries.insert(entry.path.as_str().to_string()) {
+            if seen_entries.insert(entry.path.as_str().to_owned()) {
                 result.push(entry);
             }
         }
@@ -205,7 +205,7 @@ fn parse_propfind(
                             }
                             dirs.push(sub_url);
                         }
-                        // Also emit as a RemoteEntry so the reconciler can see it
+                        // reconciler needs dirs in the entry list, not only in the queue
                         let path = Utf8PathBuf::from(rel.trim_end_matches('/'));
                         files.push(RemoteEntry {
                             path,
