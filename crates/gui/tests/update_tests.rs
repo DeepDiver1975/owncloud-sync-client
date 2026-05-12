@@ -521,16 +521,21 @@ fn pick_local_folder_picked_none_does_not_change_path() {
             display_name: "Alice".to_string(),
             url: "https://cloud.example.com".to_string(),
             local_path: Some("/home/alice/existing".to_string()),
-            error: None,
+            error: Some("stale error".to_string()),
         },
         ..App::default()
     };
     let _ = update(&mut app, Message::PickLocalFolderPicked(None));
-    if let View::PickLocalFolder { local_path, .. } = &app.active_view {
+    if let View::PickLocalFolder { local_path, error, .. } = &app.active_view {
         assert_eq!(
             local_path.as_deref(),
             Some("/home/alice/existing"),
             "dismissing the picker must not change the existing path"
+        );
+        assert_eq!(
+            error.as_deref(),
+            Some("stale error"),
+            "dismissing the picker must not clear an existing error"
         );
     } else {
         panic!("expected PickLocalFolder view");
@@ -554,7 +559,7 @@ fn pick_local_folder_submit_with_path_sends_command() {
             display_name: "Alice".to_string(),
             url: "https://cloud.example.com".to_string(),
             local_path: Some("/home/alice/owncloud".to_string()),
-            error: None,
+            error: Some("previous daemon error".to_string()),
         },
         ..App::default()
     };
@@ -565,6 +570,9 @@ fn pick_local_folder_submit_with_path_sends_command() {
             if aid == account_id && p == "/home/alice/owncloud"),
         "unexpected command: {cmd:?}"
     );
+    if let View::PickLocalFolder { error, .. } = &app.active_view {
+        assert!(error.is_none(), "submit must clear any prior error");
+    }
 }
 
 #[test]
@@ -591,6 +599,10 @@ fn pick_local_folder_submit_without_path_sends_no_command() {
     assert!(
         rx.try_recv().is_err(),
         "submit with no path must not send any daemon command"
+    );
+    assert!(
+        matches!(&app.active_view, View::PickLocalFolder { local_path: None, error: None, .. }),
+        "submit with no path must leave view unchanged"
     );
 }
 
