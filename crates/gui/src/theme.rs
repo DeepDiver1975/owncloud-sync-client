@@ -246,6 +246,15 @@ pub fn primary_button_style(_theme: &iced::Theme, status: button::Status) -> but
     }
 }
 
+pub fn link_button_style(_theme: &iced::Theme, _status: button::Status) -> button::Style {
+    button::Style {
+        background: None,
+        text_color: ACCENT,
+        border: iced::Border::default(),
+        shadow: iced::Shadow::default(),
+    }
+}
+
 pub fn ghost_button_style(_theme: &iced::Theme, status: button::Status) -> button::Style {
     let (bg, text_color) = match status {
         button::Status::Active => (None, TEXT_SECONDARY),
@@ -465,6 +474,13 @@ pub fn owncloud_icon() -> iced::widget::Svg<'static> {
         include_bytes!("../assets/owncloud-icon.svg").as_slice(),
     );
     iced::widget::Svg::new(handle).width(22).height(22)
+}
+
+pub fn owncloud_icon_large() -> iced::widget::Svg<'static> {
+    let handle = iced::widget::svg::Handle::from_memory(
+        include_bytes!("../assets/owncloud-icon.svg").as_slice(),
+    );
+    iced::widget::Svg::new(handle).width(64).height(64)
 }
 
 pub fn cloud_muted() -> iced::widget::Svg<'static> {
