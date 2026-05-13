@@ -41,8 +41,10 @@ mod inner {
                     let menu = Menu::new();
                     use tray_icon::menu::MenuId;
                     let open_item = MenuItem::with_id(MenuId::new("open"), "Open", true, None);
+                    let about_item = MenuItem::with_id(MenuId::new("about"), "About", true, None);
                     let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
                     menu.append(&open_item)?;
+                    menu.append(&about_item)?;
                     menu.append(&quit_item)?;
 
                     Ok(TrayIconBuilder::new()
@@ -89,6 +91,8 @@ mod inner {
                             Ok(event) => {
                                 let msg = if event.id == tray_icon::menu::MenuId::new("quit") {
                                     super::Message::Quit
+                                } else if event.id == tray_icon::menu::MenuId::new("about") {
+                                    super::Message::ShowAbout
                                 } else {
                                     super::Message::ToggleWindow
                                 };
