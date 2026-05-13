@@ -1,5 +1,5 @@
 use iced::{
-    widget::{button, column, container, row, text, Column},
+    widget::{button, column, container, row, text},
     Element, Length,
 };
 
@@ -46,25 +46,20 @@ pub fn about_view() -> Element<'static, Message> {
     ]
     .align_y(iced::Alignment::Center);
 
-    let credits = Column::new()
-        .spacing(4)
-        .push(version_line)
-        .push(issues_line)
-        .push(
-            text(format!("By {}", CONTRIBUTORS))
-                .size(10)
-                .style(theme::colored_text(theme::TEXT_MUTED)),
-        )
-        .push(
-            text("Copyright ownCloud GmbH (A Kiteworks Company)")
-                .size(10)
-                .style(theme::colored_text(theme::TEXT_MUTED)),
-        )
-        .push(
-            text("Distributed under the GNU General Public License v2")
-                .size(10)
-                .style(theme::colored_text(theme::TEXT_MUTED)),
-        );
+    let credits = column![
+        version_line,
+        issues_line,
+        text(format!("By {}", CONTRIBUTORS))
+            .size(10)
+            .style(theme::colored_text(theme::TEXT_MUTED)),
+        text("Copyright ownCloud GmbH (A Kiteworks Company)")
+            .size(10)
+            .style(theme::colored_text(theme::TEXT_MUTED)),
+        text("Distributed under the GNU General Public License v2")
+            .size(10)
+            .style(theme::colored_text(theme::TEXT_MUTED)),
+    ]
+    .spacing(4);
 
     let info_card = container(
         row![logo, credits]

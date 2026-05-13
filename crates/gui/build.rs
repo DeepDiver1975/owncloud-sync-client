@@ -41,7 +41,10 @@ fn build_icon(out_dir: &str) {
 }
 
 fn escape_str(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
 }
 
 fn build_info(out_dir: &str) {
@@ -90,6 +93,7 @@ pub const CONTRIBUTORS: &str = "{contributors}";
 }
 
 fn detect_os_version(os_name: &str) -> String {
+    // Queries the build host OS version — correct for native builds, not cross-compilation.
     match os_name {
         "macos" => std::process::Command::new("sw_vers")
             .arg("-productVersion")

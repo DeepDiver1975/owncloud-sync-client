@@ -246,10 +246,19 @@ pub fn primary_button_style(_theme: &iced::Theme, status: button::Status) -> but
     }
 }
 
-pub fn link_button_style(_theme: &iced::Theme, _status: button::Status) -> button::Style {
+pub fn link_button_style(_theme: &iced::Theme, status: button::Status) -> button::Style {
+    let text_color = match status {
+        button::Status::Hovered | button::Status::Pressed => Color {
+            r: ACCENT.r + 0.15,
+            g: ACCENT.g + 0.10,
+            b: ACCENT.b + 0.05,
+            a: 1.0,
+        },
+        _ => ACCENT,
+    };
     button::Style {
         background: None,
-        text_color: ACCENT,
+        text_color,
         border: iced::Border::default(),
         shadow: iced::Shadow::default(),
     }
