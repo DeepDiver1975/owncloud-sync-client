@@ -187,6 +187,7 @@ impl IcedApp {
             self.app.active_view,
             View::GeneralSettings | View::AccountSettings(_)
         );
+        let is_about = matches!(self.app.active_view, View::About);
 
         let nav_sync = iced::widget::button(text("☁ Sync Status").size(12).style(
             theme::colored_text(if is_sync {
@@ -239,8 +240,24 @@ impl IcedApp {
             theme::nav_button_style
         });
 
+        let nav_about = iced::widget::button(text("ℹ About").size(12).style(
+            theme::colored_text(if is_about {
+                theme::ACCENT
+            } else {
+                theme::TEXT_SECONDARY
+            }),
+        ))
+        .on_press(Message::NavigateTo(View::About))
+        .width(Length::Fill)
+        .padding([7, 9])
+        .style(if is_about {
+            theme::nav_active_style
+        } else {
+            theme::nav_button_style
+        });
+
         let sidebar = container(
-            column![nav_sync, nav_add, nav_settings]
+            column![nav_sync, nav_add, nav_settings, nav_about]
                 .spacing(2)
                 .padding([8, 6]),
         )
@@ -282,6 +299,7 @@ impl IcedApp {
                 error.as_deref(),
             ),
             View::GeneralSettings => gui::views::general_settings::general_settings_view(),
+            View::About => gui::views::about::about_view(),
             View::FolderErrors {
                 account_id,
                 folder_id,

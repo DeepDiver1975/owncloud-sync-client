@@ -62,4 +62,5 @@ pub enum View {
         account_id: Uuid,
         folder_id: Uuid,
     },
+    About,
 }
