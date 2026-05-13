@@ -51,6 +51,8 @@ pub enum Message {
     RemoveAccount(Uuid),
     OpenFolder(String),
     Quit,
+    ShowAbout,
+    OpenUrl(String),
     DaemonConnected(Option<(DaemonConnection, EventRxCarrier)>),
 }
 
@@ -202,6 +204,25 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
         Message::Quit => {
             app.daemon.send(DaemonCommand::Quit);
             iced::exit()
+        }
+
+        Message::ShowAbout => {
+            app.window_visible = true;
+            app.active_view = View::About;
+            iced::Task::none()
+        }
+
+        Message::OpenUrl(url) => {
+            tracing::info!("opening url: {url}");
+            #[cfg(target_os = "macos")]
+            let _ = std::process::Command::new("open").arg(&url).spawn();
+            #[cfg(target_os = "linux")]
+            let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+            #[cfg(target_os = "windows")]
+            let _ = std::process::Command::new("cmd")
+                .args(["/c", "start", "", &url])
+                .spawn();
+            iced::Task::none()
         }
 
         Message::DaemonConnected(_) => iced::Task::none(),
