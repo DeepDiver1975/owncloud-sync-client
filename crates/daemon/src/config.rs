@@ -19,6 +19,8 @@ pub struct GeneralConfig {
     pub notification_enabled: bool,
     #[serde(default = "default_poll_interval")]
     pub poll_interval_secs: u64,
+    #[serde(default = "default_space_poll_interval")]
+    pub space_poll_interval_secs: u64,
     /// Accept invalid/self-signed TLS certificates. For testing only.
     #[serde(default)]
     pub insecure: bool,
@@ -33,6 +35,9 @@ fn default_true() -> bool {
 fn default_poll_interval() -> u64 {
     30
 }
+fn default_space_poll_interval() -> u64 {
+    300
+}
 
 impl Default for GeneralConfig {
     fn default() -> Self {
@@ -40,6 +45,7 @@ impl Default for GeneralConfig {
             log_level: default_log_level(),
             notification_enabled: default_true(),
             poll_interval_secs: default_poll_interval(),
+            space_poll_interval_secs: default_space_poll_interval(),
             insecure: false,
         }
     }
@@ -55,6 +61,8 @@ pub struct AccountConfig {
     pub display_name: String,
     #[serde(default)]
     pub folder: Vec<FolderConfig>,
+    #[serde(default)]
+    pub dismissed_spaces: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -159,5 +167,17 @@ paused = false
         let cfg = AppConfig::load_or_default(path).unwrap();
         assert!(cfg.account.is_empty());
         assert_eq!(cfg.general.log_level, "info");
+    }
+
+    #[test]
+    fn dismissed_spaces_defaults_to_empty() {
+        let cfg: AppConfig = toml::from_str(EXAMPLE_TOML).unwrap();
+        assert!(cfg.account[0].dismissed_spaces.is_empty());
+    }
+
+    #[test]
+    fn space_poll_interval_secs_defaults() {
+        let cfg: AppConfig = toml::from_str("[general]\n").unwrap();
+        assert_eq!(cfg.general.space_poll_interval_secs, 300);
     }
 }

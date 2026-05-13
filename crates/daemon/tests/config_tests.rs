@@ -96,6 +96,7 @@ fn find_account_by_url_and_user_id_returns_match() {
             username: "alice".to_string(),
             display_name: "Alice".to_string(),
             folder: vec![],
+            dismissed_spaces: vec![],
         }],
     };
     assert!(cfg
@@ -117,6 +118,7 @@ fn find_account_by_url_and_user_id_returns_none_when_absent() {
             username: "alice".to_string(),
             display_name: "Alice".to_string(),
             folder: vec![],
+            dismissed_spaces: vec![],
         }],
     };
     assert!(!cfg

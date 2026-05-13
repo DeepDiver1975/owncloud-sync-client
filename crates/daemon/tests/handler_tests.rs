@@ -78,6 +78,7 @@ async fn set_account_folder_invalid_path_broadcasts_failed() {
             username: "alice".to_string(),
             display_name: "Alice".to_string(),
             folder: vec![],
+            dismissed_spaces: vec![],
         }],
     }));
     let file = NamedTempFile::new().unwrap();

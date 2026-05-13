@@ -240,6 +240,7 @@ mod tests {
             username: "alice".to_string(),
             display_name: "Alice".to_string(),
             folder: folders,
+            dismissed_spaces: vec![],
         }
     }
 
