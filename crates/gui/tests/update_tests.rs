@@ -500,9 +500,15 @@ fn pick_local_folder_picked_some_sets_path_and_clears_error() {
         &mut app,
         Message::PickLocalFolderPicked(Some("/home/alice/owncloud".to_string())),
     );
-    if let View::PickLocalFolder { local_path, error, .. } = &app.active_view {
+    if let View::PickLocalFolder {
+        local_path, error, ..
+    } = &app.active_view
+    {
         assert_eq!(local_path.as_deref(), Some("/home/alice/owncloud"));
-        assert!(error.is_none(), "error should be cleared after a successful pick");
+        assert!(
+            error.is_none(),
+            "error should be cleared after a successful pick"
+        );
     } else {
         panic!("expected PickLocalFolder view");
     }
@@ -526,7 +532,10 @@ fn pick_local_folder_picked_none_does_not_change_path() {
         ..App::default()
     };
     let _ = update(&mut app, Message::PickLocalFolderPicked(None));
-    if let View::PickLocalFolder { local_path, error, .. } = &app.active_view {
+    if let View::PickLocalFolder {
+        local_path, error, ..
+    } = &app.active_view
+    {
         assert_eq!(
             local_path.as_deref(),
             Some("/home/alice/existing"),
@@ -601,7 +610,14 @@ fn pick_local_folder_submit_without_path_sends_no_command() {
         "submit with no path must not send any daemon command"
     );
     assert!(
-        matches!(&app.active_view, View::PickLocalFolder { local_path: None, error: None, .. }),
+        matches!(
+            &app.active_view,
+            View::PickLocalFolder {
+                local_path: None,
+                error: None,
+                ..
+            }
+        ),
         "submit with no path must leave view unchanged"
     );
 }
@@ -737,7 +753,6 @@ fn tray_subscription_is_merged_compile_check() {
     let handle = gui::tray::TrayHandle::build().unwrap();
     let _: iced::Subscription<gui::app::Message> = handle.tray_events();
 }
-
 
 #[test]
 fn account_snapshot_unknown_status_defaults_to_idle() {

@@ -20,54 +20,94 @@ mod inner {
     }
 
     pub struct TrayHandle {
-        pub(super) _icon: tray_icon::TrayIcon,
+        _gtk_thread: std::thread::JoinHandle<()>,
     }
 
     impl TrayHandle {
         pub fn build() -> anyhow::Result<Self> {
             let icon = load_icon()?;
 
-            let menu = Menu::new();
-            use tray_icon::menu::MenuId;
-            let open_item = MenuItem::with_id(MenuId::new("open"), "Open", true, None);
-            let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
-            menu.append(&open_item)?;
-            menu.append(&quit_item)?;
+            // tray-icon on Linux requires gtk::init() and a running GTK event loop.
+            // We start a dedicated thread that owns all GTK objects; iced never touches GTK.
+            let (ready_tx, ready_rx) = std::sync::mpsc::channel::<anyhow::Result<()>>();
 
-            let icon_handle = TrayIconBuilder::new()
-                .with_icon(icon)
-                .with_menu(Box::new(menu))
-                .with_tooltip("ownCloud Sync")
-                .build()?;
+            let gtk_thread = std::thread::spawn(move || {
+                if let Err(e) = gtk::init() {
+                    let _ = ready_tx.send(Err(anyhow::anyhow!("gtk::init failed: {e}")));
+                    return;
+                }
 
-            Ok(Self { _icon: icon_handle })
+                let build_result = (|| -> anyhow::Result<tray_icon::TrayIcon> {
+                    let menu = Menu::new();
+                    use tray_icon::menu::MenuId;
+                    let open_item = MenuItem::with_id(MenuId::new("open"), "Open", true, None);
+                    let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
+                    menu.append(&open_item)?;
+                    menu.append(&quit_item)?;
+
+                    Ok(TrayIconBuilder::new()
+                        .with_icon(icon)
+                        .with_menu(Box::new(menu))
+                        .with_tooltip("ownCloud Sync")
+                        .build()?)
+                })();
+
+                match build_result {
+                    Ok(_icon_handle) => {
+                        let _ = ready_tx.send(Ok(()));
+                        // _icon_handle must stay alive; gtk::main() runs until gtk::main_quit()
+                        gtk::main();
+                    }
+                    Err(e) => {
+                        let _ = ready_tx.send(Err(e));
+                    }
+                }
+            });
+
+            ready_rx
+                .recv()
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("GTK thread died before signalling")))?;
+
+            Ok(Self {
+                _gtk_thread: gtk_thread,
+            })
         }
 
         pub fn tray_events(&self) -> iced::Subscription<super::Message> {
-            use iced::stream;
             use iced::futures::SinkExt;
+            use iced::stream;
             use iced::Subscription;
             use tray_icon::menu::MenuEvent;
 
-            Subscription::run_with_id("tray-menu-events", stream::channel(8, |mut tx| async move {
-                loop {
-                    // MenuEvent::receiver() is a crossbeam Receiver; we can't .await it,
-                    // so we poll at 50 ms intervals to stay async-friendly.
-                    match MenuEvent::receiver().try_recv() {
-                        Ok(event) => {
-                            let msg = if event.id == tray_icon::menu::MenuId::new("quit") {
-                                super::Message::Quit
-                            } else {
-                                super::Message::ToggleWindow
-                            };
-                            let _ = tx.send(msg).await;
-                        }
-                        Err(_) => {
-                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            Subscription::run_with_id(
+                "tray-menu-events",
+                stream::channel(8, |mut tx| async move {
+                    loop {
+                        // MenuEvent::receiver() is a crossbeam Receiver; we can't .await it,
+                        // so we poll at 50 ms intervals to stay async-friendly.
+                        match MenuEvent::receiver().try_recv() {
+                            Ok(event) => {
+                                let msg = if event.id == tray_icon::menu::MenuId::new("quit") {
+                                    super::Message::Quit
+                                } else {
+                                    super::Message::ToggleWindow
+                                };
+                                let _ = tx.send(msg).await;
+                            }
+                            Err(_) => {
+                                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                            }
                         }
                     }
-                }
-            }))
+                }),
+            )
+        }
+    }
+
+    impl Drop for TrayHandle {
+        fn drop(&mut self) {
+            // Signal the GTK event loop to exit so the thread can join cleanly.
+            gtk::glib::idle_add_once(gtk::main_quit);
         }
     }
 }

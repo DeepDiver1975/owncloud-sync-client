@@ -11,8 +11,7 @@ fn main() {
         .unwrap_or_else(|e| panic!("failed to parse SVG: {e}"));
 
     let size = 16u32;
-    let mut pixmap = tiny_skia::Pixmap::new(size, size)
-        .expect("failed to allocate pixmap");
+    let mut pixmap = tiny_skia::Pixmap::new(size, size).expect("failed to allocate pixmap");
 
     let scale = f32::min(
         size as f32 / tree.size().width(),
@@ -28,8 +27,10 @@ fn main() {
     let mut encoder = png::Encoder::new(file, size, size);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header()
+    let mut writer = encoder
+        .write_header()
         .unwrap_or_else(|e| panic!("failed to write PNG header: {e}"));
-    writer.write_image_data(pixmap.data())
+    writer
+        .write_image_data(pixmap.data())
         .unwrap_or_else(|e| panic!("failed to write PNG data: {e}"));
 }
