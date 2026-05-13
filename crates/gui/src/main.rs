@@ -107,7 +107,10 @@ impl IcedApp {
         );
         (
             Self {
-                app: App { tray, ..App::default() },
+                app: App {
+                    tray,
+                    ..App::default()
+                },
                 event_rx,
             },
             init_task,
