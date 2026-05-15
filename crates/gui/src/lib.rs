@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+rust_i18n::i18n!("locales", fallback = "en");
+
 pub mod app;
 pub mod gui_config;
 pub mod daemon_conn;

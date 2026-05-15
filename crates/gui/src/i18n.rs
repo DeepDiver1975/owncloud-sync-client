@@ -1,8 +1,3 @@
-rust_i18n::i18n!(
-    "locales",
-    fallback = "en"
-);
-
 use crate::model::Language;
 
 pub fn detect_system_language() -> Language {

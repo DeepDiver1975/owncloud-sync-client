@@ -330,7 +330,7 @@ impl IcedApp {
                 local_path.as_deref(),
                 error.as_deref(),
             ),
-            View::GeneralSettings => gui::views::general_settings::general_settings_view(),
+            View::GeneralSettings => gui::views::general_settings::general_settings_view(&self.app.language),
             View::About => gui::views::about::about_view(),
             View::FolderErrors {
                 account_id,
