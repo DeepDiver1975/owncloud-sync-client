@@ -923,6 +923,29 @@ fn tray_subscription_is_merged_compile_check() {
 }
 
 #[test]
+fn language_as_locale_returns_correct_tag() {
+    use gui::model::Language;
+    assert_eq!(Language::En.as_locale(), "en");
+    assert_eq!(Language::De.as_locale(), "de");
+    assert_eq!(Language::Fr.as_locale(), "fr");
+    assert_eq!(Language::Zh.as_locale(), "zh");
+}
+
+#[test]
+fn language_all_contains_four_variants() {
+    use gui::model::Language;
+    assert_eq!(Language::all().len(), 4);
+}
+
+#[test]
+fn language_label_is_non_empty() {
+    use gui::model::Language;
+    for lang in Language::all() {
+        assert!(!lang.label().is_empty());
+    }
+}
+
+#[test]
 fn account_snapshot_unknown_status_defaults_to_idle() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
     use gui::app::{update, App, Message};
