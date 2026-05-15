@@ -1,4 +1,5 @@
 de:
+  # sync_status
   no_accounts_heading: "Keine Konten konfiguriert"
   no_accounts_sub: "Füge dein erstes ownCloud-Konto hinzu, um die Synchronisierung zu starten."
   add_account_btn: "+ Konto hinzufügen"
@@ -9,6 +10,7 @@ de:
   folder_status_error_one: "⚠ 1 Fehler"
   folder_status_error_other: "⚠ %{count} Fehler"
 
+  # add_account
   add_account_heading: "Konto hinzufügen"
   add_account_caption: "Gib deine ownCloud-Serveradresse ein. Die Anmeldung öffnet sich im Browser."
   server_url_label: "Server-URL"
@@ -18,9 +20,11 @@ de:
   error_enter_url: "Bitte eine Server-URL eingeben"
   error_not_connected: "Keine Verbindung zum Sync-Daemon"
 
+  # add_account_waiting
   waiting_heading: "Warte auf Anmeldung…"
   waiting_caption: "Schließe die Authentifizierung im geöffneten Browserfenster ab."
 
+  # pick_local_folder
   pick_folder_heading: "Lokalen Ordner auswählen"
   pick_folder_caption: "Wohin soll %{folder} von %{server} synchronisiert werden?"
   local_folder_label: "Lokaler Ordner"
@@ -29,9 +33,11 @@ de:
   change_folder_btn: "Ordner ändern…"
   start_syncing_btn: "Synchronisierung starten"
 
+  # account_settings
   remove_account_btn: "Konto entfernen"
   no_folders_configured_dot: "Keine Ordner konfiguriert."
 
+  # general_settings
   general_settings_heading: "Allgemeine Einstellungen"
   language_label: "Sprache"
   language_sublabel: "Anzeigesprache der Anwendung"
@@ -43,14 +49,19 @@ de:
   notifications_sub: "Benachrichtigen, wenn Synchronisierungen abgeschlossen oder fehlgeschlagen sind"
   back_btn: "← Zurück"
 
+  # folder_errors
   no_errors: "Keine Fehler aufgezeichnet."
   folder_not_found: "Ordner nicht gefunden."
   sync_errors_label: "SYNC-FEHLER"
   synced_folders_label: "SYNCHRONISIERTE ORDNER"
 
+  # about
   about_heading: "Über"
+
+  # main
   account_not_found: "Konto nicht gefunden"
 
+  # tray
   tray_open: "Öffnen"
   tray_about: "Über"
   tray_quit: "Beenden"
