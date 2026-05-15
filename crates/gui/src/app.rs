@@ -477,12 +477,15 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
 
         DaemonEvent::SpaceDiscovered {
             account_id,
-            space_id,
+            space_id: _,
             space_name,
-            suggested_path,
+            suggested_path: _,
         } => {
+            // TODO: show OS desktop notification via notify-rust with Accept/Dismiss actions.
+            // For now, log. AcceptDiscoveredSpace / DismissDiscoveredSpace messages are wired
+            // and ready; the notification integration is a follow-up task.
             tracing::info!(
-                "New space '{space_name}' discovered for account {account_id}; suggested: {suggested_path}"
+                "New space '{space_name}' discovered for account {account_id} (notification pending)"
             );
         }
 
