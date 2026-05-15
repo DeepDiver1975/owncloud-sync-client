@@ -326,7 +326,7 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             let cfg = crate::gui_config::GuiConfig { language: Some(lang) };
             iced::Task::perform(
                 async move { cfg.save(&path).ok(); },
-                |_| Message::NavigateTo(View::SyncStatus),
+                |_| Message::NavigateTo(View::GeneralSettings),
             )
         }
 

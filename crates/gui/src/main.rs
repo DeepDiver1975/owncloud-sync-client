@@ -213,7 +213,7 @@ impl IcedApp {
         );
         let is_about = matches!(self.app.active_view, View::About);
 
-        let nav_sync = iced::widget::button(text("☁ Sync Status").size(12).style(
+        let nav_sync = iced::widget::button(text(format!("☁ {}", t!("nav_sync_status"))).size(12).style(
             theme::colored_text(if is_sync {
                 theme::ACCENT
             } else {
@@ -229,7 +229,7 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_add = iced::widget::button(text("+ Add Account").size(12).style(
+        let nav_add = iced::widget::button(text(t!("nav_add_account").to_string()).size(12).style(
             theme::colored_text(if is_add {
                 theme::ACCENT
             } else {
@@ -248,7 +248,7 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_settings = iced::widget::button(text("⚙ Settings").size(12).style(
+        let nav_settings = iced::widget::button(text(format!("⚙ {}", t!("nav_settings"))).size(12).style(
             theme::colored_text(if is_settings {
                 theme::ACCENT
             } else {
@@ -264,7 +264,7 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_about = iced::widget::button(text("ℹ About").size(12).style(
+        let nav_about = iced::widget::button(text(format!("ℹ {}", t!("nav_about"))).size(12).style(
             theme::colored_text(if is_about {
                 theme::ACCENT
             } else {

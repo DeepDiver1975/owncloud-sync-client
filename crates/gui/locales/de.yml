@@ -65,3 +65,9 @@ de:
   tray_open: "Öffnen"
   tray_about: "Über"
   tray_quit: "Beenden"
+
+  # nav
+  nav_sync_status: "Synchronisierungsstatus"
+  nav_add_account: "+ Konto hinzufügen"
+  nav_settings: "Einstellungen"
+  nav_about: "Über"

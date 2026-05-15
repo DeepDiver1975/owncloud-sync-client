@@ -65,3 +65,9 @@ zh:
   tray_open: "打开"
   tray_about: "关于"
   tray_quit: "退出"
+
+  # nav
+  nav_sync_status: "同步状态"
+  nav_add_account: "+ 添加账户"
+  nav_settings: "设置"
+  nav_about: "关于"

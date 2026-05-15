@@ -9,7 +9,6 @@ use crate::app::Message;
 use crate::model::{AccountView, FolderStatus, View};
 use crate::theme::{
     self, card_style, icon_button_style, section_header_style, status_badge_style, status_color,
-    status_label,
 };
 
 pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
@@ -185,7 +184,7 @@ fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Elem
             FolderStatus::Idle => t!("folder_status_idle").to_string(),
             FolderStatus::Syncing => t!("folder_status_syncing").to_string(),
             FolderStatus::Paused => t!("folder_status_paused").to_string(),
-            FolderStatus::Error => status_label(&folder.status).to_string(),
+            FolderStatus::Error => unreachable!("handled by outer if-let"),
         }
     };
 
