@@ -47,8 +47,7 @@ mod inner {
             // tray-icon on Linux requires gtk::init() and a running GTK event loop.
             // We start a dedicated thread that owns all GTK objects; iced never touches GTK.
             let (ready_tx, ready_rx) = std::sync::mpsc::channel::<anyhow::Result<()>>();
-            // Bounded channel for menu rebuild requests (capacity 1 is enough).
-            let (menu_tx, menu_rx) = std::sync::mpsc::sync_channel::<RebuildRequest>(4);
+            let (menu_tx, menu_rx) = std::sync::mpsc::sync_channel::<RebuildRequest>(1);
 
             let gtk_thread = std::thread::spawn(move || {
                 if let Err(e) = gtk::init() {
