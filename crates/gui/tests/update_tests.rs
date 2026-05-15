@@ -953,7 +953,6 @@ fn detect_system_language_returns_a_language() {
 }
 
 #[test]
-#[test]
 fn language_changed_updates_app_language() {
     use gui::model::Language;
     let mut app = App::default();
