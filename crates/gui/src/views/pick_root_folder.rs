@@ -14,15 +14,15 @@ pub fn pick_root_folder_view<'a>(
     local_path: Option<&'a str>,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
-    let heading = text("Choose a root folder")
+    let heading = text(t!("pick_root_folder_heading").to_string())
         .size(16)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let caption = text("All selected spaces will sync as sub-folders inside this folder.")
+    let caption = text(t!("pick_root_folder_caption").to_string())
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let folder_label = text("Root folder")
+    let folder_label = text(t!("root_folder_label").to_string())
         .size(11)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
@@ -52,7 +52,7 @@ pub fn pick_root_folder_view<'a>(
 
     let mut preview_col = Column::new().spacing(4);
     if let Some(root) = local_path {
-        let preview_label = text("Will create:")
+        let preview_label = text(t!("will_create_label").to_string())
             .size(11)
             .style(theme::colored_text(theme::TEXT_MUTED));
         preview_col = preview_col.push(preview_label);
