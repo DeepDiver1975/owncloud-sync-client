@@ -953,6 +953,15 @@ fn detect_system_language_returns_a_language() {
 }
 
 #[test]
+#[test]
+fn language_changed_updates_app_language() {
+    use gui::model::Language;
+    let mut app = App::default();
+    assert_eq!(app.language, Language::En);
+    let _ = update(&mut app, Message::LanguageChanged(Language::De));
+    assert_eq!(app.language, Language::De);
+}
+
 fn account_snapshot_unknown_status_defaults_to_idle() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
     use gui::app::{update, App, Message};

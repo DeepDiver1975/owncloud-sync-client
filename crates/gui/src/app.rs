@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
@@ -18,6 +19,8 @@ pub struct App {
     pub active_view: View,
     pub tray: Option<TrayHandle>,
     pub window_visible: bool,
+    pub language: crate::model::Language,
+    pub gui_config_path: PathBuf,
 }
 
 impl Default for App {
@@ -28,6 +31,8 @@ impl Default for App {
             active_view: View::SyncStatus,
             tray: None,
             window_visible: true,
+            language: crate::model::Language::En,
+            gui_config_path: PathBuf::new(),
         }
     }
 }
@@ -78,6 +83,7 @@ pub enum Message {
     ShowAbout,
     OpenUrl(String),
     DaemonConnected(Option<(DaemonConnection, EventRxCarrier)>),
+    LanguageChanged(crate::model::Language),
 }
 
 pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
@@ -303,6 +309,17 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             #[cfg(target_os = "windows")]
             let _ = std::process::Command::new("explorer").arg(&path).spawn();
             iced::Task::none()
+        }
+
+        Message::LanguageChanged(lang) => {
+            rust_i18n::set_locale(lang.as_locale());
+            let path = app.gui_config_path.clone();
+            app.language = lang.clone();
+            let cfg = crate::gui_config::GuiConfig { language: Some(lang) };
+            iced::Task::perform(
+                async move { cfg.save(&path).ok(); },
+                |_| Message::NavigateTo(View::SyncStatus),
+            )
         }
 
         Message::Quit => {

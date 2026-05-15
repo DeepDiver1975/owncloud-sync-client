@@ -3,13 +3,15 @@ use tokio::sync::Mutex;
 
 use gui::app::{update, App, EventRxCarrier, Message};
 use gui::daemon_conn::DaemonConnection;
+use gui::gui_config::GuiConfig;
+use gui::i18n::detect_system_language;
 use gui::model::View;
 use gui::spawn::ensure_daemon_running;
 use gui::subscription::next_message;
 use gui::theme;
 use gui::tray::TrayHandle;
 
-use daemon::paths::platform_gui_socket_path;
+use daemon::paths::{platform_config_dir, platform_gui_socket_path};
 
 use iced::futures::SinkExt;
 use iced::widget::{column, container, row, text};
@@ -80,6 +82,20 @@ struct IcedApp {
 
 impl IcedApp {
     fn init() -> (Self, Task<Message>) {
+        let gui_config_path = platform_config_dir().join("gui-config.toml");
+        let mut gui_config = GuiConfig::load_or_default(&gui_config_path);
+
+        let language = match gui_config.language.clone() {
+            Some(lang) => lang,
+            None => {
+                let detected = detect_system_language();
+                gui_config.language = Some(detected.clone());
+                gui_config.save(&gui_config_path).ok();
+                detected
+            }
+        };
+        rust_i18n::set_locale(language.as_locale());
+
         let tray = TrayHandle::build()
             .map_err(|e| tracing::warn!("tray icon unavailable: {e}"))
             .ok();
@@ -109,6 +125,8 @@ impl IcedApp {
             Self {
                 app: App {
                     tray,
+                    language,
+                    gui_config_path,
                     ..App::default()
                 },
                 event_rx,
