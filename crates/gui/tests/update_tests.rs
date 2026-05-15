@@ -814,6 +814,7 @@ fn navigate_to_folder_errors_view() {
     ));
 }
 
+#[test]
 fn account_snapshot_populates_accounts_with_correct_status_mapping() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
     use gui::app::{update, App, Message};
