@@ -299,7 +299,7 @@ fn add_account_submit_with_url_navigates_to_waiting_when_connected() {
             account_id.is_nil(),
             "account_id should be nil before daemon responds"
         );
-        assert_eq!(url_input, "https://cloud.example.com");
+        assert_eq!(url_input, "cloud.example.com");
     } else {
         panic!("expected AddAccountWaiting view, got {:?}", app.active_view);
     }
