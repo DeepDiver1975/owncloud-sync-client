@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod app;
+pub mod gui_config;
 pub mod daemon_conn;
 pub mod i18n;
 pub mod model;

@@ -22,6 +22,7 @@ serde = { workspace = true }
 uuid = { workspace = true }
 anyhow = "1"
 dirs = "5"
+toml = "0.8"
 thiserror = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -31,6 +32,7 @@ accesskit_unix = { version = "0.21", optional = true, default-features = false, 
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
 
 [features]
 default = ["tray-icon"]
