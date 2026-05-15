@@ -21,6 +21,8 @@ pub struct SpacePoller {
     token_manager: Arc<TokenManager>,
     interval: Duration,
     cancel: CancellationToken,
+    // tracks space IDs for which SpaceDiscovered has already been emitted this session
+    emitted_discoveries: HashSet<String>,
 }
 
 impl SpacePoller {
@@ -41,10 +43,11 @@ impl SpacePoller {
             token_manager,
             interval,
             cancel,
+            emitted_discoveries: HashSet::new(),
         }
     }
 
-    pub async fn run(self) {
+    pub async fn run(mut self) {
         let mut ticker = tokio::time::interval(self.interval);
         ticker.tick().await; // skip first immediate tick
         loop {
@@ -57,7 +60,7 @@ impl SpacePoller {
         }
     }
 
-    async fn poll_once(&self) {
+    async fn poll_once(&mut self) {
         let (account_url, existing_folders, dismissed) = {
             let cfg = self.config.lock().await;
             let Some(account) = cfg.account.iter().find(|a| a.id == self.account_id) else {
@@ -102,9 +105,12 @@ impl SpacePoller {
             .collect();
         let dismissed_set: HashSet<String> = dismissed.into_iter().collect();
 
-        // New spaces: in remote, not in local, not dismissed
+        // New spaces: in remote, not in local, not dismissed, not already notified
         for space in &remote_spaces {
-            if !local_ids.contains(&space.id) && !dismissed_set.contains(&space.id) {
+            if !local_ids.contains(&space.id)
+                && !dismissed_set.contains(&space.id)
+                && !self.emitted_discoveries.contains(&space.id)
+            {
                 let suggested = format!(
                     "{}/{}",
                     existing_folders
@@ -124,28 +130,41 @@ impl SpacePoller {
                     space_name: space.name.clone(),
                     suggested_path: suggested,
                 });
+                self.emitted_discoveries.insert(space.id.clone());
             }
         }
 
-        // Removed spaces: in local, not in remote
-        let removed_folders: Vec<_> = existing_folders
+        // Clear emitted_discoveries for spaces that are now local (user accepted) or dismissed
+        self.emitted_discoveries
+            .retain(|id| !local_ids.contains(id) && !dismissed_set.contains(id));
+
+        // Removed spaces: in local, not in remote. Re-validate under lock to avoid TOCTOU.
+        let removed_folder_ids: HashSet<Uuid> = existing_folders
             .iter()
             .filter(|f| !remote_ids.contains(&f.space_id))
-            .cloned()
+            .map(|f| f.id)
             .collect();
 
-        if !removed_folders.is_empty() {
+        if !removed_folder_ids.is_empty() {
             let mut cfg = self.config.lock().await;
-            for folder in &removed_folders {
-                if let Some(account) = cfg.account.iter_mut().find(|a| a.id == self.account_id) {
-                    account.folder.retain(|f| f.id != folder.id);
+            if let Some(account) = cfg.account.iter_mut().find(|a| a.id == self.account_id) {
+                let to_remove: Vec<_> = account
+                    .folder
+                    .iter()
+                    .filter(|f| removed_folder_ids.contains(&f.id))
+                    .cloned()
+                    .collect();
+                account
+                    .folder
+                    .retain(|f| !removed_folder_ids.contains(&f.id));
+                for folder in &to_remove {
+                    self.ipc.broadcast(DaemonEvent::SpaceRemoved {
+                        account_id: self.account_id,
+                        folder_id: folder.id,
+                        space_name: folder.display_name.clone(),
+                        local_path: folder.local_path.clone(),
+                    });
                 }
-                self.ipc.broadcast(DaemonEvent::SpaceRemoved {
-                    account_id: self.account_id,
-                    folder_id: folder.id,
-                    space_name: folder.display_name.clone(),
-                    local_path: folder.local_path.clone(),
-                });
             }
             if let Err(e) = cfg.save(&self.config_path) {
                 tracing::warn!("SpacePoller: failed to save config: {e}");
