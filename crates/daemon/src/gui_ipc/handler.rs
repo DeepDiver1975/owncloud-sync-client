@@ -270,7 +270,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
 
             for space_sel in spaces {
                 let sub_path = std::path::Path::new(&root_path).join(&space_sel.display_name);
-                if let Err(e) = std::fs::create_dir_all(&sub_path) {
+                if let Err(e) = tokio::fs::create_dir_all(&sub_path).await {
                     ipc.broadcast(DaemonEvent::AccountSpaceFailed {
                         account_id,
                         reason: format!("failed to create folder '{}': {e}", sub_path.display()),
@@ -302,35 +302,41 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                 };
 
                 if let Some(account) = account_config {
-                    if let Err(e) = folder_manager
+                    match folder_manager
                         .add_folder(&new_folder, &account, Arc::clone(&token_manager))
                         .await
                     {
-                        tracing::warn!("failed to register folder with engine: {e}");
-                    } else {
-                        {
-                            let mut sched = scheduler.lock().await;
-                            sched.add_folder(folder_id);
-                            sched.request_sync(folder_id);
+                        Ok(_) => {
+                            {
+                                let mut sched = scheduler.lock().await;
+                                sched.add_folder(folder_id);
+                                sched.request_sync(folder_id);
+                            }
+                            live_folder_ids.write().unwrap().push(folder_id);
+                            if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
+                                let tx = watcher_tx.clone();
+                                tokio::spawn(async move {
+                                    while let Some(event) = watcher.next_event().await {
+                                        let _ = tx.send((folder_id, event)).await;
+                                    }
+                                });
+                            }
+                            ipc.broadcast(DaemonEvent::AccountFolderAdded {
+                                account_id,
+                                folder_id,
+                                local_path,
+                                display_name: space_sel.display_name,
+                            });
                         }
-                        live_folder_ids.write().unwrap().push(folder_id);
-                        if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
-                            let tx = watcher_tx.clone();
-                            tokio::spawn(async move {
-                                while let Some(event) = watcher.next_event().await {
-                                    let _ = tx.send((folder_id, event)).await;
-                                }
+                        Err(e) => {
+                            tracing::warn!("failed to register folder with engine: {e}");
+                            ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                                account_id,
+                                reason: format!("failed to register folder: {e}"),
                             });
                         }
                     }
                 }
-
-                ipc.broadcast(DaemonEvent::AccountFolderAdded {
-                    account_id,
-                    folder_id,
-                    local_path,
-                    display_name: space_sel.display_name,
-                });
             }
         }
 
@@ -363,7 +369,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                 }
             };
 
-            if let Err(e) = std::fs::create_dir_all(&local_path) {
+            if let Err(e) = tokio::fs::create_dir_all(&local_path).await {
                 ipc.broadcast(DaemonEvent::AccountSpaceFailed {
                     account_id,
                     reason: format!("failed to create folder '{local_path}': {e}"),
@@ -399,35 +405,41 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
             };
 
             if let Some(account) = account_config {
-                if let Err(e) = folder_manager
+                match folder_manager
                     .add_folder(&new_folder, &account, Arc::clone(&token_manager))
                     .await
                 {
-                    tracing::warn!("failed to register folder: {e}");
-                } else {
-                    {
-                        let mut sched = scheduler.lock().await;
-                        sched.add_folder(folder_id);
-                        sched.request_sync(folder_id);
+                    Ok(_) => {
+                        {
+                            let mut sched = scheduler.lock().await;
+                            sched.add_folder(folder_id);
+                            sched.request_sync(folder_id);
+                        }
+                        live_folder_ids.write().unwrap().push(folder_id);
+                        if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
+                            let tx = watcher_tx.clone();
+                            tokio::spawn(async move {
+                                while let Some(event) = watcher.next_event().await {
+                                    let _ = tx.send((folder_id, event)).await;
+                                }
+                            });
+                        }
+                        ipc.broadcast(DaemonEvent::AccountFolderAdded {
+                            account_id,
+                            folder_id,
+                            local_path,
+                            display_name,
+                        });
                     }
-                    live_folder_ids.write().unwrap().push(folder_id);
-                    if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
-                        let tx = watcher_tx.clone();
-                        tokio::spawn(async move {
-                            while let Some(event) = watcher.next_event().await {
-                                let _ = tx.send((folder_id, event)).await;
-                            }
+                    Err(e) => {
+                        tracing::warn!("failed to register folder: {e}");
+                        ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                            account_id,
+                            reason: format!("failed to register folder: {e}"),
                         });
                     }
                 }
             }
-
-            ipc.broadcast(DaemonEvent::AccountFolderAdded {
-                account_id,
-                folder_id,
-                local_path,
-                display_name,
-            });
         }
 
         DaemonCommand::DismissSpace {
