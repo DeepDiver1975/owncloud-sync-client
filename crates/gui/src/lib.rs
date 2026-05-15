@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod daemon_conn;
+pub mod i18n;
 pub mod model;
 pub mod spawn;
 pub mod subscription;

@@ -946,6 +946,13 @@ fn language_label_is_non_empty() {
 }
 
 #[test]
+fn detect_system_language_returns_a_language() {
+    // Just verifies it doesn't panic and returns one of the known variants
+    let lang = gui::i18n::detect_system_language();
+    assert!(gui::model::Language::all().contains(&lang));
+}
+
+#[test]
 fn account_snapshot_unknown_status_defaults_to_idle() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
     use gui::app::{update, App, Message};
