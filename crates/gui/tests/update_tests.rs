@@ -83,6 +83,26 @@ fn add_account_submit_empty_url_sets_error() {
 }
 
 #[test]
+fn add_account_submit_schema_only_sets_error() {
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+
+    let mut app = App {
+        active_view: View::AddAccount {
+            url_input: "https://".to_string(),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::AddAccountSubmit);
+    if let View::AddAccount { error, .. } = &app.active_view {
+        assert!(error.is_some(), "schema-only input should trigger error");
+    } else {
+        panic!("expected AddAccount view");
+    }
+}
+
+#[test]
 fn daemon_event_sync_started_sets_syncing() {
     let folder_id = Uuid::new_v4();
     let mut app = make_app_with_folder(folder_id);

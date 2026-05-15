@@ -109,10 +109,11 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
         Message::AddAccountSubmit => {
             if let View::AddAccount { url_input, error } = &mut app.active_view {
                 let raw = url_input.trim().to_string();
-                let normalized = raw
+                let lowered = raw.to_lowercase();
+                let stripped = lowered
                     .trim_start_matches("https://")
-                    .trim_start_matches("http://")
-                    .to_string();
+                    .trim_start_matches("http://");
+                let normalized = raw[raw.len() - stripped.len()..].to_string();
                 *url_input = normalized.clone();
                 if normalized.is_empty() {
                     *error = Some("Please enter a server domain".to_string());
