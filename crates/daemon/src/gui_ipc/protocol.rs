@@ -313,4 +313,44 @@ mod tests {
         let received = read_event(&mut client).await.unwrap();
         assert_eq!(event, received);
     }
+
+    #[tokio::test]
+    async fn roundtrip_account_space_failed_event() {
+        let (mut client, mut server) = duplex(4096);
+        let event = DaemonEvent::AccountSpaceFailed {
+            account_id: Uuid::new_v4(),
+            reason: "network error".into(),
+        };
+        write_message(&mut server, &event).await.unwrap();
+        let received = read_event(&mut client).await.unwrap();
+        assert_eq!(event, received);
+    }
+
+    #[tokio::test]
+    async fn roundtrip_space_discovered_event() {
+        let (mut client, mut server) = duplex(4096);
+        let event = DaemonEvent::SpaceDiscovered {
+            account_id: Uuid::new_v4(),
+            space_id: "proj-abc".into(),
+            space_name: "ProjectX".into(),
+            suggested_path: "/home/alice/ownCloud/ProjectX".into(),
+        };
+        write_message(&mut server, &event).await.unwrap();
+        let received = read_event(&mut client).await.unwrap();
+        assert_eq!(event, received);
+    }
+
+    #[tokio::test]
+    async fn roundtrip_space_removed_event() {
+        let (mut client, mut server) = duplex(4096);
+        let event = DaemonEvent::SpaceRemoved {
+            account_id: Uuid::new_v4(),
+            folder_id: Uuid::new_v4(),
+            space_name: "OldProject".into(),
+            local_path: "/home/alice/ownCloud/OldProject".into(),
+        };
+        write_message(&mut server, &event).await.unwrap();
+        let received = read_event(&mut client).await.unwrap();
+        assert_eq!(event, received);
+    }
 }
