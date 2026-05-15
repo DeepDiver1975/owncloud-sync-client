@@ -133,20 +133,18 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
 
         Message::PickLocalFolderSubmit => {
             if let View::PickLocalFolder {
-                account_id,
+                account_id: _,
                 local_path,
                 error,
                 ..
             } = &mut app.active_view
             {
                 match local_path.clone() {
-                    Some(path) => {
-                        let aid = *account_id;
-                        *error = None;
-                        app.daemon.send(DaemonCommand::SetAccountFolder {
-                            account_id: aid,
-                            local_path: path,
-                        });
+                    Some(_path) => {
+                        // STUB: SetAccountFolder is deprecated, being replaced with space selection
+                        // This will be properly implemented in GUI Task 8
+                        tracing::warn!("PickLocalFolderSubmit: SetAccountFolder stub - not implemented");
+                        *error = Some("Space selection not yet implemented".to_string());
                     }
                     None => {
                         tracing::warn!("PickLocalFolderSubmit fired with no path selected");
@@ -321,19 +319,6 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
             }
         }
 
-        DaemonEvent::AccountSetFolderFailed { account_id, reason } => {
-            if let View::PickLocalFolder {
-                account_id: aid,
-                error,
-                ..
-            } = &mut app.active_view
-            {
-                if *aid == account_id {
-                    *error = Some(reason);
-                }
-            }
-        }
-
         DaemonEvent::AccountSnapshot { accounts } => {
             app.accounts = accounts
                 .into_iter()
@@ -359,6 +344,20 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                         .collect(),
                 })
                 .collect();
+        }
+
+        // New space selection events - stubs for now, implemented in GUI Tasks 7-8
+        DaemonEvent::AccountSpaceFailed { .. } => {
+            tracing::warn!("AccountSpaceFailed event received (not yet handled in GUI)");
+        }
+        DaemonEvent::SpacesListed { .. } => {
+            tracing::warn!("SpacesListed event received (not yet handled in GUI)");
+        }
+        DaemonEvent::SpaceDiscovered { .. } => {
+            tracing::warn!("SpaceDiscovered event received (not yet handled in GUI)");
+        }
+        DaemonEvent::SpaceRemoved { .. } => {
+            tracing::warn!("SpaceRemoved event received (not yet handled in GUI)");
         }
     }
 

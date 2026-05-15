@@ -170,13 +170,12 @@ impl TestEnvironment {
         };
 
         // 6. Register the local sync folder.
+        // STUB: SetAccountFolder replaced with space selection API in Task 3
+        // For now, use ListSpaces as placeholder
         self.daemon_ipc
-            .send(DaemonCommand::SetAccountFolder {
-                account_id,
-                local_path: self.sync_dir.path().to_string_lossy().into_owned(),
-            })
+            .send(DaemonCommand::ListSpaces { account_id })
             .await
-            .context("failed to send SetAccountFolder")?;
+            .context("failed to send ListSpaces (placeholder for deprecated SetAccountFolder)")?;
 
         // 7. Wait for daemon to confirm folder registered.
         self.daemon_ipc
