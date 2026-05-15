@@ -32,9 +32,10 @@ async fn test_account_setup() {
         !account.user_id.is_empty(),
         "expected user_id to be non-empty"
     );
-    assert_eq!(
-        account.folder.len(),
-        1,
-        "expected exactly 1 folder in account"
+    assert!(
+        !account.folder.is_empty(),
+        "expected at least 1 folder in account after setup"
     );
+    let personal = account.folder.iter().find(|f| f.display_name == "Personal");
+    assert!(personal.is_some(), "expected a 'Personal' folder");
 }

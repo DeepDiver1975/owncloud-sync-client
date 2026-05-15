@@ -169,15 +169,46 @@ impl TestEnvironment {
             _ => unreachable!(),
         };
 
-        // 6. Register the local sync folder.
-        // STUB: SetAccountFolder replaced with space selection API in Task 3
-        // For now, use ListSpaces as placeholder
+        // 6. List spaces.
         self.daemon_ipc
             .send(DaemonCommand::ListSpaces { account_id })
             .await
-            .context("failed to send ListSpaces (placeholder for deprecated SetAccountFolder)")?;
+            .context("failed to send ListSpaces")?;
 
-        // 7. Wait for daemon to confirm folder registered.
+        let spaces_event = self
+            .daemon_ipc
+            .wait_for(
+                |e| matches!(e, DaemonEvent::SpacesListed { .. }),
+                Duration::from_secs(30),
+            )
+            .await
+            .ok_or_else(|| anyhow!("SpacesListed not received"))?;
+
+        use daemon::gui_ipc::protocol::SpaceSelection;
+        let spaces = match spaces_event {
+            DaemonEvent::SpacesListed { spaces, .. } => spaces,
+            _ => unreachable!(),
+        };
+        let personal = spaces
+            .iter()
+            .find(|s| s.drive_type == "personal")
+            .ok_or_else(|| anyhow!("no personal space in SpacesListed"))?;
+
+        // 7. Set account folders — personal space as a sub-folder of sync_dir.
+        let root = self.sync_dir.path().to_string_lossy().into_owned();
+        self.daemon_ipc
+            .send(DaemonCommand::SetAccountFolders {
+                account_id,
+                root_path: root,
+                spaces: vec![SpaceSelection {
+                    space_id: personal.id.clone(),
+                    display_name: personal.name.clone(),
+                }],
+            })
+            .await
+            .context("failed to send SetAccountFolders")?;
+
+        // 8. Wait for folder added.
         self.daemon_ipc
             .wait_for(
                 |e| matches!(e, DaemonEvent::AccountFolderAdded { .. }),
@@ -187,6 +218,13 @@ impl TestEnvironment {
             .ok_or_else(|| anyhow!("AccountFolderAdded not received"))?;
 
         Ok(callback_title)
+    }
+
+    /// Returns the local path where the personal space syncs.
+    /// After SetAccountFolders, the personal space lands at sync_dir/<personal_name>.
+    /// oCIS personal spaces are named "Personal" by default.
+    pub fn personal_sync_dir(&self) -> std::path::PathBuf {
+        self.sync_dir.path().join("Personal")
     }
 
     /// Reads daemon stdout until a `OIDC_AUTH_URL=<url>` line is found, then returns the URL.
