@@ -33,6 +33,7 @@ fn folder_view_construction() {
     let id = Uuid::new_v4();
     let folder = FolderView {
         id,
+        space_id: String::new(),
         display_name: "My Docs".to_string(),
         local_path: "/home/user/docs".to_string(),
         status: FolderStatus::Idle,

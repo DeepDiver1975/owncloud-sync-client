@@ -424,9 +424,19 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                     error: None,
                 };
             } else {
+                let synced_space_ids: HashSet<String> = app
+                    .accounts
+                    .iter()
+                    .find(|a| a.id == account_id)
+                    .map(|a| a.folders.iter().map(|f| f.space_id.clone()).collect())
+                    .unwrap_or_default();
+                let available: Vec<SpaceInfo> = space_infos
+                    .into_iter()
+                    .filter(|s| !synced_space_ids.contains(&s.id))
+                    .collect();
                 app.active_view = View::PickSpaces {
                     account_id,
-                    spaces: space_infos,
+                    spaces: available,
                     selected: HashSet::new(),
                     error: None,
                 };
@@ -456,12 +466,14 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
         DaemonEvent::AccountFolderAdded {
             account_id,
             folder_id,
+            space_id,
             local_path,
             display_name,
         } => {
             if let Some(account) = app.accounts.iter_mut().find(|a| a.id == account_id) {
                 account.folders.push(FolderView {
                     id: folder_id,
+                    space_id,
                     display_name,
                     local_path,
                     status: FolderStatus::Idle,
@@ -513,6 +525,7 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                         .into_iter()
                         .map(|f| FolderView {
                             id: f.folder_id,
+                            space_id: f.space_id,
                             display_name: f.display_name,
                             local_path: f.local_path,
                             status: match f.status.as_str() {

@@ -290,23 +290,28 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                     paused: false,
                 };
 
-                let account_config = {
-                    let mut cfg = config.lock().await;
-                    if let Some(account) = cfg.account.iter_mut().find(|a| a.id == account_id) {
-                        account.folder.push(new_folder.clone());
-                    }
-                    if let Err(e) = cfg.save(config_path) {
-                        tracing::warn!("failed to save config: {e}");
-                    }
+                let account_snapshot = {
+                    let cfg = config.lock().await;
                     cfg.account.iter().find(|a| a.id == account_id).cloned()
                 };
 
-                if let Some(account) = account_config {
+                if let Some(account) = account_snapshot {
                     match folder_manager
                         .add_folder(&new_folder, &account, Arc::clone(&token_manager))
                         .await
                     {
                         Ok(_) => {
+                            {
+                                let mut cfg = config.lock().await;
+                                if let Some(acc) =
+                                    cfg.account.iter_mut().find(|a| a.id == account_id)
+                                {
+                                    acc.folder.push(new_folder.clone());
+                                }
+                                if let Err(e) = cfg.save(config_path) {
+                                    tracing::warn!("failed to save config: {e}");
+                                }
+                            }
                             {
                                 let mut sched = scheduler.lock().await;
                                 sched.add_folder(folder_id);
@@ -324,6 +329,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                             ipc.broadcast(DaemonEvent::AccountFolderAdded {
                                 account_id,
                                 folder_id,
+                                space_id: space_sel.space_id.clone(),
                                 local_path,
                                 display_name: space_sel.display_name,
                             });
@@ -393,23 +399,26 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                 paused: false,
             };
 
-            let account_config = {
-                let mut cfg = config.lock().await;
-                if let Some(account) = cfg.account.iter_mut().find(|a| a.id == account_id) {
-                    account.folder.push(new_folder.clone());
-                }
-                if let Err(e) = cfg.save(config_path) {
-                    tracing::warn!("failed to save config: {e}");
-                }
+            let account_snapshot = {
+                let cfg = config.lock().await;
                 cfg.account.iter().find(|a| a.id == account_id).cloned()
             };
 
-            if let Some(account) = account_config {
+            if let Some(account) = account_snapshot {
                 match folder_manager
                     .add_folder(&new_folder, &account, Arc::clone(&token_manager))
                     .await
                 {
                     Ok(_) => {
+                        {
+                            let mut cfg = config.lock().await;
+                            if let Some(acc) = cfg.account.iter_mut().find(|a| a.id == account_id) {
+                                acc.folder.push(new_folder.clone());
+                            }
+                            if let Err(e) = cfg.save(config_path) {
+                                tracing::warn!("failed to save config: {e}");
+                            }
+                        }
                         {
                             let mut sched = scheduler.lock().await;
                             sched.add_folder(folder_id);
@@ -427,6 +436,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                         ipc.broadcast(DaemonEvent::AccountFolderAdded {
                             account_id,
                             folder_id,
+                            space_id: space_id.clone(),
                             local_path,
                             display_name,
                         });

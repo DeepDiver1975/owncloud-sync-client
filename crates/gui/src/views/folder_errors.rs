@@ -96,6 +96,7 @@ mod tests {
             display_name: "Test Account".to_string(),
             folders: vec![FolderView {
                 id: folder_id,
+                space_id: String::new(),
                 display_name: "Documents".to_string(),
                 local_path: "/home/user/docs".to_string(),
                 status: FolderStatus::Error,

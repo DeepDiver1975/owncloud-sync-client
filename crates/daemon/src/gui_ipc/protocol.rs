@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FolderSnapshot {
     pub folder_id: Uuid,
+    pub space_id: String,
     pub display_name: String,
     pub local_path: String,
     pub status: String,
@@ -113,6 +114,7 @@ pub enum DaemonEvent {
     AccountFolderAdded {
         account_id: Uuid,
         folder_id: Uuid,
+        space_id: String,
         local_path: String,
         display_name: String,
     },

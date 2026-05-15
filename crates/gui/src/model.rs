@@ -24,6 +24,7 @@ impl fmt::Display for FolderStatus {
 #[derive(Debug, Clone)]
 pub struct FolderView {
     pub id: Uuid,
+    pub space_id: String,
     pub display_name: String,
     pub local_path: String,
     pub status: FolderStatus,

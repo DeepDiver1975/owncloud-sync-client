@@ -199,6 +199,7 @@ async fn main() -> Result<()> {
                         .iter()
                         .map(|f| FolderSnapshot {
                             folder_id: f.id,
+                            space_id: f.space_id.clone(),
                             display_name: f.display_name.clone(),
                             local_path: f.local_path.clone(),
                             status: sched

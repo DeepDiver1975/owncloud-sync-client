@@ -257,6 +257,7 @@ async fn roundtrip_account_folder_added() {
     let event = DaemonEvent::AccountFolderAdded {
         account_id: Uuid::new_v4(),
         folder_id: Uuid::new_v4(),
+        space_id: "personal-space-id".to_string(),
         local_path: "/home/alice/ownCloud".to_string(),
         display_name: "Personal".to_string(),
     };
@@ -307,6 +308,7 @@ async fn subscribe_receives_account_snapshot_before_broadcasts() {
             display_name: "Alice".to_string(),
             folders: vec![FolderSnapshot {
                 folder_id,
+                space_id: "personal-space-id".to_string(),
                 display_name: "Personal".to_string(),
                 local_path: "/home/alice/ownCloud".to_string(),
                 status: "idle".to_string(),
@@ -415,6 +417,7 @@ async fn roundtrip_account_snapshot() {
             display_name: "Alice".to_string(),
             folders: vec![FolderSnapshot {
                 folder_id: Uuid::new_v4(),
+                space_id: "personal-space-id".to_string(),
                 display_name: "Personal".to_string(),
                 local_path: "/home/alice/ownCloud".to_string(),
                 status: "idle".to_string(),

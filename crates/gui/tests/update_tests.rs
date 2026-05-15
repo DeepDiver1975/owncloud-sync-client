@@ -11,6 +11,7 @@ fn make_app_with_folder(folder_id: Uuid) -> App {
         display_name: "Test".to_string(),
         folders: vec![FolderView {
             id: folder_id,
+            space_id: String::new(),
             display_name: "Docs".to_string(),
             local_path: "/home/user/docs".to_string(),
             status: FolderStatus::Idle,
@@ -487,6 +488,7 @@ fn account_folder_added_when_in_pick_root_folder_navigates_to_sync_status() {
         Message::DaemonEvent(DaemonEvent::AccountFolderAdded {
             account_id,
             folder_id,
+            space_id: "personal-space-id".to_string(),
             local_path: "/home/alice/ownCloud/Personal".to_string(),
             display_name: "Personal".to_string(),
         }),
@@ -794,6 +796,7 @@ fn navigate_to_folder_errors_view() {
         display_name: "Test".to_string(),
         folders: vec![FolderView {
             id: folder_id,
+            space_id: String::new(),
             display_name: "Docs".to_string(),
             local_path: "/home/user/docs".to_string(),
             status: FolderStatus::Error,
@@ -845,18 +848,21 @@ fn account_snapshot_populates_accounts_with_correct_status_mapping() {
                 folders: vec![
                     FolderSnapshot {
                         folder_id: folder_idle_id,
+                        space_id: "personal-space-id".to_string(),
                         display_name: "Personal".to_string(),
                         local_path: "/home/alice/ownCloud".to_string(),
                         status: "idle".to_string(),
                     },
                     FolderSnapshot {
                         folder_id: folder_syncing_id,
+                        space_id: "shared-space-id".to_string(),
                         display_name: "Shared".to_string(),
                         local_path: "/home/alice/shared".to_string(),
                         status: "syncing".to_string(),
                     },
                     FolderSnapshot {
                         folder_id: folder_paused_id,
+                        space_id: "archive-space-id".to_string(),
                         display_name: "Archive".to_string(),
                         local_path: "/home/alice/archive".to_string(),
                         status: "paused".to_string(),
@@ -933,6 +939,7 @@ fn account_snapshot_unknown_status_defaults_to_idle() {
                 display_name: "Bob".to_string(),
                 folders: vec![FolderSnapshot {
                     folder_id: Uuid::new_v4(),
+                    space_id: "docs-space-id".to_string(),
                     display_name: "Docs".to_string(),
                     local_path: "/home/bob/docs".to_string(),
                     status: "unknown-future-status".to_string(),
