@@ -108,12 +108,7 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
 
         Message::AddAccountSubmit => {
             if let View::AddAccount { url_input, error } = &mut app.active_view {
-                let raw = url_input.trim().to_string();
-                let lowered = raw.to_lowercase();
-                let stripped = lowered
-                    .trim_start_matches("https://")
-                    .trim_start_matches("http://");
-                let normalized = raw[raw.len() - stripped.len()..].to_string();
+                let normalized = strip_url_schema(url_input.trim()).to_string();
                 *url_input = normalized.clone();
                 if normalized.is_empty() {
                     *error = Some("Please enter a server domain".to_string());
@@ -583,6 +578,18 @@ fn set_folder_status(app: &mut App, folder_id: Uuid, status: FolderStatus) {
     if let Some(folder) = find_folder_mut(app, folder_id) {
         folder.status = status;
     }
+}
+
+fn strip_url_schema(s: &str) -> &str {
+    let lower = s.to_ascii_lowercase();
+    let prefix_len = if lower.starts_with("https://") {
+        8
+    } else if lower.starts_with("http://") {
+        7
+    } else {
+        0
+    };
+    &s[prefix_len..]
 }
 
 fn derive_root(existing_paths: &[String]) -> String {

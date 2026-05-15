@@ -87,18 +87,46 @@ fn add_account_submit_schema_only_sets_error() {
     use gui::app::{update, App, Message};
     use gui::model::View;
 
+    for schema_only in &["https://", "http://", "HTTPS://", "HTTP://"] {
+        let mut app = App {
+            active_view: View::AddAccount {
+                url_input: schema_only.to_string(),
+                error: None,
+            },
+            ..App::default()
+        };
+        let _ = update(&mut app, Message::AddAccountSubmit);
+        if let View::AddAccount { error, .. } = &app.active_view {
+            assert!(
+                error.is_some(),
+                "schema-only input {schema_only:?} should trigger error"
+            );
+        } else {
+            panic!("expected AddAccount view for input {schema_only:?}");
+        }
+    }
+}
+
+#[test]
+fn add_account_submit_strips_http_prefix() {
+    use gui::app::{update, App, Message};
+    use gui::daemon_conn::DaemonConnection;
+    use gui::model::View;
+
+    let (conn, _rx) = DaemonConnection::connected_for_test();
     let mut app = App {
+        daemon: conn,
         active_view: View::AddAccount {
-            url_input: "https://".to_string(),
+            url_input: "http://cloud.example.com".to_string(),
             error: None,
         },
         ..App::default()
     };
     let _ = update(&mut app, Message::AddAccountSubmit);
-    if let View::AddAccount { error, .. } = &app.active_view {
-        assert!(error.is_some(), "schema-only input should trigger error");
+    if let View::AddAccountWaiting { url_input, .. } = &app.active_view {
+        assert_eq!(url_input, "cloud.example.com");
     } else {
-        panic!("expected AddAccount view");
+        panic!("expected AddAccountWaiting view");
     }
 }
 

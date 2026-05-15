@@ -119,15 +119,9 @@ impl TestEnvironment {
     /// the same socket the GUI uses, exercising the same daemon code path.
     pub async fn add_account(&mut self) -> Result<String> {
         // 1. Send AddAccount to the daemon.
-        // Note: url field must be bare domain with port, no schema prefix.
-        let bare_url = format!(
-            "{}:{}",
-            self.ocis_url.host_str().unwrap_or("127.0.0.1"),
-            self.ocis_url.port().unwrap_or(9200)
-        );
         self.daemon_ipc
             .send(DaemonCommand::AddAccount {
-                url: bare_url,
+                url: self.bare_url(),
             })
             .await
             .context("failed to send AddAccount")?;
@@ -223,6 +217,15 @@ impl TestEnvironment {
             .ok_or_else(|| anyhow!("AccountFolderAdded not received"))?;
 
         Ok(callback_title)
+    }
+
+    /// Returns the bare `host:port` string expected by `DaemonCommand::AddAccount`.
+    pub fn bare_url(&self) -> String {
+        format!(
+            "{}:{}",
+            self.ocis_url.host_str().unwrap_or("127.0.0.1"),
+            self.ocis_url.port().unwrap_or(9200)
+        )
     }
 
     /// Returns the local path where the personal space syncs.
