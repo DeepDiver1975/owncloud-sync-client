@@ -24,10 +24,11 @@ fr:
   waiting_heading: "En attente de connexion…"
   waiting_caption: "Terminez l'authentification dans la fenêtre du navigateur qui vient de s'ouvrir."
 
-  # pick_local_folder
-  pick_folder_heading: "Choisir un dossier local"
-  pick_folder_caption: "Où doit se synchroniser %{folder} depuis %{server} ?"
-  local_folder_label: "Dossier local"
+  # pick_root_folder
+  pick_root_folder_heading: "Choisir un dossier racine"
+  pick_root_folder_caption: "Tous les espaces sélectionnés seront synchronisés comme sous-dossiers dans ce dossier."
+  root_folder_label: "Dossier racine"
+  will_create_label: "Créera :"
   no_folder_selected: "Aucun dossier sélectionné"
   choose_folder_btn: "Choisir un dossier…"
   change_folder_btn: "Changer de dossier…"

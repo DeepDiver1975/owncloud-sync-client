@@ -24,10 +24,11 @@ zh:
   waiting_heading: "等待登录…"
   waiting_caption: "在刚刚打开的浏览器窗口中完成身份验证。"
 
-  # pick_local_folder
-  pick_folder_heading: "选择本地文件夹"
-  pick_folder_caption: "%{folder}（来自 %{server}）应同步到哪里？"
-  local_folder_label: "本地文件夹"
+  # pick_root_folder
+  pick_root_folder_heading: "选择根文件夹"
+  pick_root_folder_caption: "所有选定的空间将作为子文件夹同步到此文件夹中。"
+  root_folder_label: "根文件夹"
+  will_create_label: "将创建："
   no_folder_selected: "未选择文件夹"
   choose_folder_btn: "选择文件夹…"
   change_folder_btn: "更改文件夹…"
