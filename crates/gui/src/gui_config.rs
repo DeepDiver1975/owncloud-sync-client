@@ -18,6 +18,9 @@ impl GuiConfig {
     }
 
     pub fn save(&self, path: &Path) -> anyhow::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let content = toml::to_string_pretty(self)?;
         std::fs::write(path, content)?;
         Ok(())
