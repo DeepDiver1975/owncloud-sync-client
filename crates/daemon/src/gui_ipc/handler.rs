@@ -2,13 +2,13 @@ use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use ocis_client::auth::{KeychainStore, OidcAuth, TokenManager};
+use ocis_client::auth::{OidcAuth, TokenManager};
 use ocis_client::GraphClient;
 
-use super::protocol::{DaemonCommand, DaemonEvent};
+use super::protocol::{DaemonCommand, DaemonEvent, SpaceInfo};
 use super::GuiIpcServer;
 use crate::config::{AppConfig, FolderConfig};
 use crate::folder_manager::FolderManager;
@@ -48,6 +48,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
         token_managers,
         watcher_tx,
     } = ctx;
+
     match cmd {
         DaemonCommand::Subscribe => {}
 
@@ -85,7 +86,6 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
 
             let insecure = config.lock().await.general.insecure;
 
-            // Bind to :0 to get an OS-assigned port.
             let listener = match TcpListener::bind("127.0.0.1:0").await {
                 Ok(l) => l,
                 Err(e) => {
@@ -99,7 +99,6 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
             let port = listener.local_addr()?.port();
             let callback_uri = format!("http://127.0.0.1:{port}/callback");
 
-            // Emit AccountAddStarted immediately so clients don't wait on OIDC discovery.
             ipc.broadcast(DaemonEvent::AccountAddStarted { account_id });
 
             let ipc_clone = Arc::clone(ipc);
@@ -175,186 +174,297 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
             });
         }
 
-        DaemonCommand::SetAccountFolder {
-            account_id,
-            local_path,
-        } => {
-            // Step 1: Find the account in config.
-            let (account_url, account_id_str) = {
+        DaemonCommand::ListSpaces { account_id } => {
+            let account_url = {
                 let cfg = config.lock().await;
                 match cfg.account.iter().find(|a| a.id == account_id) {
-                    Some(a) => (a.url.clone(), a.id.to_string()),
+                    Some(a) => a.url.clone(),
                     None => {
-                        ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                        ipc.broadcast(DaemonEvent::AccountSpaceFailed {
                             account_id,
-                            reason: "account not found".to_string(),
+                            reason: "account not found".into(),
                         });
                         return Ok(ShouldQuit::No);
                     }
                 }
             };
 
-            // Step 2: Validate local_path exists and is a directory.
-            let path = std::path::Path::new(&local_path);
-            if !path.exists() || !path.is_dir() {
-                ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+            let tm = token_managers.read().unwrap().get(&account_id).cloned();
+            let token_manager = match tm {
+                Some(tm) => tm,
+                None => {
+                    ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                        account_id,
+                        reason: "no credentials found for account".into(),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+
+            let ipc_clone = Arc::clone(ipc);
+            tokio::spawn(async move {
+                let base_url = match url::Url::parse(&account_url) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        ipc_clone.broadcast(DaemonEvent::AccountSpaceFailed {
+                            account_id,
+                            reason: format!("invalid server URL: {e}"),
+                        });
+                        return;
+                    }
+                };
+                let token_arc = token_manager.token_arc();
+                let graph = GraphClient::new(base_url, token_arc);
+                match graph.list_spaces().await {
+                    Ok(spaces) => {
+                        ipc_clone.broadcast(DaemonEvent::SpacesListed {
+                            account_id,
+                            spaces: spaces
+                                .into_iter()
+                                .map(|s| SpaceInfo {
+                                    id: s.id,
+                                    name: s.name,
+                                    drive_type: s.drive_type,
+                                })
+                                .collect(),
+                        });
+                    }
+                    Err(e) => {
+                        ipc_clone.broadcast(DaemonEvent::AccountSpaceFailed {
+                            account_id,
+                            reason: format!("failed to list spaces: {e}"),
+                        });
+                    }
+                }
+            });
+        }
+
+        DaemonCommand::SetAccountFolders {
+            account_id,
+            root_path,
+            spaces,
+        } => {
+            let account_exists = {
+                let cfg = config.lock().await;
+                cfg.account.iter().any(|a| a.id == account_id)
+            };
+            if !account_exists {
+                ipc.broadcast(DaemonEvent::AccountSpaceFailed {
                     account_id,
-                    reason: "path does not exist or is not a directory".to_string(),
+                    reason: "account not found".into(),
                 });
                 return Ok(ShouldQuit::No);
             }
 
-            // Step 3: Load keychain tokens.
-            let key = account_id_str.clone();
-            let token_set = match tokio::task::spawn_blocking(move || KeychainStore::load(&key))
-                .await
-                .map_err(|e| anyhow::anyhow!("keychain task panicked: {e}"))?
-            {
-                Ok(Some(t)) => t,
-                Ok(None) => {
-                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
-                        account_id,
-                        reason: "could not load account credentials".to_string(),
-                    });
-                    return Ok(ShouldQuit::No);
-                }
-                Err(e) => {
-                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
-                        account_id,
-                        reason: format!("could not load account credentials: {e}"),
-                    });
-                    return Ok(ShouldQuit::No);
-                }
-            };
-
-            // Step 3b: Retrieve existing TokenManager or build one via re-discovery.
-            let tm = {
-                let managers = token_managers.read().unwrap();
-                managers.get(&account_id).cloned()
-            };
+            let tm = token_managers.read().unwrap().get(&account_id).cloned();
             let token_manager = match tm {
                 Some(tm) => tm,
                 None => {
-                    let insecure = config.lock().await.general.insecure;
-                    let url_str = account_url.clone();
-                    let ts = token_set.clone();
-                    let aid = account_id.to_string();
-                    match OidcAuth::discover(
-                        &url_str,
-                        OCIS_CLIENT_ID,
-                        Some(OCIS_CLIENT_SECRET.to_string()),
-                        "http://localhost:9999/callback",
-                        insecure,
-                    )
-                    .await
+                    ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                        account_id,
+                        reason: "no credentials found for account".into(),
+                    });
+                    return Ok(ShouldQuit::No);
+                }
+            };
+
+            for space_sel in spaces {
+                let sub_path = std::path::Path::new(&root_path).join(&space_sel.display_name);
+                if let Err(e) = tokio::fs::create_dir_all(&sub_path).await {
+                    ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                        account_id,
+                        reason: format!("failed to create folder '{}': {e}", sub_path.display()),
+                    });
+                    continue;
+                }
+
+                let folder_id = Uuid::new_v4();
+                let local_path = sub_path.to_string_lossy().into_owned();
+                let new_folder = FolderConfig {
+                    id: folder_id,
+                    local_path: local_path.clone(),
+                    space_id: space_sel.space_id.clone(),
+                    display_name: space_sel.display_name.clone(),
+                    selective_sync_excluded: vec![],
+                    vfs_mode: "off".to_string(),
+                    paused: false,
+                };
+
+                let account_snapshot = {
+                    let cfg = config.lock().await;
+                    cfg.account.iter().find(|a| a.id == account_id).cloned()
+                };
+
+                if let Some(account) = account_snapshot {
+                    match folder_manager
+                        .add_folder(&new_folder, &account, Arc::clone(&token_manager))
+                        .await
                     {
-                        Ok(oidc) => {
-                            let tm = Arc::new(TokenManager::new(oidc, ts, aid));
-                            token_managers
-                                .write()
-                                .unwrap()
-                                .insert(account_id, Arc::clone(&tm));
-                            tm
+                        Ok(_) => {
+                            {
+                                let mut cfg = config.lock().await;
+                                if let Some(acc) =
+                                    cfg.account.iter_mut().find(|a| a.id == account_id)
+                                {
+                                    acc.folder.push(new_folder.clone());
+                                }
+                                if let Err(e) = cfg.save(config_path) {
+                                    tracing::warn!("failed to save config: {e}");
+                                }
+                            }
+                            {
+                                let mut sched = scheduler.lock().await;
+                                sched.add_folder(folder_id);
+                                sched.request_sync(folder_id);
+                            }
+                            live_folder_ids.write().unwrap().push(folder_id);
+                            if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
+                                let tx = watcher_tx.clone();
+                                tokio::spawn(async move {
+                                    while let Some(event) = watcher.next_event().await {
+                                        let _ = tx.send((folder_id, event)).await;
+                                    }
+                                });
+                            }
+                            ipc.broadcast(DaemonEvent::AccountFolderAdded {
+                                account_id,
+                                folder_id,
+                                space_id: space_sel.space_id.clone(),
+                                local_path,
+                                display_name: space_sel.display_name,
+                            });
                         }
                         Err(e) => {
-                            ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                            tracing::warn!("failed to register folder with engine: {e}");
+                            ipc.broadcast(DaemonEvent::AccountSpaceFailed {
                                 account_id,
-                                reason: format!("OIDC re-discovery failed: {e}"),
+                                reason: format!("failed to register folder: {e}"),
                             });
-                            return Ok(ShouldQuit::No);
                         }
                     }
                 }
-            };
+            }
+        }
 
-            // Step 4: Construct GraphClient.
-            let base_url = match url::Url::parse(&account_url) {
-                Ok(u) => u,
-                Err(e) => {
-                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
-                        account_id,
-                        reason: format!("invalid server URL: {e}"),
-                    });
-                    return Ok(ShouldQuit::No);
-                }
+        DaemonCommand::AddAccountSpace {
+            account_id,
+            space_id,
+            local_path,
+        } => {
+            let account_exists = {
+                let cfg = config.lock().await;
+                cfg.account.iter().any(|a| a.id == account_id)
             };
-            let token_arc = Arc::new(RwLock::new(token_set));
-            let graph = GraphClient::new(base_url, token_arc);
+            if !account_exists {
+                ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                    account_id,
+                    reason: "account not found".into(),
+                });
+                return Ok(ShouldQuit::No);
+            }
 
-            // Step 5: List spaces and find the personal drive.
-            let spaces = match graph.list_spaces().await {
-                Ok(s) => s,
-                Err(e) => {
-                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
-                        account_id,
-                        reason: format!("failed to list spaces: {e}"),
-                    });
-                    return Ok(ShouldQuit::No);
-                }
-            };
-            let personal = match spaces.into_iter().find(|s| s.drive_type == "personal") {
-                Some(s) => s,
+            let tm = token_managers.read().unwrap().get(&account_id).cloned();
+            let token_manager = match tm {
+                Some(tm) => tm,
                 None => {
-                    ipc.broadcast(DaemonEvent::AccountSetFolderFailed {
+                    ipc.broadcast(DaemonEvent::AccountSpaceFailed {
                         account_id,
-                        reason: "no personal drive found".to_string(),
+                        reason: "no credentials found for account".into(),
                     });
                     return Ok(ShouldQuit::No);
                 }
             };
 
-            // Step 6 & 7: Push FolderConfig, save, register with engine, and broadcast.
+            if let Err(e) = tokio::fs::create_dir_all(&local_path).await {
+                ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                    account_id,
+                    reason: format!("failed to create folder '{local_path}': {e}"),
+                });
+                return Ok(ShouldQuit::No);
+            }
+
+            let display_name = std::path::Path::new(&local_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| space_id.clone());
+
             let folder_id = Uuid::new_v4();
-            let new_folder_config = FolderConfig {
+            let new_folder = FolderConfig {
                 id: folder_id,
                 local_path: local_path.clone(),
-                space_id: personal.id,
-                display_name: "Personal".to_string(),
+                space_id: space_id.clone(),
+                display_name: display_name.clone(),
                 selective_sync_excluded: vec![],
                 vfs_mode: "off".to_string(),
                 paused: false,
             };
-            let account_config = {
-                let mut cfg = config.lock().await;
-                if let Some(account) = cfg.account.iter_mut().find(|a| a.id == account_id) {
-                    account.folder.push(new_folder_config.clone());
-                }
-                cfg.save(config_path)?;
+
+            let account_snapshot = {
+                let cfg = config.lock().await;
                 cfg.account.iter().find(|a| a.id == account_id).cloned()
             };
 
-            // Register the new folder with the engine and scheduler so sync runs immediately.
-            if let Some(account) = account_config {
-                if let Err(e) = folder_manager
-                    .add_folder(&new_folder_config, &account, Arc::clone(&token_manager))
+            if let Some(account) = account_snapshot {
+                match folder_manager
+                    .add_folder(&new_folder, &account, Arc::clone(&token_manager))
                     .await
                 {
-                    tracing::warn!("failed to register folder with engine: {e}");
-                } else {
-                    {
-                        let mut sched = scheduler.lock().await;
-                        sched.add_folder(folder_id);
-                        sched.request_sync(folder_id);
-                    }
-                    live_folder_ids.write().unwrap().push(folder_id);
-                    if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
-                        let tx = watcher_tx.clone();
-                        let fid = folder_id;
-                        tokio::spawn(async move {
-                            while let Some(event) = watcher.next_event().await {
-                                let _ = tx.send((fid, event)).await;
+                    Ok(_) => {
+                        {
+                            let mut cfg = config.lock().await;
+                            if let Some(acc) = cfg.account.iter_mut().find(|a| a.id == account_id) {
+                                acc.folder.push(new_folder.clone());
                             }
+                            if let Err(e) = cfg.save(config_path) {
+                                tracing::warn!("failed to save config: {e}");
+                            }
+                        }
+                        {
+                            let mut sched = scheduler.lock().await;
+                            sched.add_folder(folder_id);
+                            sched.request_sync(folder_id);
+                        }
+                        live_folder_ids.write().unwrap().push(folder_id);
+                        if let Some(mut watcher) = folder_manager.take_watcher(folder_id) {
+                            let tx = watcher_tx.clone();
+                            tokio::spawn(async move {
+                                while let Some(event) = watcher.next_event().await {
+                                    let _ = tx.send((folder_id, event)).await;
+                                }
+                            });
+                        }
+                        ipc.broadcast(DaemonEvent::AccountFolderAdded {
+                            account_id,
+                            folder_id,
+                            space_id: space_id.clone(),
+                            local_path,
+                            display_name,
+                        });
+                    }
+                    Err(e) => {
+                        tracing::warn!("failed to register folder: {e}");
+                        ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                            account_id,
+                            reason: format!("failed to register folder: {e}"),
                         });
                     }
                 }
             }
+        }
 
-            ipc.broadcast(DaemonEvent::AccountFolderAdded {
-                account_id,
-                folder_id,
-                local_path,
-                display_name: "Personal".to_string(),
-            });
+        DaemonCommand::DismissSpace {
+            account_id,
+            space_id,
+        } => {
+            let mut cfg = config.lock().await;
+            if let Some(account) = cfg.account.iter_mut().find(|a| a.id == account_id) {
+                if !account.dismissed_spaces.contains(&space_id) {
+                    account.dismissed_spaces.push(space_id);
+                }
+                if let Err(e) = cfg.save(config_path) {
+                    tracing::warn!("failed to save config after dismiss: {e}");
+                }
+            }
         }
 
         DaemonCommand::Quit => {

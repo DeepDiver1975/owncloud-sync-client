@@ -7,9 +7,10 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FolderSnapshot {
     pub folder_id: Uuid,
+    pub space_id: String,
     pub display_name: String,
     pub local_path: String,
-    pub status: String, // "idle" | "syncing" | "paused"
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -18,6 +19,19 @@ pub struct AccountSnapshot {
     pub url: String,
     pub display_name: String,
     pub folders: Vec<FolderSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SpaceSelection {
+    pub space_id: String,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SpaceInfo {
+    pub id: String,
+    pub name: String,
+    pub drive_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -39,9 +53,22 @@ pub enum DaemonCommand {
     RemoveAccount {
         account_id: Uuid,
     },
-    SetAccountFolder {
+    ListSpaces {
         account_id: Uuid,
+    },
+    SetAccountFolders {
+        account_id: Uuid,
+        root_path: String,
+        spaces: Vec<SpaceSelection>,
+    },
+    AddAccountSpace {
+        account_id: Uuid,
+        space_id: String,
         local_path: String,
+    },
+    DismissSpace {
+        account_id: Uuid,
+        space_id: String,
     },
     Quit,
 }
@@ -61,7 +88,7 @@ pub enum DaemonEvent {
     SyncFinished {
         folder_id: Uuid,
         errors: Vec<String>,
-        report: Option<SyncReport>, // None only if run_sync panicked
+        report: Option<SyncReport>,
     },
     FileStatusChanged {
         path: String,
@@ -84,15 +111,32 @@ pub enum DaemonEvent {
         display_name: String,
         url: String,
     },
-    AccountSetFolderFailed {
-        account_id: Uuid,
-        reason: String,
-    },
     AccountFolderAdded {
         account_id: Uuid,
         folder_id: Uuid,
+        space_id: String,
         local_path: String,
         display_name: String,
+    },
+    AccountSpaceFailed {
+        account_id: Uuid,
+        reason: String,
+    },
+    SpacesListed {
+        account_id: Uuid,
+        spaces: Vec<SpaceInfo>,
+    },
+    SpaceDiscovered {
+        account_id: Uuid,
+        space_id: String,
+        space_name: String,
+        suggested_path: String,
+    },
+    SpaceRemoved {
+        account_id: Uuid,
+        folder_id: Uuid,
+        space_name: String,
+        local_path: String,
     },
     AccountSnapshot {
         accounts: Vec<AccountSnapshot>,
@@ -199,6 +243,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn roundtrip_list_spaces() {
+        roundtrip(DaemonCommand::ListSpaces {
+            account_id: Uuid::new_v4(),
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn roundtrip_set_account_folders() {
+        roundtrip(DaemonCommand::SetAccountFolders {
+            account_id: Uuid::new_v4(),
+            root_path: "/home/alice/ownCloud".into(),
+            spaces: vec![SpaceSelection {
+                space_id: "abc-123".into(),
+                display_name: "Personal".into(),
+            }],
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn roundtrip_add_account_space() {
+        roundtrip(DaemonCommand::AddAccountSpace {
+            account_id: Uuid::new_v4(),
+            space_id: "abc-123".into(),
+            local_path: "/home/alice/ownCloud/ProjectX".into(),
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn roundtrip_dismiss_space() {
+        roundtrip(DaemonCommand::DismissSpace {
+            account_id: Uuid::new_v4(),
+            space_id: "abc-123".into(),
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn roundtrip_quit() {
         roundtrip(DaemonCommand::Quit).await;
     }
@@ -210,6 +294,62 @@ mod tests {
             folder_id: Uuid::new_v4(),
             done: 42,
             total: 100,
+        };
+        write_message(&mut server, &event).await.unwrap();
+        let received = read_event(&mut client).await.unwrap();
+        assert_eq!(event, received);
+    }
+
+    #[tokio::test]
+    async fn roundtrip_spaces_listed_event() {
+        let (mut client, mut server) = duplex(4096);
+        let event = DaemonEvent::SpacesListed {
+            account_id: Uuid::new_v4(),
+            spaces: vec![SpaceInfo {
+                id: "s1".into(),
+                name: "Personal".into(),
+                drive_type: "personal".into(),
+            }],
+        };
+        write_message(&mut server, &event).await.unwrap();
+        let received = read_event(&mut client).await.unwrap();
+        assert_eq!(event, received);
+    }
+
+    #[tokio::test]
+    async fn roundtrip_account_space_failed_event() {
+        let (mut client, mut server) = duplex(4096);
+        let event = DaemonEvent::AccountSpaceFailed {
+            account_id: Uuid::new_v4(),
+            reason: "network error".into(),
+        };
+        write_message(&mut server, &event).await.unwrap();
+        let received = read_event(&mut client).await.unwrap();
+        assert_eq!(event, received);
+    }
+
+    #[tokio::test]
+    async fn roundtrip_space_discovered_event() {
+        let (mut client, mut server) = duplex(4096);
+        let event = DaemonEvent::SpaceDiscovered {
+            account_id: Uuid::new_v4(),
+            space_id: "proj-abc".into(),
+            space_name: "ProjectX".into(),
+            suggested_path: "/home/alice/ownCloud/ProjectX".into(),
+        };
+        write_message(&mut server, &event).await.unwrap();
+        let received = read_event(&mut client).await.unwrap();
+        assert_eq!(event, received);
+    }
+
+    #[tokio::test]
+    async fn roundtrip_space_removed_event() {
+        let (mut client, mut server) = duplex(4096);
+        let event = DaemonEvent::SpaceRemoved {
+            account_id: Uuid::new_v4(),
+            folder_id: Uuid::new_v4(),
+            space_name: "OldProject".into(),
+            local_path: "/home/alice/ownCloud/OldProject".into(),
         };
         write_message(&mut server, &event).await.unwrap();
         let received = read_event(&mut client).await.unwrap();

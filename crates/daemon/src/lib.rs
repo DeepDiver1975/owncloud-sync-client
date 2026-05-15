@@ -7,5 +7,6 @@ pub mod lock;
 pub mod oidc_callback;
 pub mod paths;
 pub mod scheduler;
+pub mod space_poller;
 pub mod vfs_factory;
 pub mod watcher;

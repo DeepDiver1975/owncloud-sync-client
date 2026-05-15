@@ -1,15 +1,14 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
-use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
+use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent, SpaceSelection};
 
 use crate::daemon_conn::DaemonConnection;
-use crate::model::{AccountView, FolderStatus, FolderView, View};
+use crate::model::{AccountView, FolderStatus, FolderView, SpaceInfo, View};
 use crate::tray::TrayHandle;
 
-/// Carrier for the event receiver produced by `DaemonConnection::connect`.
-/// Wrapped in Arc<Mutex<Option<...>>> so that `Message` can derive Clone.
 pub type EventRxCarrier = Arc<Mutex<Option<mpsc::Receiver<DaemonEvent>>>>;
 
 #[derive(Debug, Clone)]
@@ -41,10 +40,35 @@ pub enum Message {
     ToggleWindow,
     AddAccountUrlChanged(String),
     AddAccountSubmit,
-    PickLocalFolderBrowse,
-    PickLocalFolderPicked(Option<String>),
-    PickLocalFolderSubmit,
-    PickLocalFolderCancel,
+    // Space selection (setup wizard)
+    ToggleSpaceSelection {
+        account_id: Uuid,
+        space_id: String,
+        selected: bool,
+    },
+    PickSpacesNext {
+        account_id: Uuid,
+    },
+    PickRootFolderBrowse,
+    PickRootFolderPicked(Option<String>),
+    PickRootFolderSubmit {
+        account_id: Uuid,
+    },
+    // Account settings: add space
+    AddSpaceClicked {
+        account_id: Uuid,
+    },
+    // Runtime space events
+    AcceptDiscoveredSpace {
+        account_id: Uuid,
+        space_id: String,
+        suggested_path: String,
+    },
+    DismissDiscoveredSpace {
+        account_id: Uuid,
+        space_id: String,
+    },
+    // Folder actions
     PauseFolder(Uuid),
     ResumeFolder(Uuid),
     ForceSyncFolder(Uuid),
@@ -104,23 +128,86 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             iced::Task::none()
         }
 
-        Message::PickLocalFolderBrowse => {
-            iced::Task::perform(
-                async {
-                    rfd::AsyncFileDialog::new()
-                        .pick_folder()
-                        .await
-                        // rfd guarantees a valid path; on macOS/Windows paths are always
-                        // UTF-8. On Linux with a non-UTF-8 locale this falls back to lossy
-                        // conversion, which the daemon will reject as a non-existent path.
-                        .map(|h| h.path().to_string_lossy().into_owned())
-                },
-                Message::PickLocalFolderPicked,
-            )
+        Message::ToggleSpaceSelection {
+            account_id: _,
+            space_id,
+            selected,
+        } => {
+            if let View::PickSpaces { selected: sel, .. } = &mut app.active_view {
+                if selected {
+                    sel.insert(space_id);
+                } else {
+                    sel.remove(&space_id);
+                }
+            }
+            iced::Task::none()
         }
 
-        Message::PickLocalFolderPicked(maybe_path) => {
-            if let View::PickLocalFolder {
+        Message::PickSpacesNext { account_id } => {
+            let has_folders = app
+                .accounts
+                .iter()
+                .find(|a| a.id == account_id)
+                .map(|a| !a.folders.is_empty())
+                .unwrap_or(false);
+
+            if has_folders {
+                // Add-space flow: derive root and send AddAccountSpace per selection
+                if let View::PickSpaces {
+                    spaces, selected, ..
+                } = &app.active_view
+                {
+                    let existing_paths: Vec<String> = app
+                        .accounts
+                        .iter()
+                        .find(|a| a.id == account_id)
+                        .map(|a| a.folders.iter().map(|f| f.local_path.clone()).collect())
+                        .unwrap_or_default();
+                    let root = derive_root(&existing_paths);
+                    for space in spaces.iter().filter(|s| selected.contains(&s.id)) {
+                        let local_path = format!("{}/{}", root.trim_end_matches('/'), space.name);
+                        app.daemon.send(DaemonCommand::AddAccountSpace {
+                            account_id,
+                            space_id: space.id.clone(),
+                            local_path,
+                        });
+                    }
+                    app.active_view = View::AccountSettings(account_id);
+                }
+            } else {
+                // Setup flow: go to PickRootFolder
+                if let View::PickSpaces {
+                    spaces, selected, ..
+                } = &app.active_view
+                {
+                    let selected_spaces: Vec<SpaceInfo> = spaces
+                        .iter()
+                        .filter(|s| selected.contains(&s.id))
+                        .cloned()
+                        .collect();
+                    app.active_view = View::PickRootFolder {
+                        account_id,
+                        spaces: selected_spaces,
+                        local_path: None,
+                        error: None,
+                    };
+                }
+            }
+            iced::Task::none()
+        }
+
+        Message::PickRootFolderBrowse => iced::Task::perform(
+            async {
+                rfd::AsyncFileDialog::new()
+                    .pick_folder()
+                    .await
+                    .map(|h| h.path().to_string_lossy().into_owned())
+            },
+            Message::PickRootFolderPicked,
+        ),
+
+        Message::PickRootFolderPicked(maybe_path) => {
+            if let View::PickRootFolder {
                 local_path, error, ..
             } = &mut app.active_view
             {
@@ -128,41 +215,59 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
                     *local_path = Some(path);
                     *error = None;
                 }
-                // None means user dismissed the picker — no change
             }
             iced::Task::none()
         }
 
-        Message::PickLocalFolderSubmit => {
-            if let View::PickLocalFolder {
-                account_id,
-                local_path,
-                error,
-                ..
-            } = &mut app.active_view
+        Message::PickRootFolderSubmit { account_id } => {
+            if let View::PickRootFolder {
+                spaces, local_path, ..
+            } = &app.active_view
             {
-                match local_path.clone() {
-                    Some(path) => {
-                        let aid = *account_id;
-                        *error = None;
-                        app.daemon.send(DaemonCommand::SetAccountFolder {
-                            account_id: aid,
-                            local_path: path,
-                        });
-                    }
-                    None => {
-                        tracing::warn!("PickLocalFolderSubmit fired with no path selected");
-                    }
+                if let Some(root) = local_path.clone() {
+                    let selections: Vec<SpaceSelection> = spaces
+                        .iter()
+                        .map(|s| SpaceSelection {
+                            space_id: s.id.clone(),
+                            display_name: s.name.clone(),
+                        })
+                        .collect();
+                    app.daemon.send(DaemonCommand::SetAccountFolders {
+                        account_id,
+                        root_path: root,
+                        spaces: selections,
+                    });
                 }
             }
             iced::Task::none()
         }
 
-        Message::PickLocalFolderCancel => {
-            if let View::PickLocalFolder { account_id, .. } = app.active_view {
-                app.daemon.send(DaemonCommand::RemoveAccount { account_id });
-            }
-            app.active_view = View::SyncStatus;
+        Message::AddSpaceClicked { account_id } => {
+            app.daemon.send(DaemonCommand::ListSpaces { account_id });
+            iced::Task::none()
+        }
+
+        Message::AcceptDiscoveredSpace {
+            account_id,
+            space_id,
+            suggested_path,
+        } => {
+            app.daemon.send(DaemonCommand::AddAccountSpace {
+                account_id,
+                space_id,
+                local_path: suggested_path,
+            });
+            iced::Task::none()
+        }
+
+        Message::DismissDiscoveredSpace {
+            account_id,
+            space_id,
+        } => {
+            app.daemon.send(DaemonCommand::DismissSpace {
+                account_id,
+                space_id,
+            });
             iced::Task::none()
         }
 
@@ -191,7 +296,6 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
         }
 
         Message::OpenFolder(path) => {
-            tracing::info!("opening folder: {path}");
             #[cfg(target_os = "macos")]
             let _ = std::process::Command::new("open").arg(&path).spawn();
             #[cfg(target_os = "linux")]
@@ -292,10 +396,6 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                     url_input: url,
                     error: Some(reason),
                 };
-            } else {
-                tracing::warn!(
-                    "AccountAddFailed received but not in AddAccountWaiting view: {reason}"
-                );
             }
         }
 
@@ -308,27 +408,93 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
             app.accounts.push(AccountView {
                 id: account_id,
                 url: url.clone(),
-                display_name: display_name.clone(),
+                display_name,
                 folders: vec![],
             });
-            app.active_view = View::PickLocalFolder {
-                account_id,
-                display_name,
-                url,
-                local_path: None,
-                error: None,
-            };
+            // Request space list; PickSpaces shown when SpacesListed arrives
+            app.daemon.send(DaemonCommand::ListSpaces { account_id });
         }
+
+        DaemonEvent::SpacesListed { account_id, spaces } => {
+            let space_infos: Vec<SpaceInfo> = spaces
+                .into_iter()
+                .map(|s| SpaceInfo {
+                    id: s.id,
+                    name: s.name,
+                    drive_type: s.drive_type,
+                })
+                .collect();
+
+            let is_setup = app
+                .accounts
+                .iter()
+                .find(|a| a.id == account_id)
+                .map(|a| a.folders.is_empty())
+                .unwrap_or(true);
+
+            if is_setup {
+                let selected: HashSet<String> = space_infos
+                    .iter()
+                    .filter(|s| s.drive_type == "personal")
+                    .map(|s| s.id.clone())
+                    .collect();
+                app.active_view = View::PickSpaces {
+                    account_id,
+                    spaces: space_infos,
+                    selected,
+                    error: None,
+                };
+            } else {
+                let synced_space_ids: HashSet<String> = app
+                    .accounts
+                    .iter()
+                    .find(|a| a.id == account_id)
+                    .map(|a| a.folders.iter().map(|f| f.space_id.clone()).collect())
+                    .unwrap_or_default();
+                let available: Vec<SpaceInfo> = space_infos
+                    .into_iter()
+                    .filter(|s| !synced_space_ids.contains(&s.id))
+                    .collect();
+                app.active_view = View::PickSpaces {
+                    account_id,
+                    spaces: available,
+                    selected: HashSet::new(),
+                    error: None,
+                };
+            }
+        }
+
+        DaemonEvent::AccountSpaceFailed { account_id, reason } => match &mut app.active_view {
+            View::PickSpaces {
+                account_id: aid,
+                error,
+                ..
+            } if *aid == account_id => {
+                *error = Some(reason);
+            }
+            View::PickRootFolder {
+                account_id: aid,
+                error,
+                ..
+            } if *aid == account_id => {
+                *error = Some(reason);
+            }
+            _ => {
+                tracing::warn!("AccountSpaceFailed for {account_id}: {reason}");
+            }
+        },
 
         DaemonEvent::AccountFolderAdded {
             account_id,
             folder_id,
+            space_id,
             local_path,
             display_name,
         } => {
             if let Some(account) = app.accounts.iter_mut().find(|a| a.id == account_id) {
                 account.folders.push(FolderView {
                     id: folder_id,
+                    space_id,
                     display_name,
                     local_path,
                     status: FolderStatus::Idle,
@@ -336,23 +502,36 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                     errors: vec![],
                 });
             }
-            if matches!(&app.active_view, View::PickLocalFolder { account_id: aid, .. } if *aid == account_id)
+            if matches!(&app.active_view, View::PickRootFolder { account_id: aid, .. } if *aid == account_id)
             {
                 app.active_view = View::SyncStatus;
             }
         }
 
-        DaemonEvent::AccountSetFolderFailed { account_id, reason } => {
-            if let View::PickLocalFolder {
-                account_id: aid,
-                error,
-                ..
-            } = &mut app.active_view
-            {
-                if *aid == account_id {
-                    *error = Some(reason);
-                }
+        DaemonEvent::SpaceDiscovered {
+            account_id,
+            space_id: _,
+            space_name,
+            suggested_path: _,
+        } => {
+            // TODO: show OS desktop notification via notify-rust with Accept/Dismiss actions.
+            // For now, log. AcceptDiscoveredSpace / DismissDiscoveredSpace messages are wired
+            // and ready; the notification integration is a follow-up task.
+            tracing::info!(
+                "New space '{space_name}' discovered for account {account_id} (notification pending)"
+            );
+        }
+
+        DaemonEvent::SpaceRemoved {
+            account_id,
+            folder_id,
+            space_name,
+            local_path,
+        } => {
+            if let Some(account) = app.accounts.iter_mut().find(|a| a.id == account_id) {
+                account.folders.retain(|f| f.id != folder_id);
             }
+            tracing::info!("Space '{space_name}' removed; local files remain at {local_path}");
         }
 
         DaemonEvent::AccountSnapshot { accounts } => {
@@ -367,6 +546,7 @@ fn handle_daemon_event(app: &mut App, event: DaemonEvent) -> iced::Task<Message>
                         .into_iter()
                         .map(|f| FolderView {
                             id: f.folder_id,
+                            space_id: f.space_id,
                             display_name: f.display_name,
                             local_path: f.local_path,
                             status: match f.status.as_str() {
@@ -397,4 +577,16 @@ fn set_folder_status(app: &mut App, folder_id: Uuid, status: FolderStatus) {
     if let Some(folder) = find_folder_mut(app, folder_id) {
         folder.status = status;
     }
+}
+
+fn derive_root(existing_paths: &[String]) -> String {
+    existing_paths
+        .first()
+        .and_then(|p| std::path::Path::new(p).parent())
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| {
+            dirs::home_dir()
+                .map(|h| h.join("ownCloud").to_string_lossy().into_owned())
+                .unwrap_or_else(|| "/tmp/ownCloud".to_string())
+        })
 }

@@ -1,29 +1,27 @@
 use iced::{
-    widget::{button, column, container, row, text},
+    widget::{button, column, container, row, text, Column},
     Alignment, Element, Length,
 };
 
 use crate::app::Message;
+use crate::model::{SpaceInfo, View};
 use crate::theme;
 
-pub fn pick_local_folder_view<'a>(
-    display_name: &'a str,
-    url: &'a str,
+pub fn pick_root_folder_view<'a>(
+    account_id: uuid::Uuid,
+    spaces: &'a [SpaceInfo],
     local_path: Option<&'a str>,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
-    let heading = text("Choose a local folder")
+    let heading = text("Choose a root folder")
         .size(16)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let caption = text(format!(
-        "Where should {} from {} sync to?",
-        display_name, url
-    ))
-    .size(13)
-    .style(theme::colored_text(theme::TEXT_SECONDARY));
+    let caption = text("All selected spaces will sync as sub-folders inside this folder.")
+        .size(13)
+        .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let folder_label = text("Local folder")
+    let folder_label = text("Root folder")
         .size(11)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
@@ -36,7 +34,6 @@ pub fn pick_local_folder_view<'a>(
         .style(theme::folder_well_empty_style)
         .padding([10, 12])
         .width(Length::Fill),
-
         Some(path) => container(
             row![
                 text("📁").size(14),
@@ -52,14 +49,29 @@ pub fn pick_local_folder_view<'a>(
         .width(Length::Fill),
     };
 
+    let mut preview_col = Column::new().spacing(4);
+    if let Some(root) = local_path {
+        let preview_label = text("Will create:")
+            .size(11)
+            .style(theme::colored_text(theme::TEXT_MUTED));
+        preview_col = preview_col.push(preview_label);
+        for space in spaces {
+            let derived = format!("{}/{}", root.trim_end_matches('/'), space.name);
+            preview_col = preview_col.push(
+                text(derived)
+                    .size(11)
+                    .style(theme::colored_text(theme::TEXT_SECONDARY)),
+            );
+        }
+    }
+
     let browse_label = if local_path.is_none() {
         "Choose folder…"
     } else {
         "Change folder…"
     };
-
     let browse_btn = button(text(browse_label).size(13))
-        .on_press(Message::PickLocalFolderBrowse)
+        .on_press(Message::PickRootFolderBrowse)
         .padding([8, 14])
         .style(theme::ghost_button_style);
 
@@ -68,21 +80,21 @@ pub fn pick_local_folder_view<'a>(
             .padding([9, 18])
             .style(theme::primary_button_style);
         if local_path.is_some() {
-            b.on_press(Message::PickLocalFolderSubmit)
+            b.on_press(Message::PickRootFolderSubmit { account_id })
         } else {
             b
         }
     };
 
     let cancel_btn = button(text("Cancel").size(13))
-        .on_press(Message::PickLocalFolderCancel)
+        .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([8, 14])
         .style(theme::ghost_button_style);
 
     let mut col = column![
         heading,
         caption,
-        column![folder_label, folder_well, browse_btn].spacing(6),
+        column![folder_label, folder_well, preview_col, browse_btn].spacing(6),
     ]
     .spacing(14)
     .max_width(420);

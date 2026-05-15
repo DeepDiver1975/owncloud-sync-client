@@ -215,6 +215,7 @@ async fn handle_callback(
                 username: String::new(),
                 display_name: user_info.display_name.clone(),
                 folder: vec![],
+                dismissed_spaces: vec![],
             });
             cfg.save(&config_path)
                 .map_err(|e| anyhow::anyhow!("failed to save config: {e}"))

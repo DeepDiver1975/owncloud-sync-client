@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt;
 use uuid::Uuid;
 
@@ -23,6 +24,7 @@ impl fmt::Display for FolderStatus {
 #[derive(Debug, Clone)]
 pub struct FolderView {
     pub id: Uuid,
+    pub space_id: String,
     pub display_name: String,
     pub local_path: String,
     pub status: FolderStatus,
@@ -38,6 +40,13 @@ pub struct AccountView {
     pub folders: Vec<FolderView>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpaceInfo {
+    pub id: String,
+    pub name: String,
+    pub drive_type: String,
+}
+
 #[derive(Debug, Clone)]
 pub enum View {
     SyncStatus,
@@ -50,10 +59,15 @@ pub enum View {
         account_id: Uuid,
         url_input: String,
     },
-    PickLocalFolder {
+    PickSpaces {
         account_id: Uuid,
-        display_name: String,
-        url: String,
+        spaces: Vec<SpaceInfo>,
+        selected: HashSet<String>,
+        error: Option<String>,
+    },
+    PickRootFolder {
+        account_id: Uuid,
+        spaces: Vec<SpaceInfo>,
         local_path: Option<String>,
         error: Option<String>,
     },

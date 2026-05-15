@@ -20,9 +20,17 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
         .padding([6, 12])
         .style(theme::danger_button_style);
 
+    let add_space_btn = button(text("Add Space…").size(12))
+        .on_press(Message::AddSpaceClicked {
+            account_id: account.id,
+        })
+        .padding([6, 12])
+        .style(theme::ghost_button_style);
+
     let header = row![
         column![acct_name, acct_url].spacing(2),
         iced::widget::horizontal_space(),
+        add_space_btn,
         remove_btn,
     ]
     .align_y(Alignment::Start)

@@ -54,7 +54,7 @@ async fn test_files_sync_down() {
         .await
         .expect("pre-seed hello.txt");
 
-    let local_path = env.sync_dir.path().join("hello.txt");
+    let local_path = env.personal_sync_dir().join("hello.txt");
     poll_until(
         || {
             let path = local_path.clone();
@@ -83,7 +83,7 @@ async fn test_upload_new_file() {
     }
     let (env, _report) = env_after_initial_sync().await;
 
-    let local_path = env.sync_dir.path().join("upload_new.txt");
+    let local_path = env.personal_sync_dir().join("upload_new.txt");
     std::fs::write(&local_path, b"new content").expect("write local file");
 
     poll_until(
@@ -119,7 +119,7 @@ async fn test_upload_changed_file() {
         .await
         .expect("pre-seed");
 
-    let local_path = env.sync_dir.path().join("change_me.txt");
+    let local_path = env.personal_sync_dir().join("change_me.txt");
     poll_until(
         || {
             let p = local_path.clone();
@@ -164,7 +164,7 @@ async fn test_conflict_resolution() {
         .await
         .expect("pre-seed");
 
-    let local_path = env.sync_dir.path().join("conflict.txt");
+    let local_path = env.personal_sync_dir().join("conflict.txt");
     poll_until(
         || {
             let p = local_path.clone();
@@ -189,7 +189,7 @@ async fn test_conflict_resolution() {
     // Small pause to ensure the daemon's next poll sees both changes simultaneously
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let sync_dir = env.sync_dir.path().to_owned();
+    let sync_dir = env.personal_sync_dir();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
     loop {
         let conflict_count = std::fs::read_dir(&sync_dir)
@@ -227,7 +227,7 @@ async fn test_initial_sync_empty_remote() {
     // remote_entries now includes directories and recursively nested files, so a
     // non-recursive read_dir of the sync root will always be < remote_entries for
     // any space with subdirectories. Just confirm the sync dir is non-empty.
-    let local_count = std::fs::read_dir(env.sync_dir.path())
+    let local_count = std::fs::read_dir(env.personal_sync_dir())
         .expect("read sync dir")
         .filter_map(|e| e.ok())
         .count();
@@ -294,7 +294,7 @@ async fn test_initial_sync_preseeded_remote() {
         ("file2.txt", b"content2"),
         ("file3.txt", b"content3"),
     ] {
-        let path = env.sync_dir.path().join(name);
+        let path = env.personal_sync_dir().join(name);
         let actual = std::fs::read(&path).unwrap_or_else(|_| panic!("{name} not found locally"));
         assert_eq!(actual.as_slice(), content, "{name} content mismatch");
     }
@@ -308,7 +308,7 @@ async fn test_upload_new_directory() {
     let (env, _) = env_after_initial_sync().await;
 
     let dir_name = format!("test-new-dir-{}", Uuid::new_v4().simple());
-    let local_dir = env.sync_dir.path().join(&dir_name);
+    let local_dir = env.personal_sync_dir().join(&dir_name);
     std::fs::create_dir(&local_dir).expect("create local dir");
 
     poll_until(
@@ -333,7 +333,7 @@ async fn test_upload_file_in_new_subdirectory() {
     let (env, _) = env_after_initial_sync().await;
 
     let dir_name = format!("test-subdir-{}", Uuid::new_v4().simple());
-    let local_dir = env.sync_dir.path().join(&dir_name);
+    let local_dir = env.personal_sync_dir().join(&dir_name);
     std::fs::create_dir(&local_dir).expect("create subdir");
     std::fs::write(local_dir.join("readme.txt"), b"hello docs").expect("write readme");
 
@@ -357,7 +357,7 @@ async fn test_watch_driven_upload() {
     }
     let (env, _) = env_after_initial_sync().await;
 
-    let local_path = env.sync_dir.path().join("watched.txt");
+    let local_path = env.personal_sync_dir().join("watched.txt");
     std::fs::write(&local_path, b"watched content").expect("write watched.txt");
 
     poll_until(

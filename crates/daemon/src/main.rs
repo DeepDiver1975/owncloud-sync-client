@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::interval;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 mod config;
@@ -14,6 +15,7 @@ mod lock;
 mod oidc_callback;
 mod paths;
 mod scheduler;
+mod space_poller;
 mod vfs_factory;
 mod watcher;
 
@@ -26,6 +28,7 @@ use lock::{LockError, LockFile};
 use scheduler::SyncScheduler;
 use socket_api::server::SocketApiServer;
 use socket_api::transport::unix::UnixTransport;
+use space_poller::SpacePoller;
 use sync_engine::SyncReport;
 
 async fn build_token_managers(
@@ -196,6 +199,7 @@ async fn main() -> Result<()> {
                         .iter()
                         .map(|f| FolderSnapshot {
                             folder_id: f.id,
+                            space_id: f.space_id.clone(),
                             display_name: f.display_name.clone(),
                             local_path: f.local_path.clone(),
                             status: sched
@@ -238,6 +242,28 @@ async fn main() -> Result<()> {
     });
 
     gui_ipc.broadcast(DaemonEvent::Ready);
+
+    // Launch one SpacePoller per account that has credentials.
+    let space_cancel = CancellationToken::new();
+    {
+        let cfg = config.lock().await;
+        let space_poll_interval = Duration::from_secs(cfg.general.space_poll_interval_secs);
+        let tms = token_managers.read().unwrap();
+        for account in &cfg.account {
+            if let Some(tm) = tms.get(&account.id) {
+                let poller = SpacePoller::new(
+                    account.id,
+                    Arc::clone(&config),
+                    Arc::new(config_path.clone()),
+                    Arc::clone(&gui_ipc),
+                    Arc::clone(tm),
+                    space_poll_interval,
+                    space_cancel.clone(),
+                );
+                tokio::spawn(async move { poller.run().await });
+            }
+        }
+    }
 
     // Spawn remote poll loop — sends TriggerSync for all currently registered folders.
     let live_ids_poll = Arc::clone(&live_folder_ids);
@@ -284,6 +310,7 @@ async fn main() -> Result<()> {
                 ).await {
                     Ok(ShouldQuit::Yes) => {
                         info!("Quit command received; shutting down");
+                        space_cancel.cancel();
                         break;
                     }
                     Ok(ShouldQuit::No) => {}
