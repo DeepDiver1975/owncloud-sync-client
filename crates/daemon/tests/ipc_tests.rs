@@ -232,13 +232,13 @@ async fn roundtrip_account_add_completed() {
 }
 
 #[tokio::test]
-async fn roundtrip_account_set_folder_failed() {
+async fn roundtrip_account_space_failed() {
     use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
     use tokio::io::duplex;
     use uuid::Uuid;
 
     let (mut client, mut server) = duplex(4096);
-    let event = DaemonEvent::AccountSetFolderFailed {
+    let event = DaemonEvent::AccountSpaceFailed {
         account_id: Uuid::new_v4(),
         reason: "path does not exist".to_string(),
     };
@@ -266,15 +266,19 @@ async fn roundtrip_account_folder_added() {
 }
 
 #[tokio::test]
-async fn roundtrip_set_account_folder_command() {
-    use daemon::gui_ipc::protocol::{read_message, write_command, DaemonCommand};
+async fn roundtrip_set_account_folders_command() {
+    use daemon::gui_ipc::protocol::{read_message, write_command, DaemonCommand, SpaceSelection};
     use tokio::io::duplex;
     use uuid::Uuid;
 
     let (mut client, mut server) = duplex(4096);
-    let cmd = DaemonCommand::SetAccountFolder {
+    let cmd = DaemonCommand::SetAccountFolders {
         account_id: Uuid::new_v4(),
-        local_path: "/home/alice/ownCloud".to_string(),
+        root_path: "/home/alice/ownCloud".to_string(),
+        spaces: vec![SpaceSelection {
+            space_id: "personal-id".to_string(),
+            display_name: "Personal".to_string(),
+        }],
     };
     write_command(&mut client, &cmd).await.unwrap();
     let received = read_message(&mut server).await.unwrap();
