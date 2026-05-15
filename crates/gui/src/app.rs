@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use rust_i18n::t;
 use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
@@ -116,7 +117,7 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             if let View::AddAccount { url_input, error } = &mut app.active_view {
                 let url = url_input.clone();
                 if url.is_empty() {
-                    *error = Some("Please enter a server URL".to_string());
+                    *error = Some(t!("error_enter_url").to_string());
                     return iced::Task::none();
                 }
                 let sent = app
@@ -128,7 +129,7 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
                         url_input: url,
                     };
                 } else {
-                    *error = Some("Not connected to sync daemon".to_string());
+                    *error = Some(t!("error_not_connected").to_string());
                 }
             }
             iced::Task::none()

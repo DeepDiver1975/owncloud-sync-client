@@ -3,6 +3,8 @@ use iced::{
     Alignment, Element, Length,
 };
 
+use rust_i18n::t;
+
 use crate::app::Message;
 use crate::model::{AccountView, FolderStatus, View};
 use crate::theme::{
@@ -29,13 +31,13 @@ pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
 
 fn empty_state_view() -> Element<'static, Message> {
     let cloud = theme::cloud_muted();
-    let heading = text("No accounts configured")
+    let heading = text(t!("no_accounts_heading").to_string())
         .size(20)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
-    let sub = text("Add your first ownCloud account to start syncing.")
+    let sub = text(t!("no_accounts_sub").to_string())
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
-    let add_btn = button(text("+ Add account").size(13))
+    let add_btn = button(text(t!("add_account_btn").to_string()).size(13))
         .on_press(Message::NavigateTo(View::AddAccount {
             url_input: String::new(),
             error: None,
@@ -125,7 +127,7 @@ fn account_section(account: &AccountView) -> Element<'_, Message> {
     if account.folders.is_empty() {
         folders = folders.push(
             container(
-                text("No folders configured")
+                text(t!("no_folders_configured").to_string())
                     .size(12)
                     .style(theme::colored_text(theme::TEXT_MUTED)),
             )
@@ -173,9 +175,18 @@ fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Elem
 
     let badge_label = if let FolderStatus::Error = &folder.status {
         let n = folder.errors.len();
-        format!("⚠ {n} error{}", if n == 1 { "" } else { "s" })
+        if n == 1 {
+            t!("folder_status_error_one").to_string()
+        } else {
+            t!("folder_status_error_other", count = n).to_string()
+        }
     } else {
-        status_label(&folder.status).to_string()
+        match &folder.status {
+            FolderStatus::Idle => t!("folder_status_idle").to_string(),
+            FolderStatus::Syncing => t!("folder_status_syncing").to_string(),
+            FolderStatus::Paused => t!("folder_status_paused").to_string(),
+            FolderStatus::Error => status_label(&folder.status).to_string(),
+        }
     };
 
     let badge_msg: Option<Message> = match &folder.status {
