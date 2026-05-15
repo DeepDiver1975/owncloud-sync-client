@@ -2,6 +2,7 @@ use iced::{
     widget::{button, column, container, row, text, Column},
     Alignment, Element, Length,
 };
+use rust_i18n::t;
 
 use crate::app::Message;
 use crate::model::{AccountView, View};
@@ -15,7 +16,7 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
         .size(11)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
-    let remove_btn = button(text("Remove Account").size(12))
+    let remove_btn = button(text(t!("remove_account_btn").to_string()).size(12))
         .on_press(Message::RemoveAccount(account.id))
         .padding([6, 12])
         .style(theme::danger_button_style);
@@ -36,7 +37,7 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
     .align_y(Alignment::Start)
     .spacing(12);
 
-    let folders_label = text("SYNCED FOLDERS")
+    let folders_label = text(t!("synced_folders_label").to_string())
         .size(10)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
@@ -44,7 +45,7 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
     if account.folders.is_empty() {
         folders_col = folders_col.push(
             container(
-                text("No folders configured.")
+                text(t!("no_folders_configured_dot").to_string())
                     .size(12)
                     .style(theme::colored_text(theme::TEXT_MUTED)),
             )
@@ -85,7 +86,7 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
         .width(Length::Fill)
         .style(theme::card_style);
 
-    let back_btn = button(text("← Back").size(12))
+    let back_btn = button(text(t!("back_btn").to_string()).size(12))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([6, 12])
         .style(theme::ghost_button_style);

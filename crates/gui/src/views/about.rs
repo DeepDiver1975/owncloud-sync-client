@@ -2,6 +2,7 @@ use iced::{
     widget::{button, column, container, row, text},
     Element, Length,
 };
+use rust_i18n::t;
 
 use crate::app::Message;
 use crate::theme;
@@ -9,7 +10,7 @@ use crate::theme;
 include!(concat!(env!("OUT_DIR"), "/build_info.rs"));
 
 pub fn about_view() -> Element<'static, Message> {
-    let heading = text("About")
+    let heading = text(t!("about_heading").to_string())
         .size(15)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 

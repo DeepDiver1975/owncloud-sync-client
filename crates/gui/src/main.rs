@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+rust_i18n::i18n!("locales", fallback = "en");
+
 use gui::app::{update, App, EventRxCarrier, Message};
 use gui::daemon_conn::DaemonConnection;
 use gui::gui_config::GuiConfig;
@@ -16,6 +18,7 @@ use daemon::paths::{platform_config_dir, platform_gui_socket_path};
 use iced::futures::SinkExt;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length, Subscription, Task};
+use rust_i18n::t;
 
 #[cfg(feature = "test-accessibility")]
 fn init_accessibility() {
@@ -297,7 +300,7 @@ impl IcedApp {
                     gui::views::account_settings::account_settings_view(account)
                 } else {
                     container(
-                        text("Account not found").style(theme::colored_text(theme::TEXT_MUTED)),
+                        text(t!("account_not_found").to_string()).style(theme::colored_text(theme::TEXT_MUTED)),
                     )
                     .width(Length::Fill)
                     .height(Length::Fill)

@@ -2,6 +2,7 @@ use iced::{
     widget::{button, column, container, text, Column},
     Element, Length,
 };
+use rust_i18n::t;
 use uuid::Uuid;
 
 use crate::app::Message;
@@ -24,13 +25,13 @@ pub fn folder_errors_view(account: &AccountView, folder_id: Uuid) -> Element<'_,
         .style(theme::colored_text(theme::TEXT_MUTED));
     let header = column![name, path].spacing(2);
 
-    let errors_label = text("SYNC ERRORS")
+    let errors_label = text(t!("sync_errors_label").to_string())
         .size(10)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
     let error_list: Element<Message> = if errors.is_empty() {
         container(
-            text("No errors recorded.")
+            text(t!("no_errors").to_string())
                 .size(12)
                 .style(theme::colored_text(theme::TEXT_MUTED)),
         )
@@ -55,7 +56,7 @@ pub fn folder_errors_view(account: &AccountView, folder_id: Uuid) -> Element<'_,
         iced::widget::scrollable(col).width(Length::Fill).into()
     };
 
-    let back_btn = button(text("← Back").size(12))
+    let back_btn = button(text(t!("back_btn").to_string()).size(12))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([6, 12])
         .style(ghost_button_style);
@@ -72,7 +73,7 @@ pub fn folder_errors_view(account: &AccountView, folder_id: Uuid) -> Element<'_,
 
 fn empty_fallback() -> Element<'static, Message> {
     container(
-        text("Folder not found.")
+        text(t!("folder_not_found").to_string())
             .size(12)
             .style(theme::colored_text(theme::TEXT_MUTED)),
     )

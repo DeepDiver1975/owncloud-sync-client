@@ -2,6 +2,7 @@ use iced::{
     widget::{button, column, container, row, text, Column},
     Alignment, Element, Length,
 };
+use rust_i18n::t;
 
 use crate::app::Message;
 use crate::model::{SpaceInfo, View};
@@ -27,7 +28,7 @@ pub fn pick_root_folder_view<'a>(
 
     let folder_well = match local_path {
         None => container(
-            text("No folder selected")
+            text(t!("no_folder_selected").to_string())
                 .size(13)
                 .style(theme::colored_text(theme::TEXT_MUTED)),
         )
@@ -66,9 +67,9 @@ pub fn pick_root_folder_view<'a>(
     }
 
     let browse_label = if local_path.is_none() {
-        "Choose folder…"
+        t!("choose_folder_btn").to_string()
     } else {
-        "Change folder…"
+        t!("change_folder_btn").to_string()
     };
     let browse_btn = button(text(browse_label).size(13))
         .on_press(Message::PickRootFolderBrowse)
@@ -76,7 +77,7 @@ pub fn pick_root_folder_view<'a>(
         .style(theme::ghost_button_style);
 
     let confirm_btn = {
-        let b = button(text("Start Syncing").size(13))
+        let b = button(text(t!("start_syncing_btn").to_string()).size(13))
             .padding([9, 18])
             .style(theme::primary_button_style);
         if local_path.is_some() {
@@ -86,7 +87,7 @@ pub fn pick_root_folder_view<'a>(
         }
     };
 
-    let cancel_btn = button(text("Cancel").size(13))
+    let cancel_btn = button(text(t!("cancel_btn").to_string()).size(13))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([8, 14])
         .style(theme::ghost_button_style);
