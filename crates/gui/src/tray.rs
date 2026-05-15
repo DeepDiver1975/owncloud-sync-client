@@ -2,8 +2,9 @@ use crate::app::Message;
 
 #[cfg(feature = "tray-icon")]
 mod inner {
+    use rust_i18n::t;
     use tray_icon::{
-        menu::{Menu, MenuItem},
+        menu::{Menu, MenuId, MenuItem},
         Icon, TrayIconBuilder,
     };
 
@@ -19,8 +20,24 @@ mod inner {
         Ok(Icon::from_rgba(rgba.to_vec(), info.width, info.height)?)
     }
 
+    fn build_menu(open: &str, about: &str, quit: &str) -> anyhow::Result<Menu> {
+        let menu = Menu::new();
+        menu.append(&MenuItem::with_id(MenuId::new("open"), open, true, None))?;
+        menu.append(&MenuItem::with_id(MenuId::new("about"), about, true, None))?;
+        menu.append(&MenuItem::with_id(MenuId::new("quit"), quit, true, None))?;
+        Ok(menu)
+    }
+
+    /// Message sent from the iced thread to the GTK thread to rebuild the tray menu.
+    struct RebuildRequest {
+        open: String,
+        about: String,
+        quit: String,
+    }
+
     pub struct TrayHandle {
         _gtk_thread: std::thread::JoinHandle<()>,
+        menu_tx: std::sync::mpsc::SyncSender<RebuildRequest>,
     }
 
     impl TrayHandle {
@@ -30,6 +47,8 @@ mod inner {
             // tray-icon on Linux requires gtk::init() and a running GTK event loop.
             // We start a dedicated thread that owns all GTK objects; iced never touches GTK.
             let (ready_tx, ready_rx) = std::sync::mpsc::channel::<anyhow::Result<()>>();
+            // Bounded channel for menu rebuild requests (capacity 1 is enough).
+            let (menu_tx, menu_rx) = std::sync::mpsc::sync_channel::<RebuildRequest>(4);
 
             let gtk_thread = std::thread::spawn(move || {
                 if let Err(e) = gtk::init() {
@@ -38,15 +57,8 @@ mod inner {
                 }
 
                 let build_result = (|| -> anyhow::Result<tray_icon::TrayIcon> {
-                    let menu = Menu::new();
-                    use tray_icon::menu::MenuId;
-                    let open_item = MenuItem::with_id(MenuId::new("open"), "Open", true, None);
-                    let about_item = MenuItem::with_id(MenuId::new("about"), "About", true, None);
-                    let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
-                    menu.append(&open_item)?;
-                    menu.append(&about_item)?;
-                    menu.append(&quit_item)?;
-
+                    let menu =
+                        build_menu(&t!("tray_open"), &t!("tray_about"), &t!("tray_quit"))?;
                     Ok(TrayIconBuilder::new()
                         .with_icon(icon)
                         .with_menu(Box::new(menu))
@@ -55,9 +67,24 @@ mod inner {
                 })();
 
                 match build_result {
-                    Ok(_icon_handle) => {
+                    Ok(icon_handle) => {
                         let _ = ready_tx.send(Ok(()));
-                        // _icon_handle must stay alive; gtk::main() runs until gtk::main_quit()
+                        // Poll for menu rebuild requests while the GTK main loop runs.
+                        // We use an idle callback that drains the channel each time it fires.
+                        let menu_rx = std::cell::RefCell::new(menu_rx);
+                        gtk::glib::timeout_add_local(
+                            std::time::Duration::from_millis(100),
+                            move || {
+                                while let Ok(req) = menu_rx.borrow().try_recv() {
+                                    if let Ok(menu) =
+                                        build_menu(&req.open, &req.about, &req.quit)
+                                    {
+                                        icon_handle.set_menu(Some(Box::new(menu)));
+                                    }
+                                }
+                                gtk::glib::ControlFlow::Continue
+                            },
+                        );
                         gtk::main();
                     }
                     Err(e) => {
@@ -72,7 +99,16 @@ mod inner {
 
             Ok(Self {
                 _gtk_thread: gtk_thread,
+                menu_tx,
             })
+        }
+
+        pub fn rebuild_menu(&self, open: &str, about: &str, quit: &str) {
+            let _ = self.menu_tx.try_send(RebuildRequest {
+                open: open.to_owned(),
+                about: about.to_owned(),
+                quit: quit.to_owned(),
+            });
         }
 
         pub fn tray_events(&self) -> iced::Subscription<super::Message> {
@@ -124,6 +160,8 @@ mod inner {
         pub fn build() -> anyhow::Result<Self> {
             Ok(Self)
         }
+
+        pub fn rebuild_menu(&self, _open: &str, _about: &str, _quit: &str) {}
 
         pub fn tray_events(&self) -> iced::Subscription<super::Message> {
             iced::Subscription::none()

@@ -314,6 +314,13 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
 
         Message::LanguageChanged(lang) => {
             rust_i18n::set_locale(lang.as_locale());
+            if let Some(tray) = &app.tray {
+                tray.rebuild_menu(
+                    &t!("tray_open"),
+                    &t!("tray_about"),
+                    &t!("tray_quit"),
+                );
+            }
             let path = app.gui_config_path.clone();
             app.language = lang.clone();
             let cfg = crate::gui_config::GuiConfig { language: Some(lang) };
