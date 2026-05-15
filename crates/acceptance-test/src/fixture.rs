@@ -10,7 +10,7 @@ use url::Url;
 use crate::daemon_ipc::DaemonIpcClient;
 use crate::ocis_client::OcisClient;
 use crate::playwright::complete_oidc_login;
-use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
+use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent, SpaceSelection};
 
 const OCIS_URL: &str = "https://127.0.0.1:9200";
 
@@ -184,7 +184,6 @@ impl TestEnvironment {
             .await
             .ok_or_else(|| anyhow!("SpacesListed not received"))?;
 
-        use daemon::gui_ipc::protocol::SpaceSelection;
         let spaces = match spaces_event {
             DaemonEvent::SpacesListed { spaces, .. } => spaces,
             _ => unreachable!(),
