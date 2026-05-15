@@ -181,7 +181,10 @@ impl IcedApp {
         );
         let is_add = matches!(
             self.app.active_view,
-            View::AddAccount { .. } | View::AddAccountWaiting { .. } | View::PickLocalFolder { .. }
+            View::AddAccount { .. }
+                | View::AddAccountWaiting { .. }
+                | View::PickSpaces { .. }
+                | View::PickRootFolder { .. }
         );
         let is_settings = matches!(
             self.app.active_view,
@@ -269,15 +272,26 @@ impl IcedApp {
             View::AddAccountWaiting { .. } => {
                 gui::views::add_account_waiting::add_account_waiting_view()
             }
-            View::PickLocalFolder {
-                display_name,
-                url,
+            View::PickSpaces {
+                account_id,
+                spaces,
+                selected,
+                error,
+            } => gui::views::pick_spaces::pick_spaces_view(
+                *account_id,
+                spaces,
+                selected,
+                error.as_deref(),
+                "Choose spaces to sync",
+            ),
+            View::PickRootFolder {
+                account_id,
+                spaces,
                 local_path,
                 error,
-                ..
-            } => gui::views::pick_local_folder::pick_local_folder_view(
-                display_name,
-                url,
+            } => gui::views::pick_root_folder::pick_root_folder_view(
+                *account_id,
+                spaces,
                 local_path.as_deref(),
                 error.as_deref(),
             ),

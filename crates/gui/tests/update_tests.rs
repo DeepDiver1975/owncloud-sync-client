@@ -331,18 +331,20 @@ fn account_state_changed_added_with_nil_id_is_ignored() {
     assert!(matches!(app.active_view, View::AddAccountWaiting { .. }));
 }
 
-// ── New tests for PickLocalFolder flow ────────────────────────────────────────
+// ── Tests for PickSpaces / PickRootFolder flow ────────────────────────────────
 
 #[test]
-fn account_add_completed_adds_account_and_navigates_to_pick_folder() {
-    use daemon::gui_ipc::protocol::DaemonEvent;
+fn account_add_completed_adds_account_and_sends_list_spaces() {
+    use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
     use gui::app::{update, App, Message};
-    use gui::model::View;
+    use gui::daemon_conn::DaemonConnection;
     use uuid::Uuid;
 
+    let (conn, mut rx) = DaemonConnection::connected_for_test();
     let account_id = Uuid::new_v4();
     let mut app = App {
-        active_view: View::AddAccountWaiting {
+        daemon: conn,
+        active_view: gui::model::View::AddAccountWaiting {
             account_id,
             url_input: "https://cloud.example.com".to_string(),
         },
@@ -359,26 +361,117 @@ fn account_add_completed_adds_account_and_navigates_to_pick_folder() {
     );
     assert_eq!(app.accounts.len(), 1);
     assert_eq!(app.accounts[0].id, account_id);
+    let cmd = rx.try_recv().expect("expected a ListSpaces command");
     assert!(
-        matches!(&app.active_view, View::PickLocalFolder { account_id: aid, .. } if *aid == account_id)
+        matches!(cmd, DaemonCommand::ListSpaces { account_id: aid } if aid == account_id),
+        "unexpected command: {cmd:?}"
     );
 }
 
 #[test]
-fn account_folder_added_adds_folder_and_navigates_to_sync_status() {
-    use daemon::gui_ipc::protocol::DaemonEvent;
+fn spaces_listed_transitions_to_pick_spaces_view() {
+    use daemon::gui_ipc::protocol::{DaemonEvent, SpaceInfo as ProtocolSpaceInfo};
     use gui::app::{update, App, Message};
     use gui::model::{AccountView, View};
     use uuid::Uuid;
 
     let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::AddAccountWaiting {
+            account_id,
+            url_input: "https://cloud.example.com".to_string(),
+        },
+        ..App::default()
+    };
+    app.accounts.push(AccountView {
+        id: account_id,
+        url: "https://cloud.example.com".to_string(),
+        display_name: "Alice".to_string(),
+        folders: vec![],
+    });
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::SpacesListed {
+            account_id,
+            spaces: vec![ProtocolSpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
+        }),
+    );
+    assert!(
+        matches!(&app.active_view, View::PickSpaces { account_id: aid, .. } if *aid == account_id),
+        "expected PickSpaces view, got {:?}",
+        app.active_view
+    );
+}
+
+#[test]
+fn spaces_listed_preselects_personal_spaces() {
+    use daemon::gui_ipc::protocol::{DaemonEvent, SpaceInfo as ProtocolSpaceInfo};
+    use gui::app::{update, App, Message};
+    use gui::model::{AccountView, View};
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App::default();
+    app.accounts.push(AccountView {
+        id: account_id,
+        url: "https://cloud.example.com".to_string(),
+        display_name: "Alice".to_string(),
+        folders: vec![],
+    });
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::SpacesListed {
+            account_id,
+            spaces: vec![
+                ProtocolSpaceInfo {
+                    id: "personal-1".to_string(),
+                    name: "Personal".to_string(),
+                    drive_type: "personal".to_string(),
+                },
+                ProtocolSpaceInfo {
+                    id: "project-1".to_string(),
+                    name: "Project".to_string(),
+                    drive_type: "project".to_string(),
+                },
+            ],
+        }),
+    );
+    if let View::PickSpaces { selected, .. } = &app.active_view {
+        assert!(
+            selected.contains("personal-1"),
+            "personal space should be pre-selected"
+        );
+        assert!(
+            !selected.contains("project-1"),
+            "project space should not be pre-selected"
+        );
+    } else {
+        panic!("expected PickSpaces view");
+    }
+}
+
+#[test]
+fn account_folder_added_when_in_pick_root_folder_navigates_to_sync_status() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use gui::app::{update, App, Message};
+    use gui::model::{AccountView, SpaceInfo, View};
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
     let folder_id = Uuid::new_v4();
     let mut app = App {
-        active_view: View::PickLocalFolder {
+        active_view: View::PickRootFolder {
             account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
-            local_path: None,
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
+            local_path: Some("/home/alice/ownCloud".to_string()),
             error: None,
         },
         ..App::default()
@@ -394,8 +487,8 @@ fn account_folder_added_adds_folder_and_navigates_to_sync_status() {
         Message::DaemonEvent(DaemonEvent::AccountFolderAdded {
             account_id,
             folder_id,
-            local_path: "/home/alice/owncloud".to_string(),
-            display_name: "owncloud".to_string(),
+            local_path: "/home/alice/ownCloud/Personal".to_string(),
+            display_name: "Personal".to_string(),
         }),
     );
     assert_eq!(app.accounts[0].folders.len(), 1);
@@ -404,18 +497,57 @@ fn account_folder_added_adds_folder_and_navigates_to_sync_status() {
 }
 
 #[test]
-fn account_set_folder_failed_sets_inline_error() {
+fn account_space_failed_sets_inline_error_on_pick_spaces() {
     use daemon::gui_ipc::protocol::DaemonEvent;
     use gui::app::{update, App, Message};
-    use gui::model::View;
+    use gui::model::{SpaceInfo, View};
+    use std::collections::HashSet;
     use uuid::Uuid;
 
     let account_id = Uuid::new_v4();
     let mut app = App {
-        active_view: View::PickLocalFolder {
+        active_view: View::PickSpaces {
             account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
+            selected: HashSet::new(),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(
+        &mut app,
+        Message::DaemonEvent(DaemonEvent::AccountSpaceFailed {
+            account_id,
+            reason: "quota exceeded".to_string(),
+        }),
+    );
+    if let View::PickSpaces { error, .. } = &app.active_view {
+        assert_eq!(error.as_deref(), Some("quota exceeded"));
+    } else {
+        panic!("expected PickSpaces view");
+    }
+}
+
+#[test]
+fn account_space_failed_sets_inline_error_on_pick_root_folder() {
+    use daemon::gui_ipc::protocol::DaemonEvent;
+    use gui::app::{update, App, Message};
+    use gui::model::{SpaceInfo, View};
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::PickRootFolder {
+            account_id,
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
             local_path: None,
             error: None,
         },
@@ -423,15 +555,15 @@ fn account_set_folder_failed_sets_inline_error() {
     };
     let _ = update(
         &mut app,
-        Message::DaemonEvent(DaemonEvent::AccountSetFolderFailed {
+        Message::DaemonEvent(DaemonEvent::AccountSpaceFailed {
             account_id,
             reason: "path does not exist".to_string(),
         }),
     );
-    if let View::PickLocalFolder { error, .. } = &app.active_view {
+    if let View::PickRootFolder { error, .. } = &app.active_view {
         assert_eq!(error.as_deref(), Some("path does not exist"));
     } else {
-        panic!("expected PickLocalFolder view");
+        panic!("expected PickRootFolder view");
     }
 }
 
@@ -450,47 +582,20 @@ fn daemon_disconnected_does_not_reach_app_update() {
 }
 
 #[test]
-fn pick_local_folder_cancel_sends_remove_account_and_navigates() {
-    use daemon::gui_ipc::protocol::DaemonCommand;
+fn pick_root_folder_picked_some_sets_path_and_clears_error() {
     use gui::app::{update, App, Message};
-    use gui::daemon_conn::DaemonConnection;
-    use gui::model::View;
-    use uuid::Uuid;
-
-    let (conn, mut rx) = DaemonConnection::connected_for_test();
-    let account_id = Uuid::new_v4();
-    let mut app = App {
-        daemon: conn,
-        active_view: View::PickLocalFolder {
-            account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
-            local_path: None,
-            error: None,
-        },
-        ..App::default()
-    };
-    let _ = update(&mut app, Message::PickLocalFolderCancel);
-    let cmd = rx.try_recv().expect("expected a command to be sent");
-    assert!(
-        matches!(cmd, DaemonCommand::RemoveAccount { account_id: aid } if aid == account_id),
-        "unexpected command: {cmd:?}"
-    );
-    assert!(matches!(app.active_view, View::SyncStatus));
-}
-
-#[test]
-fn pick_local_folder_picked_some_sets_path_and_clears_error() {
-    use gui::app::{update, App, Message};
-    use gui::model::View;
+    use gui::model::{SpaceInfo, View};
     use uuid::Uuid;
 
     let account_id = Uuid::new_v4();
     let mut app = App {
-        active_view: View::PickLocalFolder {
+        active_view: View::PickRootFolder {
             account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
             local_path: None,
             error: Some("previous error".to_string()),
         },
@@ -498,41 +603,44 @@ fn pick_local_folder_picked_some_sets_path_and_clears_error() {
     };
     let _ = update(
         &mut app,
-        Message::PickLocalFolderPicked(Some("/home/alice/owncloud".to_string())),
+        Message::PickRootFolderPicked(Some("/home/alice/ownCloud".to_string())),
     );
-    if let View::PickLocalFolder {
+    if let View::PickRootFolder {
         local_path, error, ..
     } = &app.active_view
     {
-        assert_eq!(local_path.as_deref(), Some("/home/alice/owncloud"));
+        assert_eq!(local_path.as_deref(), Some("/home/alice/ownCloud"));
         assert!(
             error.is_none(),
             "error should be cleared after a successful pick"
         );
     } else {
-        panic!("expected PickLocalFolder view");
+        panic!("expected PickRootFolder view");
     }
 }
 
 #[test]
-fn pick_local_folder_picked_none_does_not_change_path() {
+fn pick_root_folder_picked_none_does_not_change_path() {
     use gui::app::{update, App, Message};
-    use gui::model::View;
+    use gui::model::{SpaceInfo, View};
     use uuid::Uuid;
 
     let account_id = Uuid::new_v4();
     let mut app = App {
-        active_view: View::PickLocalFolder {
+        active_view: View::PickRootFolder {
             account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
             local_path: Some("/home/alice/existing".to_string()),
             error: Some("stale error".to_string()),
         },
         ..App::default()
     };
-    let _ = update(&mut app, Message::PickLocalFolderPicked(None));
-    if let View::PickLocalFolder {
+    let _ = update(&mut app, Message::PickRootFolderPicked(None));
+    if let View::PickRootFolder {
         local_path, error, ..
     } = &app.active_view
     {
@@ -547,64 +655,70 @@ fn pick_local_folder_picked_none_does_not_change_path() {
             "dismissing the picker must not clear an existing error"
         );
     } else {
-        panic!("expected PickLocalFolder view");
+        panic!("expected PickRootFolder view");
     }
 }
 
 #[test]
-fn pick_local_folder_submit_with_path_sends_command() {
+fn pick_root_folder_submit_with_path_sends_set_account_folders() {
     use daemon::gui_ipc::protocol::DaemonCommand;
     use gui::app::{update, App, Message};
     use gui::daemon_conn::DaemonConnection;
-    use gui::model::View;
+    use gui::model::{SpaceInfo, View};
     use uuid::Uuid;
 
     let (conn, mut rx) = DaemonConnection::connected_for_test();
     let account_id = Uuid::new_v4();
     let mut app = App {
         daemon: conn,
-        active_view: View::PickLocalFolder {
+        active_view: View::PickRootFolder {
             account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
-            local_path: Some("/home/alice/owncloud".to_string()),
-            error: Some("previous daemon error".to_string()),
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
+            local_path: Some("/home/alice/ownCloud".to_string()),
+            error: None,
         },
         ..App::default()
     };
-    let _ = update(&mut app, Message::PickLocalFolderSubmit);
+    let _ = update(&mut app, Message::PickRootFolderSubmit { account_id });
     let cmd = rx.try_recv().expect("expected a command to be sent");
     assert!(
-        matches!(cmd, DaemonCommand::SetAccountFolder { account_id: aid, local_path: ref p }
-            if aid == account_id && p == "/home/alice/owncloud"),
+        matches!(
+            &cmd,
+            DaemonCommand::SetAccountFolders { account_id: aid, root_path, .. }
+                if *aid == account_id && root_path == "/home/alice/ownCloud"
+        ),
         "unexpected command: {cmd:?}"
     );
-    if let View::PickLocalFolder { error, .. } = &app.active_view {
-        assert!(error.is_none(), "submit must clear any prior error");
-    }
 }
 
 #[test]
-fn pick_local_folder_submit_without_path_sends_no_command() {
+fn pick_root_folder_submit_without_path_sends_no_command() {
     use gui::app::{update, App, Message};
     use gui::daemon_conn::DaemonConnection;
-    use gui::model::View;
+    use gui::model::{SpaceInfo, View};
     use uuid::Uuid;
 
     let (conn, mut rx) = DaemonConnection::connected_for_test();
     let account_id = Uuid::new_v4();
     let mut app = App {
         daemon: conn,
-        active_view: View::PickLocalFolder {
+        active_view: View::PickRootFolder {
             account_id,
-            display_name: "Alice".to_string(),
-            url: "https://cloud.example.com".to_string(),
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
             local_path: None,
             error: None,
         },
         ..App::default()
     };
-    let _ = update(&mut app, Message::PickLocalFolderSubmit);
+    let _ = update(&mut app, Message::PickRootFolderSubmit { account_id });
     assert!(
         rx.try_recv().is_err(),
         "submit with no path must not send any daemon command"
@@ -612,7 +726,7 @@ fn pick_local_folder_submit_without_path_sends_no_command() {
     assert!(
         matches!(
             &app.active_view,
-            View::PickLocalFolder {
+            View::PickRootFolder {
                 local_path: None,
                 error: None,
                 ..
@@ -620,6 +734,53 @@ fn pick_local_folder_submit_without_path_sends_no_command() {
         ),
         "submit with no path must leave view unchanged"
     );
+}
+
+#[test]
+fn toggle_space_selection_adds_and_removes_space() {
+    use gui::app::{update, App, Message};
+    use gui::model::{SpaceInfo, View};
+    use std::collections::HashSet;
+    use uuid::Uuid;
+
+    let account_id = Uuid::new_v4();
+    let mut app = App {
+        active_view: View::PickSpaces {
+            account_id,
+            spaces: vec![SpaceInfo {
+                id: "space-1".to_string(),
+                name: "Personal".to_string(),
+                drive_type: "personal".to_string(),
+            }],
+            selected: HashSet::new(),
+            error: None,
+        },
+        ..App::default()
+    };
+    // Select space
+    let _ = update(
+        &mut app,
+        Message::ToggleSpaceSelection {
+            account_id,
+            space_id: "space-1".to_string(),
+            selected: true,
+        },
+    );
+    if let View::PickSpaces { selected, .. } = &app.active_view {
+        assert!(selected.contains("space-1"));
+    }
+    // Deselect space
+    let _ = update(
+        &mut app,
+        Message::ToggleSpaceSelection {
+            account_id,
+            space_id: "space-1".to_string(),
+            selected: false,
+        },
+    );
+    if let View::PickSpaces { selected, .. } = &app.active_view {
+        assert!(!selected.contains("space-1"));
+    }
 }
 
 #[test]
