@@ -43,7 +43,15 @@ fmt-check:
     cargo fmt --all -- --check
 
 # Run fmt + lint + test in sequence (CI-equivalent for the main workspace)
-ci: fmt-check lint test
+ci: fmt-check lint test check-translations
+
+# Check for missing, unused, or hardcoded translation strings
+check-translations:
+    cargo run -p xtask -- check-keys
+
+# Scaffold missing keys as empty stubs in all locale files
+sync-translations:
+    cargo run -p xtask -- sync-keys
 
 # ---------------------------------------------------------------------------
 # Linux D-Bus service (already a main-workspace member)
