@@ -9,20 +9,26 @@ fn write_lock<T>(lock: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
 
 use camino::Utf8PathBuf;
 use ocis_client::auth::TokenManager;
-use tokio::task::JoinSet;
 use url::Url;
 use uuid::Uuid;
 
 use crate::discovery::local::discover_local;
 use crate::discovery::remote::discover_remote;
 use crate::error::{Result, SyncError};
-use crate::propagate::download::{propagate_download, DownloadRequest};
-use crate::propagate::upload::{propagate_upload, UploadRequest};
 use crate::reconcile::{reconcile, JournalBaseline};
 use crate::report::{HttpEvent, SyncReport};
 use crate::state::{FileStatus, FolderStatus, SyncState};
 use crate::types::{ConflictStrategy, LocalEntry, RemoteEntry, SyncInstruction};
 use sync_db::{JournalEntry, SyncJournalDb};
+
+struct InstructionCounts {
+    downloads: usize,
+    uploads: usize,
+    conflicts: usize,
+    del_local: usize,
+    del_remote: usize,
+    ignored: usize,
+}
 
 pub struct EngineConfig {
     pub folder_id: Uuid,
@@ -70,12 +76,104 @@ impl SyncEngine {
         let remote_count = remote_entries.len();
         let local_count = local_entries.len();
 
+        // Phase 2: Build lookup maps and reconcile
+        let (local_map, remote_map) =
+            Self::build_maps(local_entries, remote_entries, &self.cfg.local_root);
+
+        let (instructions, counts) = self.reconcile_all(&local_map, &remote_map).await?;
+
+        // Partition instructions: directories must be processed before files.
+        let (dir_instructions, file_instructions): (Vec<_>, Vec<_>) = instructions
+            .into_iter()
+            .partition(|(_, _, _, is_dir)| *is_dir);
+
+        // Phase 3a: Process directory instructions sequentially so that parent
+        // WebDAV collections exist before any file transfers attempt to use them.
+        let (had_error, mut error_messages) =
+            self.process_dirs(dir_instructions, &bearer_token).await;
+
+        // Phase 3b: Propagate file instructions in parallel.
+        let (file_http_events, file_errors) =
+            self.process_files(file_instructions, &bearer_token).await;
+        http_events.extend(file_http_events);
+        let had_error = had_error || !file_errors.is_empty();
+        error_messages.extend(file_errors);
+
+        {
+            let mut s = write_lock(&self.state);
+            if had_error {
+                s.status = FolderStatus::Error;
+            } else {
+                s.mark_complete();
+            }
+        }
+
+        let duration_ms = t_start.elapsed().as_millis() as u64;
+
+        let report = SyncReport {
+            folder_id: self.cfg.folder_id,
+            remote_entries: remote_count,
+            local_entries: local_count,
+            downloads: counts.downloads,
+            uploads: counts.uploads,
+            conflicts: counts.conflicts,
+            deletes_local: counts.del_local,
+            deletes_remote: counts.del_remote,
+            ignored: counts.ignored,
+            errors: error_messages,
+            http_events,
+            duration_ms,
+        };
+
+        tracing::info!(
+            "sync done folder={} remote={} local={} dl={} ul={} conflict={} \
+             del_local={} del_remote={} errors={} ms={}",
+            self.cfg.folder_id,
+            report.remote_entries,
+            report.local_entries,
+            report.downloads,
+            report.uploads,
+            report.conflicts,
+            report.deletes_local,
+            report.deletes_remote,
+            report.errors.len(),
+            report.duration_ms,
+        );
+
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            if let Ok(json) = serde_json::to_string(&report) {
+                tracing::debug!("sync_report {json}");
+            }
+        }
+
+        for ev in &report.http_events {
+            tracing::debug!(
+                "http {} {} {} {}ms {}B",
+                ev.method,
+                ev.url,
+                ev.status,
+                ev.duration_ms,
+                ev.bytes
+            );
+        }
+
+        Ok(report)
+    }
+
+    fn build_maps(
+        local_entries: Vec<LocalEntry>,
+        remote_entries: Vec<RemoteEntry>,
+        local_root: &Utf8PathBuf,
+    ) -> (
+        HashMap<Utf8PathBuf, LocalEntry>,
+        HashMap<Utf8PathBuf, RemoteEntry>,
+    ) {
         let local_map: HashMap<Utf8PathBuf, LocalEntry> = local_entries
             .into_iter()
             .map(|e| {
                 let rel = e
                     .path
-                    .strip_prefix(&self.cfg.local_root)
+                    .strip_prefix(local_root)
                     .unwrap_or(&e.path)
                     .to_owned();
                 (rel, e)
@@ -87,14 +185,32 @@ impl SyncEngine {
             .map(|e| (e.path.clone(), e))
             .collect();
 
+        (local_map, remote_map)
+    }
+
+    async fn reconcile_all(
+        &self,
+        local_map: &HashMap<Utf8PathBuf, LocalEntry>,
+        remote_map: &HashMap<Utf8PathBuf, RemoteEntry>,
+    ) -> Result<(
+        Vec<(Utf8PathBuf, SyncInstruction, Option<RemoteEntry>, bool)>,
+        InstructionCounts,
+    )> {
         let mut all_paths: std::collections::HashSet<Utf8PathBuf> =
             local_map.keys().cloned().collect();
         all_paths.extend(remote_map.keys().cloned());
 
-        // Phase 2: Reconcile
         let mut instructions: Vec<(Utf8PathBuf, SyncInstruction, Option<RemoteEntry>, bool)> =
             Vec::new();
-        let mut n_ignored = 0usize;
+        let mut counts = InstructionCounts {
+            downloads: 0,
+            uploads: 0,
+            conflicts: 0,
+            del_local: 0,
+            del_remote: 0,
+            ignored: 0,
+        };
+
         for path in all_paths {
             let loc = local_map.get(&path).cloned();
             let rem = remote_map.get(&path).cloned();
@@ -116,82 +232,80 @@ impl SyncEngine {
                     Some((etag, size) as JournalBaseline)
                 });
             let instr = reconcile(loc, rem.clone(), journal, self.cfg.conflict_strategy);
-            if instr != SyncInstruction::Ignore {
-                instructions.push((path, instr, rem, is_dir));
-            } else {
-                n_ignored += 1;
+
+            match &instr {
+                SyncInstruction::Download => counts.downloads += 1,
+                SyncInstruction::Upload => counts.uploads += 1,
+                SyncInstruction::Conflict => counts.conflicts += 1,
+                SyncInstruction::DeleteLocal => counts.del_local += 1,
+                SyncInstruction::DeleteRemote => counts.del_remote += 1,
+                SyncInstruction::Ignore => {
+                    counts.ignored += 1;
+                    continue;
+                }
+                _ => {}
             }
+
+            instructions.push((path, instr, rem, is_dir));
         }
 
-        let n_downloads = instructions
-            .iter()
-            .filter(|(_, i, _, _)| *i == SyncInstruction::Download)
-            .count();
-        let n_uploads = instructions
-            .iter()
-            .filter(|(_, i, _, _)| *i == SyncInstruction::Upload)
-            .count();
-        let n_conflicts = instructions
-            .iter()
-            .filter(|(_, i, _, _)| *i == SyncInstruction::Conflict)
-            .count();
-        let n_del_local = instructions
-            .iter()
-            .filter(|(_, i, _, _)| *i == SyncInstruction::DeleteLocal)
-            .count();
-        let n_del_remote = instructions
-            .iter()
-            .filter(|(_, i, _, _)| *i == SyncInstruction::DeleteRemote)
-            .count();
+        Ok((instructions, counts))
+    }
 
-        // Partition instructions: directories must be processed before files.
-        let (dir_instructions, file_instructions): (Vec<_>, Vec<_>) = instructions
-            .into_iter()
-            .partition(|(_, _, _, is_dir)| *is_dir);
+    async fn process_dirs(
+        &self,
+        dir_instructions: Vec<(Utf8PathBuf, SyncInstruction, Option<RemoteEntry>, bool)>,
+        bearer_token: &str,
+    ) -> (bool, Vec<String>) {
+        use crate::propagate::ops::mkdir_remote;
 
-        // Phase 3a: Process directory instructions sequentially so that parent
-        // WebDAV collections exist before any file transfers attempt to use them.
         let mut had_error = false;
         let mut error_messages: Vec<String> = Vec::new();
 
         for (rel_path, instruction, rem_entry, _) in dir_instructions {
             let local_path = self.cfg.local_root.join(&rel_path);
-            let remote_url = self
+            let remote_url = match self
                 .cfg
                 .space_root
                 .join(rel_path.as_str())
-                .map_err(|e| SyncError::Parse(e.to_string()))?;
+                .map_err(|e| SyncError::Parse(e.to_string()))
+            {
+                Ok(u) => u,
+                Err(e) => {
+                    tracing::warn!("URL build failed for {rel_path}: {e}");
+                    had_error = true;
+                    error_messages.push(e.to_string());
+                    continue;
+                }
+            };
 
             match instruction {
-                SyncInstruction::Upload => {
-                    use crate::propagate::ops::mkdir_remote;
-                    match mkdir_remote(remote_url, &bearer_token).await {
-                        Ok(()) => {
-                            let entry = JournalEntry {
-                                path: rel_path.to_string(),
-                                etag: Some(String::new()),
-                                mtime: None,
-                                size: Some(0),
-                                inode: None,
-                                file_id: None,
-                                checksum: None,
-                                is_virtual: 0,
-                            };
-                            if let Err(e) = self.cfg.db.upsert_entry(&entry).await {
-                                tracing::warn!("journal write failed for {}: {e}", entry.path);
-                            }
-                            let mut s = write_lock(&self.state);
-                            s.set_file_status(rel_path, FileStatus::Ok);
+                SyncInstruction::Upload => match mkdir_remote(remote_url, bearer_token).await {
+                    Ok(()) => {
+                        let entry = JournalEntry {
+                            path: rel_path.to_string(),
+                            etag: Some(String::new()),
+                            mtime: None,
+                            size: Some(0),
+                            inode: None,
+                            file_id: None,
+                            checksum: None,
+                            is_virtual: 0,
+                        };
+                        if let Err(e) = self.cfg.db.upsert_entry(&entry).await {
+                            tracing::warn!("journal write failed for {}: {e}", entry.path);
                         }
-                        Err(e) => {
-                            tracing::warn!("MKCOL failed for {rel_path}: {e}");
-                            had_error = true;
-                            error_messages.push(e.to_string());
-                            let mut s = write_lock(&self.state);
-                            s.set_file_status(rel_path, FileStatus::Error(e.to_string()));
-                        }
+                        let mut s = write_lock(&self.state);
+                        s.set_file_status(rel_path, FileStatus::Ok);
                     }
-                }
+                    Err(e) => {
+                        tracing::warn!("MKCOL failed for {rel_path}: {e}");
+                        had_error = true;
+                        error_messages.push(e.to_string());
+                        let mut s = write_lock(&self.state);
+                        s.set_file_status(rel_path, FileStatus::Error(e.to_string()));
+                    }
+                },
                 SyncInstruction::Download => match tokio::fs::create_dir_all(&local_path).await {
                     Ok(()) => {
                         let entry = JournalEntry {
@@ -224,18 +338,35 @@ impl SyncEngine {
             }
         }
 
-        // Phase 3b: Propagate file instructions in parallel — each task owns its
-        // Vec<HttpEvent> and returns it.
+        (had_error, error_messages)
+    }
+
+    async fn process_files(
+        &self,
+        file_instructions: Vec<(Utf8PathBuf, SyncInstruction, Option<RemoteEntry>, bool)>,
+        bearer_token: &str,
+    ) -> (Vec<HttpEvent>, Vec<String>) {
+        use crate::propagate::download::{propagate_download, DownloadRequest};
+        use crate::propagate::upload::{propagate_upload, UploadRequest};
+        use tokio::task::JoinSet;
+
         let mut join_set: JoinSet<(Vec<HttpEvent>, Result<()>)> = JoinSet::new();
         let semaphore = Arc::new(tokio::sync::Semaphore::new(self.cfg.max_parallel_transfers));
 
         for (rel_path, instruction, rem_entry, _) in file_instructions {
             let local_path = self.cfg.local_root.join(&rel_path);
-            let remote_url = self
+            let remote_url = match self
                 .cfg
                 .space_root
                 .join(rel_path.as_str())
-                .map_err(|e| SyncError::Parse(e.to_string()))?;
+                .map_err(|e| SyncError::Parse(e.to_string()))
+            {
+                Ok(u) => u,
+                Err(e) => {
+                    tracing::warn!("URL build failed for {rel_path}: {e}");
+                    return (Vec::new(), vec![e.to_string()]);
+                }
+            };
 
             let sem = semaphore.clone();
             let state = self.state.clone();
@@ -244,7 +375,7 @@ impl SyncEngine {
 
             match instruction {
                 SyncInstruction::Download => {
-                    let bearer_token_dl = bearer_token.clone();
+                    let bearer_token_dl = bearer_token.to_owned();
                     join_set.spawn(async move {
                         let _permit = sem
                             .acquire()
@@ -295,7 +426,7 @@ impl SyncEngine {
                 }
 
                 SyncInstruction::Upload => {
-                    let bearer_token_ul = bearer_token.clone();
+                    let bearer_token_ul = bearer_token.to_owned();
                     let space_root_ul = self.cfg.space_root.clone();
                     join_set.spawn(async move {
                         let _permit = sem
@@ -350,7 +481,7 @@ impl SyncEngine {
                 }
 
                 SyncInstruction::Conflict => {
-                    let bearer_token_cf = bearer_token.clone();
+                    let bearer_token_cf = bearer_token.to_owned();
                     join_set.spawn(async move {
                         let _permit = sem
                             .acquire()
@@ -419,6 +550,9 @@ impl SyncEngine {
             }
         }
 
+        let mut http_events: Vec<HttpEvent> = Vec::new();
+        let mut error_messages: Vec<String> = Vec::new();
+
         while let Some(res) = join_set.join_next().await {
             match res {
                 Ok((task_http, Ok(()))) => {
@@ -428,75 +562,15 @@ impl SyncEngine {
                     http_events.extend(task_http);
                     tracing::warn!("Transfer error: {e}");
                     error_messages.push(e.to_string());
-                    had_error = true;
                 }
                 Err(join_err) => {
                     tracing::error!("Task panicked: {join_err}");
                     error_messages.push(format!("task panicked: {join_err}"));
-                    had_error = true;
                 }
             }
         }
 
-        {
-            let mut s = write_lock(&self.state);
-            if had_error {
-                s.status = FolderStatus::Error;
-            } else {
-                s.mark_complete();
-            }
-        }
-
-        let duration_ms = t_start.elapsed().as_millis() as u64;
-
-        let report = SyncReport {
-            folder_id: self.cfg.folder_id,
-            remote_entries: remote_count,
-            local_entries: local_count,
-            downloads: n_downloads,
-            uploads: n_uploads,
-            conflicts: n_conflicts,
-            deletes_local: n_del_local,
-            deletes_remote: n_del_remote,
-            ignored: n_ignored,
-            errors: error_messages,
-            http_events,
-            duration_ms,
-        };
-
-        tracing::info!(
-            "sync done folder={} remote={} local={} dl={} ul={} conflict={} \
-             del_local={} del_remote={} errors={} ms={}",
-            self.cfg.folder_id,
-            report.remote_entries,
-            report.local_entries,
-            report.downloads,
-            report.uploads,
-            report.conflicts,
-            report.deletes_local,
-            report.deletes_remote,
-            report.errors.len(),
-            report.duration_ms,
-        );
-
-        if tracing::enabled!(tracing::Level::DEBUG) {
-            if let Ok(json) = serde_json::to_string(&report) {
-                tracing::debug!("sync_report {json}");
-            }
-        }
-
-        for ev in &report.http_events {
-            tracing::debug!(
-                "http {} {} {} {}ms {}B",
-                ev.method,
-                ev.url,
-                ev.status,
-                ev.duration_ms,
-                ev.bytes
-            );
-        }
-
-        Ok(report)
+        (http_events, error_messages)
     }
 
     pub fn state(&self) -> Arc<RwLock<SyncState>> {
