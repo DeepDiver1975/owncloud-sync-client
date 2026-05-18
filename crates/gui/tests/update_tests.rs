@@ -992,3 +992,33 @@ fn account_snapshot_unknown_status_defaults_to_idle() {
         FolderStatus::Idle
     ));
 }
+
+#[test]
+fn language_changed_updates_locale_and_translations() {
+    use gui::model::Language;
+
+    let mut app = App::default();
+
+    // Switch to German
+    let _ = update(&mut app, Message::LanguageChanged(Language::De));
+    assert_eq!(app.language, Language::De);
+    assert_eq!(&*rust_i18n::locale(), "de");
+    assert_eq!(
+        gui::i18n::translate_key_for_test("de", "nav_sync_status"),
+        "Synchronisierungsstatus"
+    );
+
+    // Switch to Chinese
+    let _ = update(&mut app, Message::LanguageChanged(Language::Zh));
+    assert_eq!(app.language, Language::Zh);
+    assert_eq!(&*rust_i18n::locale(), "zh");
+    assert_eq!(
+        gui::i18n::translate_key_for_test("zh", "nav_sync_status"),
+        "同步状态"
+    );
+
+    // Switch back to English
+    let _ = update(&mut app, Message::LanguageChanged(Language::En));
+    assert_eq!(app.language, Language::En);
+    assert_eq!(&*rust_i18n::locale(), "en");
+}

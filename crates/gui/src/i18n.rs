@@ -13,7 +13,6 @@ pub fn detect_system_language() -> Language {
     }
 }
 
-#[cfg(test)]
 pub fn translate_key_for_test(locale: &str, key: &str) -> String {
     use rust_i18n::t;
     use std::sync::{Mutex, OnceLock};
