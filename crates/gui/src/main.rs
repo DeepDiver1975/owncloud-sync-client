@@ -184,7 +184,7 @@ impl IcedApp {
         let title_bar = container(
             row![
                 theme::owncloud_icon(),
-                text("ownCloud Sync")
+                text("ownCloud Sync") // i18n-ignore
                     .size(12)
                     .style(theme::colored_text(theme::TEXT_PRIMARY)),
             ]

@@ -25,9 +25,6 @@ de:
   waiting_caption: "Schließe die Authentifizierung im geöffneten Browserfenster ab."
 
   # pick_local_folder
-  pick_folder_heading: "Lokalen Ordner auswählen"
-  pick_folder_caption: "Wohin soll %{folder} von %{server} synchronisiert werden?"
-  local_folder_label: "Lokaler Ordner"
   no_folder_selected: "Kein Ordner ausgewählt"
   choose_folder_btn: "Ordner auswählen…"
   change_folder_btn: "Ordner ändern…"
@@ -71,3 +68,12 @@ de:
   nav_add_account: "+ Konto hinzufügen"
   nav_settings: "Einstellungen"
   nav_about: "Über"
+
+  # new
+  add_space_btn: ""
+  next_btn: ""
+  pick_root_folder_caption: ""
+  pick_root_folder_heading: ""
+  pick_root_folder_label: ""
+  pick_root_folder_will_create: ""
+  pick_spaces_caption: ""

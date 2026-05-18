@@ -21,7 +21,7 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
         .padding([6, 12])
         .style(theme::danger_button_style);
 
-    let add_space_btn = button(text("Add Space…").size(12))
+    let add_space_btn = button(text(t!("add_space_btn").to_string()).size(12))
         .on_press(Message::AddSpaceClicked {
             account_id: account.id,
         })

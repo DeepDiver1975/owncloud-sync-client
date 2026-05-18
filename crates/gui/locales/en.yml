@@ -25,15 +25,23 @@ en:
   waiting_caption: "Complete authentication in the browser window that just opened."
 
   # pick_local_folder
-  pick_folder_heading: "Choose a local folder"
-  pick_folder_caption: "Where should %{folder} from %{server} sync to?"
-  local_folder_label: "Local folder"
   no_folder_selected: "No folder selected"
   choose_folder_btn: "Choose folder…"
   change_folder_btn: "Change folder…"
   start_syncing_btn: "Start Syncing"
 
+  # pick_root_folder
+  pick_root_folder_heading: "Choose a root folder"
+  pick_root_folder_caption: "All selected spaces will sync as sub-folders inside this folder."
+  pick_root_folder_label: "Root folder"
+  pick_root_folder_will_create: "Will create:"
+
+  # pick_spaces
+  pick_spaces_caption: "Select the spaces you want to sync."
+  next_btn: "Next →"
+
   # account_settings
+  add_space_btn: "Add Space…"
   remove_account_btn: "Remove Account"
   no_folders_configured_dot: "No folders configured."
 

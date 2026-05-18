@@ -33,7 +33,7 @@ pub fn about_view() -> Element<'static, Message> {
     .align_y(iced::Alignment::Center);
 
     let issues_line = row![
-        text("For known issues and help, please visit: ")
+        text("For known issues and help, please visit: ") // i18n-ignore
             .size(11)
             .style(theme::colored_text(theme::TEXT_PRIMARY)),
         button(
@@ -53,10 +53,10 @@ pub fn about_view() -> Element<'static, Message> {
         text(format!("By {}", CONTRIBUTORS))
             .size(10)
             .style(theme::colored_text(theme::TEXT_MUTED)),
-        text("Copyright ownCloud GmbH (A Kiteworks Company)")
+        text("Copyright ownCloud GmbH (A Kiteworks Company)") // i18n-ignore
             .size(10)
             .style(theme::colored_text(theme::TEXT_MUTED)),
-        text("Distributed under the GNU General Public License v2")
+        text("Distributed under the GNU General Public License v2") // i18n-ignore
             .size(10)
             .style(theme::colored_text(theme::TEXT_MUTED)),
     ]

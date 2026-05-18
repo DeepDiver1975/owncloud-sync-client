@@ -25,9 +25,6 @@ zh:
   waiting_caption: "在刚刚打开的浏览器窗口中完成身份验证。"
 
   # pick_local_folder
-  pick_folder_heading: "选择本地文件夹"
-  pick_folder_caption: "%{folder}（来自 %{server}）应同步到哪里？"
-  local_folder_label: "本地文件夹"
   no_folder_selected: "未选择文件夹"
   choose_folder_btn: "选择文件夹…"
   change_folder_btn: "更改文件夹…"
@@ -71,3 +68,12 @@ zh:
   nav_add_account: "+ 添加账户"
   nav_settings: "设置"
   nav_about: "关于"
+
+  # new
+  add_space_btn: ""
+  next_btn: ""
+  pick_root_folder_caption: ""
+  pick_root_folder_heading: ""
+  pick_root_folder_label: ""
+  pick_root_folder_will_create: ""
+  pick_spaces_caption: ""

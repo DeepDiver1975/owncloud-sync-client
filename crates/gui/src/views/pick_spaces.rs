@@ -2,6 +2,7 @@ use iced::{
     widget::{button, checkbox, column, container, row, scrollable, text},
     Alignment, Element, Length,
 };
+use rust_i18n::t;
 use std::collections::HashSet;
 
 use crate::app::Message;
@@ -19,7 +20,7 @@ pub fn pick_spaces_view<'a>(
         .size(16)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let caption = text("Select the spaces you want to sync.")
+    let caption = text(t!("pick_spaces_caption").to_string())
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
@@ -48,7 +49,7 @@ pub fn pick_spaces_view<'a>(
     }
 
     let next_btn = {
-        let b = button(text("Next →").size(13))
+        let b = button(text(t!("next_btn").to_string()).size(13))
             .padding([9, 18])
             .style(theme::primary_button_style);
         if !selected.is_empty() {
@@ -58,7 +59,7 @@ pub fn pick_spaces_view<'a>(
         }
     };
 
-    let cancel_btn = button(text("Cancel").size(13))
+    let cancel_btn = button(text(t!("cancel_btn").to_string()).size(13))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([8, 14])
         .style(theme::ghost_button_style);
