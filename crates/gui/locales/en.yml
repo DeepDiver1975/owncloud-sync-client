@@ -1,0 +1,78 @@
+# sync_status
+no_accounts_heading: "No accounts configured"
+no_accounts_sub: "Add your first ownCloud account to start syncing."
+add_account_btn: "+ Add account"
+no_folders_configured: "No folders configured"
+folder_status_idle: "↻ Sync Now"
+folder_status_syncing: "⏸ Pause"
+folder_status_paused: "▶ Resume"
+folder_status_error_one: "⚠ 1 error"
+folder_status_error_other: "⚠ %{count} errors"
+
+# add_account
+add_account_heading: "Add Account"
+add_account_caption: "Enter your ownCloud server address. Sign-in will open in your browser."
+server_url_label: "Server URL"
+server_url_helper: "Include the full address including https://"
+connect_btn: "Connect →"
+cancel_btn: "Cancel"
+error_enter_url: "Please enter a server URL"
+error_not_connected: "Not connected to sync daemon"
+
+# add_account_waiting
+waiting_heading: "Waiting for sign-in…"
+waiting_caption: "Complete authentication in the browser window that just opened."
+
+# pick_root_folder
+pick_root_folder_heading: "Choose a root folder"
+pick_root_folder_caption: "All selected spaces will sync as sub-folders inside this folder."
+root_folder_label: "Root folder"
+will_create_label: "Will create:"
+no_folder_selected: "No folder selected"
+choose_folder_btn: "Choose folder…"
+change_folder_btn: "Change folder…"
+start_syncing_btn: "Start Syncing"
+
+# account_settings
+remove_account_btn: "Remove Account"
+no_folders_configured_dot: "No folders configured."
+
+# general_settings
+general_settings_heading: "General Settings"
+language_label: "Language"
+language_sublabel: "Application display language"
+launch_at_login_label: "Launch at login"
+launch_at_login_sub: "Start automatically when you log in"
+show_in_tray_label: "Show in system tray"
+show_in_tray_sub: "Keep the tray icon visible"
+notifications_label: "Desktop notifications"
+notifications_sub: "Notify when syncs complete or fail"
+back_btn: "← Back"
+
+# folder_errors
+no_errors: "No errors recorded."
+folder_not_found: "Folder not found."
+sync_errors_label: "SYNC ERRORS"
+synced_folders_label: "SYNCED FOLDERS"
+
+# about
+about_heading: "About"
+about_version_prefix: "Version %{version}. For more information visit"
+about_issues_prefix: "For known issues and help, please visit:"
+about_contributors: "By %{contributors}"
+about_copyright: "Copyright ownCloud GmbH (A Kiteworks Company)"
+about_license: "Distributed under the GNU General Public License v2"
+
+# main
+account_not_found: "Account not found"
+
+# tray
+tray_open: "Open"
+tray_about: "About"
+tray_quit: "Quit"
+
+# nav
+nav_sync_status: "Sync Status"
+nav_add_account: "+ Add Account"
+nav_settings: "Settings"
+nav_about: "About"

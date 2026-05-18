@@ -2,6 +2,7 @@ fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     build_icon(&out_dir);
     build_info(&out_dir);
+    track_locales();
 }
 
 fn build_icon(out_dir: &str) {
@@ -61,8 +62,10 @@ fn build_info(out_dir: &str) {
     // Parse library versions from Cargo.lock
     let lock_contents = std::fs::read_to_string(&lock_path).unwrap_or_default();
     let lib_iced = parse_lock_version(&lock_contents, "iced").unwrap_or_else(|| "unknown".into());
-    let lib_rustls = parse_lock_version(&lock_contents, "rustls").unwrap_or_else(|| "unknown".into());
-    let lib_sqlite = parse_lock_version(&lock_contents, "libsqlite3-sys").unwrap_or_else(|| "unknown".into());
+    let lib_rustls =
+        parse_lock_version(&lock_contents, "rustls").unwrap_or_else(|| "unknown".into());
+    let lib_sqlite =
+        parse_lock_version(&lock_contents, "libsqlite3-sys").unwrap_or_else(|| "unknown".into());
 
     let contributors = "Thomas Müller and Claude Code";
 
@@ -132,4 +135,13 @@ fn parse_lock_version(lock: &str, package: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn track_locales() {
+    for entry in std::fs::read_dir("locales")
+        .unwrap_or_else(|e| panic!("failed to read locales dir: {e}"))
+        .flatten()
+    {
+        println!("cargo:rerun-if-changed={}", entry.path().display());
+    }
 }

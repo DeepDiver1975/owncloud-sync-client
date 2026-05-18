@@ -78,3 +78,41 @@ pub enum View {
     },
     About,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum Language {
+    En,
+    De,
+    Fr,
+    Zh,
+}
+
+impl Language {
+    pub fn as_locale(&self) -> &'static str {
+        match self {
+            Language::En => "en",
+            Language::De => "de",
+            Language::Fr => "fr",
+            Language::Zh => "zh",
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Language::En => "English",
+            Language::De => "Deutsch",
+            Language::Fr => "Français",
+            Language::Zh => "中文",
+        }
+    }
+
+    pub fn all() -> &'static [Language] {
+        &[Language::En, Language::De, Language::Fr, Language::Zh]
+    }
+}
+
+impl std::fmt::Display for Language {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
+    }
+}

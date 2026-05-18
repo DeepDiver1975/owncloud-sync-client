@@ -1,27 +1,27 @@
 use iced::{
-    widget::{button, column, container, row, text, Column},
+    widget::{button, column, container, pick_list, row, Column},
     Alignment, Element, Length,
 };
+use rust_i18n::t;
 
 use crate::app::Message;
-use crate::model::View;
-use crate::theme;
+use crate::model::{Language, View};
+use crate::theme::{self, t_text};
 
 struct ToggleRow {
-    label: &'static str,
-    sublabel: &'static str,
+    label: String,
+    sublabel: String,
     enabled: bool,
 }
 
 fn toggle_row(row: &ToggleRow) -> Element<'static, Message> {
-    let lbl = text(row.label)
+    let lbl = t_text(row.label.clone())
         .size(12)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
-    let sub = text(row.sublabel)
+    let sub = t_text(row.sublabel.clone())
         .size(10)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
-    // Visual-only toggle pill (no interaction wired — see spec out-of-scope note)
     let (track_color, thumb_x) = if row.enabled {
         (
             theme::ACCENT,
@@ -89,25 +89,55 @@ fn toggle_row(row: &ToggleRow) -> Element<'static, Message> {
     .into()
 }
 
-pub fn general_settings_view() -> Element<'static, Message> {
-    let heading = text("General Settings")
+pub fn general_settings_view(language: &Language) -> Element<'_, Message> {
+    let heading = t_text(t!("general_settings_heading"))
         .size(15)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
+    // Language picker row
+    let lang_label = t_text(t!("language_label"))
+        .size(12)
+        .style(theme::colored_text(theme::TEXT_PRIMARY));
+    let lang_sub = t_text(t!("language_sublabel"))
+        .size(10)
+        .style(theme::colored_text(theme::TEXT_MUTED));
+
+    let lang_picker = pick_list(
+        Language::all(),
+        Some(language.clone()),
+        Message::LanguageChanged,
+    )
+    .text_size(12)
+    .padding([5, 10])
+    .text_shaping(iced::widget::text::Shaping::Advanced);
+
+    let lang_row = container(
+        row![
+            column![lang_label, lang_sub].spacing(2),
+            iced::widget::horizontal_space(),
+            lang_picker,
+        ]
+        .align_y(Alignment::Center)
+        .padding([10, 14]),
+    )
+    .width(Length::Fill)
+    .style(theme::card_style);
+
+    // Toggle rows
     let rows = [
         ToggleRow {
-            label: "Launch at login",
-            sublabel: "Start automatically when you log in",
+            label: t!("launch_at_login_label").to_string(),
+            sublabel: t!("launch_at_login_sub").to_string(),
             enabled: true,
         },
         ToggleRow {
-            label: "Show in system tray",
-            sublabel: "Keep the tray icon visible",
+            label: t!("show_in_tray_label").to_string(),
+            sublabel: t!("show_in_tray_sub").to_string(),
             enabled: true,
         },
         ToggleRow {
-            label: "Desktop notifications",
-            sublabel: "Notify when syncs complete or fail",
+            label: t!("notifications_label").to_string(),
+            sublabel: t!("notifications_sub").to_string(),
             enabled: false,
         },
     ];
@@ -121,12 +151,12 @@ pub fn general_settings_view() -> Element<'static, Message> {
         .width(Length::Fill)
         .style(theme::card_style);
 
-    let back_btn = button(text("← Back").size(12))
+    let back_btn = button(t_text(t!("back_btn")).size(12))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([6, 12])
         .style(theme::ghost_button_style);
 
-    let col = column![heading, settings_card, back_btn]
+    let col = column![heading, lang_row, settings_card, back_btn]
         .spacing(12)
         .padding([16, 20])
         .max_width(480);

@@ -2,10 +2,11 @@ use iced::{
     widget::{button, column, container, row, text, Column},
     Alignment, Element, Length,
 };
+use rust_i18n::t;
 
 use crate::app::Message;
 use crate::model::{SpaceInfo, View};
-use crate::theme;
+use crate::theme::{self, t_text};
 
 pub fn pick_root_folder_view<'a>(
     account_id: uuid::Uuid,
@@ -13,21 +14,21 @@ pub fn pick_root_folder_view<'a>(
     local_path: Option<&'a str>,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
-    let heading = text("Choose a root folder")
+    let heading = t_text(t!("pick_root_folder_heading"))
         .size(16)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let caption = text("All selected spaces will sync as sub-folders inside this folder.")
+    let caption = t_text(t!("pick_root_folder_caption"))
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let folder_label = text("Root folder")
+    let folder_label = t_text(t!("root_folder_label"))
         .size(11)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
     let folder_well = match local_path {
         None => container(
-            text("No folder selected")
+            t_text(t!("no_folder_selected"))
                 .size(13)
                 .style(theme::colored_text(theme::TEXT_MUTED)),
         )
@@ -51,7 +52,7 @@ pub fn pick_root_folder_view<'a>(
 
     let mut preview_col = Column::new().spacing(4);
     if let Some(root) = local_path {
-        let preview_label = text("Will create:")
+        let preview_label = t_text(t!("will_create_label"))
             .size(11)
             .style(theme::colored_text(theme::TEXT_MUTED));
         preview_col = preview_col.push(preview_label);
@@ -66,17 +67,17 @@ pub fn pick_root_folder_view<'a>(
     }
 
     let browse_label = if local_path.is_none() {
-        "Choose folder…"
+        t!("choose_folder_btn").to_string()
     } else {
-        "Change folder…"
+        t!("change_folder_btn").to_string()
     };
-    let browse_btn = button(text(browse_label).size(13))
+    let browse_btn = button(t_text(browse_label).size(13))
         .on_press(Message::PickRootFolderBrowse)
         .padding([8, 14])
         .style(theme::ghost_button_style);
 
     let confirm_btn = {
-        let b = button(text("Start Syncing").size(13))
+        let b = button(t_text(t!("start_syncing_btn")).size(13))
             .padding([9, 18])
             .style(theme::primary_button_style);
         if local_path.is_some() {
@@ -86,7 +87,7 @@ pub fn pick_root_folder_view<'a>(
         }
     };
 
-    let cancel_btn = button(text("Cancel").size(13))
+    let cancel_btn = button(t_text(t!("cancel_btn")).size(13))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([8, 14])
         .style(theme::ghost_button_style);

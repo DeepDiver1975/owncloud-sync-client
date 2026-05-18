@@ -1,19 +1,25 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+rust_i18n::i18n!("locales", fallback = "en");
+
 use gui::app::{update, App, EventRxCarrier, Message};
 use gui::daemon_conn::DaemonConnection;
+use gui::gui_config::GuiConfig;
+use gui::i18n::detect_system_language;
 use gui::model::View;
 use gui::spawn::ensure_daemon_running;
 use gui::subscription::next_message;
 use gui::theme;
 use gui::tray::TrayHandle;
 
-use daemon::paths::platform_gui_socket_path;
+use daemon::paths::{platform_config_dir, platform_gui_socket_path};
 
+use crate::theme::t_text;
 use iced::futures::SinkExt;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length, Subscription, Task};
+use rust_i18n::t;
 
 #[cfg(feature = "test-accessibility")]
 fn init_accessibility() {
@@ -80,6 +86,20 @@ struct IcedApp {
 
 impl IcedApp {
     fn init() -> (Self, Task<Message>) {
+        let gui_config_path = platform_config_dir().join("gui-config.toml");
+        let mut gui_config = GuiConfig::load_or_default(&gui_config_path);
+
+        let language = match gui_config.language.clone() {
+            Some(lang) => lang,
+            None => {
+                let detected = detect_system_language();
+                gui_config.language = Some(detected.clone());
+                gui_config.save(&gui_config_path).ok();
+                detected
+            }
+        };
+        rust_i18n::set_locale(language.as_locale());
+
         let tray = TrayHandle::build()
             .map_err(|e| tracing::warn!("tray icon unavailable: {e}"))
             .ok();
@@ -109,6 +129,8 @@ impl IcedApp {
             Self {
                 app: App {
                     tray,
+                    language,
+                    gui_config_path,
                     ..App::default()
                 },
                 event_rx,
@@ -192,13 +214,15 @@ impl IcedApp {
         );
         let is_about = matches!(self.app.active_view, View::About);
 
-        let nav_sync = iced::widget::button(text("☁ Sync Status").size(12).style(
-            theme::colored_text(if is_sync {
-                theme::ACCENT
-            } else {
-                theme::TEXT_SECONDARY
-            }),
-        ))
+        let nav_sync = iced::widget::button(
+            t_text(format!("☁ {}", t!("nav_sync_status")))
+                .size(12)
+                .style(theme::colored_text(if is_sync {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                })),
+        )
         .on_press(Message::NavigateTo(View::SyncStatus))
         .width(Length::Fill)
         .padding([7, 9])
@@ -208,7 +232,7 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_add = iced::widget::button(text("+ Add Account").size(12).style(
+        let nav_add = iced::widget::button(t_text(t!("nav_add_account")).size(12).style(
             theme::colored_text(if is_add {
                 theme::ACCENT
             } else {
@@ -227,37 +251,39 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_settings = iced::widget::button(text("⚙ Settings").size(12).style(
-            theme::colored_text(if is_settings {
-                theme::ACCENT
+        let nav_settings =
+            iced::widget::button(t_text(format!("⚙ {}", t!("nav_settings"))).size(12).style(
+                theme::colored_text(if is_settings {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                }),
+            ))
+            .on_press(Message::NavigateTo(View::GeneralSettings))
+            .width(Length::Fill)
+            .padding([7, 9])
+            .style(if is_settings {
+                theme::nav_active_style
             } else {
-                theme::TEXT_SECONDARY
-            }),
-        ))
-        .on_press(Message::NavigateTo(View::GeneralSettings))
-        .width(Length::Fill)
-        .padding([7, 9])
-        .style(if is_settings {
-            theme::nav_active_style
-        } else {
-            theme::nav_button_style
-        });
+                theme::nav_button_style
+            });
 
-        let nav_about = iced::widget::button(text("ℹ About").size(12).style(
-            theme::colored_text(if is_about {
-                theme::ACCENT
+        let nav_about =
+            iced::widget::button(t_text(format!("ℹ {}", t!("nav_about"))).size(12).style(
+                theme::colored_text(if is_about {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                }),
+            ))
+            .on_press(Message::NavigateTo(View::About))
+            .width(Length::Fill)
+            .padding([7, 9])
+            .style(if is_about {
+                theme::nav_active_style
             } else {
-                theme::TEXT_SECONDARY
-            }),
-        ))
-        .on_press(Message::NavigateTo(View::About))
-        .width(Length::Fill)
-        .padding([7, 9])
-        .style(if is_about {
-            theme::nav_active_style
-        } else {
-            theme::nav_button_style
-        });
+                theme::nav_button_style
+            });
 
         let sidebar = container(
             column![nav_sync, nav_add, nav_settings, nav_about]
@@ -279,7 +305,8 @@ impl IcedApp {
                     gui::views::account_settings::account_settings_view(account)
                 } else {
                     container(
-                        text("Account not found").style(theme::colored_text(theme::TEXT_MUTED)),
+                        t_text(t!("account_not_found"))
+                            .style(theme::colored_text(theme::TEXT_MUTED)),
                     )
                     .width(Length::Fill)
                     .height(Length::Fill)
@@ -312,7 +339,9 @@ impl IcedApp {
                 local_path.as_deref(),
                 error.as_deref(),
             ),
-            View::GeneralSettings => gui::views::general_settings::general_settings_view(),
+            View::GeneralSettings => {
+                gui::views::general_settings::general_settings_view(&self.app.language)
+            }
             View::About => gui::views::about::about_view(),
             View::FolderErrors {
                 account_id,

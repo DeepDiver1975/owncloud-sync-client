@@ -923,6 +923,44 @@ fn tray_subscription_is_merged_compile_check() {
 }
 
 #[test]
+fn language_as_locale_returns_correct_tag() {
+    use gui::model::Language;
+    assert_eq!(Language::En.as_locale(), "en");
+    assert_eq!(Language::De.as_locale(), "de");
+    assert_eq!(Language::Fr.as_locale(), "fr");
+    assert_eq!(Language::Zh.as_locale(), "zh");
+}
+
+#[test]
+fn language_all_contains_four_variants() {
+    use gui::model::Language;
+    assert_eq!(Language::all().len(), 4);
+}
+
+#[test]
+fn language_label_is_non_empty() {
+    use gui::model::Language;
+    for lang in Language::all() {
+        assert!(!lang.label().is_empty());
+    }
+}
+
+#[test]
+fn detect_system_language_returns_a_language() {
+    // Just verifies it doesn't panic and returns one of the known variants
+    let lang = gui::i18n::detect_system_language();
+    assert!(gui::model::Language::all().contains(&lang));
+}
+
+#[test]
+fn language_changed_updates_app_language() {
+    use gui::model::Language;
+    let mut app = App::default();
+    assert_eq!(app.language, Language::En);
+    let _ = update(&mut app, Message::LanguageChanged(Language::De));
+    assert_eq!(app.language, Language::De);
+}
+
 fn account_snapshot_unknown_status_defaults_to_idle() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
     use gui::app::{update, App, Message};
@@ -953,4 +991,34 @@ fn account_snapshot_unknown_status_defaults_to_idle() {
         app.accounts[0].folders[0].status,
         FolderStatus::Idle
     ));
+}
+
+#[test]
+fn language_changed_updates_locale_and_translations() {
+    use gui::model::Language;
+
+    let mut app = App::default();
+
+    // Switch to German
+    let _ = update(&mut app, Message::LanguageChanged(Language::De));
+    assert_eq!(app.language, Language::De);
+    assert_eq!(&*rust_i18n::locale(), "de");
+    assert_eq!(
+        gui::i18n::translate_key_for_test("de", "nav_sync_status"),
+        "Synchronisierungsstatus"
+    );
+
+    // Switch to Chinese
+    let _ = update(&mut app, Message::LanguageChanged(Language::Zh));
+    assert_eq!(app.language, Language::Zh);
+    assert_eq!(&*rust_i18n::locale(), "zh");
+    assert_eq!(
+        gui::i18n::translate_key_for_test("zh", "nav_sync_status"),
+        "同步状态"
+    );
+
+    // Switch back to English
+    let _ = update(&mut app, Message::LanguageChanged(Language::En));
+    assert_eq!(app.language, Language::En);
+    assert_eq!(&*rust_i18n::locale(), "en");
 }

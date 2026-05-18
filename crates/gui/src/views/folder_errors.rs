@@ -2,11 +2,12 @@ use iced::{
     widget::{button, column, container, text, Column},
     Element, Length,
 };
+use rust_i18n::t;
 use uuid::Uuid;
 
 use crate::app::Message;
 use crate::model::{AccountView, View};
-use crate::theme::{self, card_style, ghost_button_style};
+use crate::theme::{self, card_style, ghost_button_style, t_text};
 
 pub fn folder_errors_view(account: &AccountView, folder_id: Uuid) -> Element<'_, Message> {
     let folder = account.folders.iter().find(|f| f.id == folder_id);
@@ -24,13 +25,13 @@ pub fn folder_errors_view(account: &AccountView, folder_id: Uuid) -> Element<'_,
         .style(theme::colored_text(theme::TEXT_MUTED));
     let header = column![name, path].spacing(2);
 
-    let errors_label = text("SYNC ERRORS")
+    let errors_label = t_text(t!("sync_errors_label"))
         .size(10)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
     let error_list: Element<Message> = if errors.is_empty() {
         container(
-            text("No errors recorded.")
+            t_text(t!("no_errors"))
                 .size(12)
                 .style(theme::colored_text(theme::TEXT_MUTED)),
         )
@@ -55,7 +56,7 @@ pub fn folder_errors_view(account: &AccountView, folder_id: Uuid) -> Element<'_,
         iced::widget::scrollable(col).width(Length::Fill).into()
     };
 
-    let back_btn = button(text("← Back").size(12))
+    let back_btn = button(t_text(t!("back_btn")).size(12))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([6, 12])
         .style(ghost_button_style);
@@ -72,7 +73,7 @@ pub fn folder_errors_view(account: &AccountView, folder_id: Uuid) -> Element<'_,
 
 fn empty_fallback() -> Element<'static, Message> {
     container(
-        text("Folder not found.")
+        t_text(t!("folder_not_found"))
             .size(12)
             .style(theme::colored_text(theme::TEXT_MUTED)),
     )

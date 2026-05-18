@@ -3,11 +3,13 @@ use iced::{
     Alignment, Element, Length,
 };
 
+use rust_i18n::t;
+
 use crate::app::Message;
 use crate::model::{AccountView, FolderStatus, View};
 use crate::theme::{
     self, card_style, icon_button_style, section_header_style, status_badge_style, status_color,
-    status_label,
+    t_text,
 };
 
 pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
@@ -29,13 +31,13 @@ pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
 
 fn empty_state_view() -> Element<'static, Message> {
     let cloud = theme::cloud_muted();
-    let heading = text("No accounts configured")
+    let heading = t_text(t!("no_accounts_heading"))
         .size(20)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
-    let sub = text("Add your first ownCloud account to start syncing.")
+    let sub = t_text(t!("no_accounts_sub"))
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
-    let add_btn = button(text("+ Add account").size(13))
+    let add_btn = button(t_text(t!("add_account_btn")).size(13))
         .on_press(Message::NavigateTo(View::AddAccount {
             url_input: String::new(),
             error: None,
@@ -125,7 +127,7 @@ fn account_section(account: &AccountView) -> Element<'_, Message> {
     if account.folders.is_empty() {
         folders = folders.push(
             container(
-                text("No folders configured")
+                t_text(t!("no_folders_configured"))
                     .size(12)
                     .style(theme::colored_text(theme::TEXT_MUTED)),
             )
@@ -173,9 +175,18 @@ fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Elem
 
     let badge_label = if let FolderStatus::Error = &folder.status {
         let n = folder.errors.len();
-        format!("⚠ {n} error{}", if n == 1 { "" } else { "s" })
+        if n == 1 {
+            t!("folder_status_error_one").to_string()
+        } else {
+            t!("folder_status_error_other", count = n).to_string()
+        }
     } else {
-        status_label(&folder.status).to_string()
+        match &folder.status {
+            FolderStatus::Idle => t!("folder_status_idle").to_string(),
+            FolderStatus::Syncing => t!("folder_status_syncing").to_string(),
+            FolderStatus::Paused => t!("folder_status_paused").to_string(),
+            FolderStatus::Error => unreachable!("handled by outer if-let"),
+        }
     };
 
     let badge_msg: Option<Message> = match &folder.status {
@@ -188,7 +199,9 @@ fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Elem
         })),
     };
 
-    let badge_text = text(badge_label).size(11).style(theme::colored_text(color));
+    let badge_text = t_text(badge_label)
+        .size(11)
+        .style(theme::colored_text(color));
 
     let badge_inner = container(badge_text)
         .style(status_badge_style(color))

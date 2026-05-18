@@ -3,23 +3,25 @@ use iced::{
     Alignment, Element, Length,
 };
 
+use rust_i18n::t;
+
 use crate::app::Message;
 use crate::model::View;
-use crate::theme;
+use crate::theme::{self, t_text};
 
 pub static URL_INPUT_ID: std::sync::LazyLock<text_input::Id> =
     std::sync::LazyLock::new(text_input::Id::unique);
 
 pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Element<'a, Message> {
-    let heading = text("Add Account")
+    let heading = t_text(t!("add_account_heading"))
         .size(20)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let caption = text("Enter your ownCloud server address. Sign-in will open in your browser.")
+    let caption = t_text(t!("add_account_caption"))
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let url_label = text("Server URL")
+    let url_label = t_text(t!("server_url_label"))
         .size(11)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
@@ -31,16 +33,16 @@ pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Eleme
         .size(13)
         .style(theme::text_input_style);
 
-    let helper = text("Include the full address including https://")
+    let helper = t_text(t!("server_url_helper"))
         .size(11)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
-    let connect_btn = button(text("Connect →").size(13))
+    let connect_btn = button(t_text(t!("connect_btn")).size(13))
         .on_press(Message::AddAccountSubmit)
         .padding([9, 18])
         .style(theme::primary_button_style);
 
-    let cancel_btn = button(text("Cancel").size(13))
+    let cancel_btn = button(t_text(t!("cancel_btn")).size(13))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([8, 14])
         .style(theme::ghost_button_style);
