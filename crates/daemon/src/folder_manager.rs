@@ -16,6 +16,46 @@ use sync_engine::state::SyncState;
 use sync_engine::types::ConflictStrategy;
 use vfs_core::Vfs;
 
+async fn build_managed_folder(
+    fc: &FolderConfig,
+    account: &AccountConfig,
+    token_manager: Arc<TokenManager>,
+    db_dir: &std::path::Path,
+) -> Result<ManagedFolder> {
+    let root = Utf8PathBuf::from(&fc.local_path);
+
+    let vfs = create_vfs(&fc.vfs_mode, &root)
+        .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
+
+    let server_url = account.url.trim_end_matches('/');
+    let space_root = Url::parse(&format!("{}/dav/spaces/{}/", server_url, fc.space_id))
+        .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown/").unwrap());
+
+    let db_path = db_dir.join(format!("sync-{}.db", fc.id));
+    let db = SyncJournalDb::open(&db_path)
+        .await
+        .with_context(|| format!("open sync journal for folder {}", fc.id))?;
+
+    let engine = SyncEngine::new(EngineConfig {
+        folder_id: fc.id,
+        local_root: root.clone(),
+        space_root,
+        conflict_strategy: ConflictStrategy::KeepBoth,
+        max_parallel_transfers: 4,
+        db,
+        token_manager,
+    });
+
+    let watcher = FolderWatcher::watch(root.as_std_path())?;
+
+    Ok(ManagedFolder {
+        config: fc.clone(),
+        engine: Arc::new(engine),
+        vfs,
+        watcher: Some(watcher),
+    })
+}
+
 pub struct ManagedFolder {
     pub config: FolderConfig,
     pub engine: Arc<SyncEngine>,
@@ -48,63 +88,36 @@ impl FolderManager {
                 .iter()
                 .find(|a| a.folder.iter().any(|f| f.id == fc.id));
 
-            let account_id = match account {
-                Some(a) => a.id,
+            let account_ref = match account {
+                Some(a) => a,
                 None => {
                     tracing::warn!("no account found for folder {}; skipping", fc.id);
                     continue;
                 }
             };
 
-            let token_manager = match token_managers.get(&account_id) {
+            let token_manager = match token_managers.get(&account_ref.id) {
                 Some(tm) => Arc::clone(tm),
                 None => {
                     tracing::warn!(
-                        "no token manager for account {account_id}; skipping folder {}",
+                        "no token manager for account {}; skipping folder {}",
+                        account_ref.id,
                         fc.id
                     );
                     continue;
                 }
             };
 
-            let root = Utf8PathBuf::from(&fc.local_path);
-
-            let vfs = create_vfs(&fc.vfs_mode, &root)
-                .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
-
-            let server_url = account
-                .map(|a| a.url.trim_end_matches('/'))
-                .unwrap_or("http://localhost");
-            let space_root = Url::parse(&format!("{}/dav/spaces/{}/", server_url, fc.space_id))
-                .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown/").unwrap());
-
-            let db_path = db_dir.join(format!("sync-{}.db", fc.id));
-            let db = SyncJournalDb::open(&db_path)
-                .await
-                .with_context(|| format!("open sync journal for folder {}", fc.id))?;
-
-            let engine = SyncEngine::new(EngineConfig {
-                folder_id: fc.id,
-                local_root: root.clone(),
-                space_root,
-                conflict_strategy: ConflictStrategy::KeepBoth,
-                max_parallel_transfers: 4,
-                db,
-                token_manager,
-            });
-
-            let watcher = FolderWatcher::watch(root.as_std_path())?;
-
+            let managed = match build_managed_folder(fc, account_ref, token_manager, &db_dir).await
+            {
+                Ok(m) => m,
+                Err(e) => {
+                    tracing::warn!("failed to set up folder {}: {e}; skipping", fc.id);
+                    continue;
+                }
+            };
             states.insert(fc.id, SyncState::new(fc.id));
-            folders.insert(
-                fc.id,
-                ManagedFolder {
-                    config: fc.clone(),
-                    engine: Arc::new(engine),
-                    vfs,
-                    watcher: Some(watcher),
-                },
-            );
+            folders.insert(fc.id, managed);
         }
 
         Ok(Self {
@@ -124,47 +137,14 @@ impl FolderManager {
         std::fs::create_dir_all(&db_dir)
             .with_context(|| format!("create config dir {}", db_dir.display()))?;
 
-        let root = Utf8PathBuf::from(&fc.local_path);
-
-        let vfs = create_vfs(&fc.vfs_mode, &root)
-            .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
-
-        let server_url = account.url.trim_end_matches('/');
-        let space_root = Url::parse(&format!("{}/dav/spaces/{}/", server_url, fc.space_id))
-            .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown/").unwrap());
-
-        let db_path = db_dir.join(format!("sync-{}.db", fc.id));
-        let db = SyncJournalDb::open(&db_path)
-            .await
-            .with_context(|| format!("open sync journal for folder {}", fc.id))?;
-
-        let engine = SyncEngine::new(EngineConfig {
-            folder_id: fc.id,
-            local_root: root.clone(),
-            space_root,
-            conflict_strategy: ConflictStrategy::KeepBoth,
-            max_parallel_transfers: 4,
-            db,
-            token_manager,
-        });
-
-        let watcher = FolderWatcher::watch(root.as_std_path())?;
+        let managed = build_managed_folder(fc, account, token_manager, &db_dir).await?;
 
         {
             let mut states = self.sync_states.write().unwrap_or_else(|e| e.into_inner());
             states.insert(fc.id, SyncState::new(fc.id));
         }
 
-        self.folders.insert(
-            fc.id,
-            ManagedFolder {
-                config: fc.clone(),
-                engine: Arc::new(engine),
-                vfs,
-                watcher: Some(watcher),
-            },
-        );
-
+        self.folders.insert(fc.id, managed);
         Ok(())
     }
 
