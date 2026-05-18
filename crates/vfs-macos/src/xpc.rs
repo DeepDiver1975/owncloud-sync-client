@@ -106,7 +106,7 @@ mod imp {
                 ));
             }
 
-            let key_data = CString::new("data").unwrap();
+            let key_data = CString::new("data").expect("literal has no NUL bytes");
             // Safety: msg_dict and data_obj are valid non-null XPC objects.
             unsafe { xpc_dictionary_set_value(msg_dict, key_data.as_ptr(), data_obj) };
             // Safety: data_obj is now retained by the dictionary; release our ref.
@@ -124,7 +124,7 @@ mod imp {
                 ));
             }
 
-            let key_reply = CString::new("reply").unwrap();
+            let key_reply = CString::new("reply").expect("literal has no NUL bytes");
             // Safety: reply_obj is a valid XPC dict; get_value borrows without ownership.
             let reply_data = unsafe { xpc_dictionary_get_value(reply_obj, key_reply.as_ptr()) };
 

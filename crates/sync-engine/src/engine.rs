@@ -242,7 +242,10 @@ impl SyncEngine {
                 SyncInstruction::Download => {
                     let bearer_token_dl = bearer_token.clone();
                     join_set.spawn(async move {
-                        let _permit = sem.acquire().await.unwrap();
+                        let _permit = sem
+                            .acquire()
+                            .await
+                            .expect("BUG: semaphore closed before all tasks finished");
                         let mut task_http: Vec<HttpEvent> = Vec::new();
                         {
                             let mut s = write_lock(&state);
@@ -289,7 +292,10 @@ impl SyncEngine {
                     let bearer_token_ul = bearer_token.clone();
                     let space_root_ul = self.cfg.space_root.clone();
                     join_set.spawn(async move {
-                        let _permit = sem.acquire().await.unwrap();
+                        let _permit = sem
+                            .acquire()
+                            .await
+                            .expect("BUG: semaphore closed before all tasks finished");
                         let mut task_http: Vec<HttpEvent> = Vec::new();
                         {
                             let mut s = write_lock(&state);
@@ -338,7 +344,10 @@ impl SyncEngine {
                 SyncInstruction::Conflict => {
                     let bearer_token_cf = bearer_token.clone();
                     join_set.spawn(async move {
-                        let _permit = sem.acquire().await.unwrap();
+                        let _permit = sem
+                            .acquire()
+                            .await
+                            .expect("BUG: semaphore closed before all tasks finished");
                         let mut task_http: Vec<HttpEvent> = Vec::new();
                         {
                             let mut s = write_lock(&state);
