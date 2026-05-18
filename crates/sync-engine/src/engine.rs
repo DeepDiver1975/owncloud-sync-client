@@ -177,7 +177,9 @@ impl SyncEngine {
                                 checksum: None,
                                 is_virtual: 0,
                             };
-                            let _ = self.cfg.db.upsert_entry(&entry).await;
+                            if let Err(e) = self.cfg.db.upsert_entry(&entry).await {
+                                tracing::warn!("journal write failed for {}: {e}", entry.path);
+                            }
                             let mut s = write_lock(&self.state);
                             s.set_file_status(rel_path, FileStatus::Ok);
                         }
@@ -202,7 +204,9 @@ impl SyncEngine {
                             checksum: None,
                             is_virtual: 0,
                         };
-                        let _ = self.cfg.db.upsert_entry(&entry).await;
+                        if let Err(e) = self.cfg.db.upsert_entry(&entry).await {
+                            tracing::warn!("journal write failed for {}: {e}", entry.path);
+                        }
                         let mut s = write_lock(&self.state);
                         s.set_file_status(rel_path, FileStatus::Ok);
                     }
@@ -274,7 +278,9 @@ impl SyncEngine {
                                     checksum: None,
                                     is_virtual: 0,
                                 };
-                                let _ = db.upsert_entry(&entry).await;
+                                if let Err(e) = db.upsert_entry(&entry).await {
+                                    tracing::warn!("journal write failed for {}: {e}", entry.path);
+                                }
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
                                 (task_http, Ok(()))
@@ -327,7 +333,9 @@ impl SyncEngine {
                                     checksum: None,
                                     is_virtual: 0,
                                 };
-                                let _ = db.upsert_entry(&entry).await;
+                                if let Err(e) = db.upsert_entry(&entry).await {
+                                    tracing::warn!("journal write failed for {}: {e}", entry.path);
+                                }
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
                                 (task_http, Ok(()))
@@ -385,7 +393,9 @@ impl SyncEngine {
                                     checksum: None,
                                     is_virtual: 0,
                                 };
-                                let _ = db.upsert_entry(&entry).await;
+                                if let Err(e) = db.upsert_entry(&entry).await {
+                                    tracing::warn!("journal write failed for {}: {e}", entry.path);
+                                }
                                 let mut s = write_lock(&state);
                                 s.set_file_status(rel_clone, FileStatus::Ok);
                                 (task_http, Ok(()))
