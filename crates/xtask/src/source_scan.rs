@@ -5,10 +5,10 @@ use walkdir::WalkDir;
 
 #[allow(dead_code)]
 pub fn extract_t_keys(src: &str) -> Vec<String> {
-    let re = Regex::new(r#"t!\("([^"]+)""#).unwrap();
+    let re = Regex::new(r#"(^|[^a-zA-Z0-9_])t!\("([^"]+)""#).unwrap();
     let mut keys: BTreeSet<String> = BTreeSet::new();
     for cap in re.captures_iter(src) {
-        keys.insert(cap[1].to_string());
+        keys.insert(cap[2].to_string());
     }
     keys.into_iter().collect()
 }
@@ -66,5 +66,12 @@ mod tests {
         "#;
         let keys = extract_t_keys(src);
         assert_eq!(keys, vec!["cancel_btn"]);
+    }
+
+    #[test]
+    fn does_not_extract_format_macro_strings() {
+        let src = r#"text(format!("☁ {}", t!("nav_sync_status")))"#;
+        let keys = extract_t_keys(src);
+        assert_eq!(keys, vec!["nav_sync_status"]);
     }
 }
