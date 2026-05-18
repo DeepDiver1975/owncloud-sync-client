@@ -151,7 +151,7 @@ impl FolderManager {
         let watcher = FolderWatcher::watch(root.as_std_path())?;
 
         {
-            let mut states = self.sync_states.write().unwrap();
+            let mut states = self.sync_states.write().unwrap_or_else(|e| e.into_inner());
             states.insert(fc.id, SyncState::new(fc.id));
         }
 

@@ -24,13 +24,16 @@ impl BroadcastSender {
         let id = Uuid::new_v4();
         self.connections
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .push(ConnectionHandle { tx, id });
         id
     }
 
     pub fn remove_connection(&self, id: Uuid) {
-        self.connections.lock().unwrap().retain(|h| h.id != id);
+        self.connections
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|h| h.id != id);
     }
 
     pub async fn register_path(&self, path: &str) {
@@ -51,7 +54,7 @@ impl BroadcastSender {
 
     async fn broadcast(&self, message: String) {
         let senders: Vec<(Uuid, mpsc::Sender<String>)> = {
-            let conns = self.connections.lock().unwrap();
+            let conns = self.connections.lock().unwrap_or_else(|e| e.into_inner());
             conns.iter().map(|h| (h.id, h.tx.clone())).collect()
         };
 
@@ -66,7 +69,7 @@ impl BroadcastSender {
         if !dead_ids.is_empty() {
             self.connections
                 .lock()
-                .unwrap()
+                .unwrap_or_else(|e| e.into_inner())
                 .retain(|h| !dead_ids.contains(&h.id));
         }
     }

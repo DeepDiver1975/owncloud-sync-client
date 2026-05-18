@@ -27,7 +27,7 @@ impl StatusResolver {
             return "NONE";
         };
 
-        let states = self.sync_states.read().unwrap();
+        let states = self.sync_states.read().unwrap_or_else(|e| e.into_inner());
         let Some(state) = states.get(&folder_id) else {
             return "NONE";
         };
@@ -47,7 +47,7 @@ impl StatusResolver {
             return "NONE";
         };
 
-        let states = self.sync_states.read().unwrap();
+        let states = self.sync_states.read().unwrap_or_else(|e| e.into_inner());
         let Some(state) = states.get(&folder_id) else {
             return "NONE";
         };
@@ -72,7 +72,7 @@ impl StatusResolver {
     }
 
     pub fn find_folder_for_path(&self, path: &str) -> Option<Uuid> {
-        let roots = self.folder_roots.read().unwrap();
+        let roots = self.folder_roots.read().unwrap_or_else(|e| e.into_inner());
         let path_buf = Utf8PathBuf::from(path);
         roots
             .iter()
