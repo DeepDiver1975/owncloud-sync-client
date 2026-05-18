@@ -39,6 +39,9 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      - name: Check translations
+        run: just check-translations
+
   # ---------------------------------------------------------------------------
   # Main workspace — macOS (catches platform-specific compilation issues)
   # ---------------------------------------------------------------------------
