@@ -18,9 +18,12 @@ pub fn about_view() -> Element<'static, Message> {
     let logo = theme::owncloud_icon_large();
 
     let version_line = row![
-        text(format!("Version {}. For more information visit ", APP_VERSION))
-            .size(11)
-            .style(theme::colored_text(theme::TEXT_PRIMARY)),
+        text(format!(
+            "Version {}. For more information visit ",
+            APP_VERSION
+        ))
+        .size(11)
+        .style(theme::colored_text(theme::TEXT_PRIMARY)),
         button(
             text("https://owncloud.com")
                 .size(11)

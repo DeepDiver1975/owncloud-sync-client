@@ -56,8 +56,7 @@ mod inner {
                 }
 
                 let build_result = (|| -> anyhow::Result<tray_icon::TrayIcon> {
-                    let menu =
-                        build_menu(&t!("tray_open"), &t!("tray_about"), &t!("tray_quit"))?;
+                    let menu = build_menu(&t!("tray_open"), &t!("tray_about"), &t!("tray_quit"))?;
                     Ok(TrayIconBuilder::new()
                         .with_icon(icon)
                         .with_menu(Box::new(menu))
@@ -75,9 +74,7 @@ mod inner {
                             std::time::Duration::from_millis(100),
                             move || {
                                 while let Ok(req) = menu_rx.borrow().try_recv() {
-                                    if let Ok(menu) =
-                                        build_menu(&req.open, &req.about, &req.quit)
-                                    {
+                                    if let Ok(menu) = build_menu(&req.open, &req.about, &req.quit) {
                                         icon_handle.set_menu(Some(Box::new(menu)));
                                     }
                                 }

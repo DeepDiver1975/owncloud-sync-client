@@ -213,21 +213,22 @@ impl IcedApp {
         );
         let is_about = matches!(self.app.active_view, View::About);
 
-        let nav_sync = iced::widget::button(text(format!("☁ {}", t!("nav_sync_status"))).size(12).style(
-            theme::colored_text(if is_sync {
-                theme::ACCENT
+        let nav_sync =
+            iced::widget::button(text(format!("☁ {}", t!("nav_sync_status"))).size(12).style(
+                theme::colored_text(if is_sync {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                }),
+            ))
+            .on_press(Message::NavigateTo(View::SyncStatus))
+            .width(Length::Fill)
+            .padding([7, 9])
+            .style(if is_sync {
+                theme::nav_active_style
             } else {
-                theme::TEXT_SECONDARY
-            }),
-        ))
-        .on_press(Message::NavigateTo(View::SyncStatus))
-        .width(Length::Fill)
-        .padding([7, 9])
-        .style(if is_sync {
-            theme::nav_active_style
-        } else {
-            theme::nav_button_style
-        });
+                theme::nav_button_style
+            });
 
         let nav_add = iced::widget::button(text(t!("nav_add_account").to_string()).size(12).style(
             theme::colored_text(if is_add {
@@ -248,37 +249,39 @@ impl IcedApp {
             theme::nav_button_style
         });
 
-        let nav_settings = iced::widget::button(text(format!("⚙ {}", t!("nav_settings"))).size(12).style(
-            theme::colored_text(if is_settings {
-                theme::ACCENT
+        let nav_settings =
+            iced::widget::button(text(format!("⚙ {}", t!("nav_settings"))).size(12).style(
+                theme::colored_text(if is_settings {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                }),
+            ))
+            .on_press(Message::NavigateTo(View::GeneralSettings))
+            .width(Length::Fill)
+            .padding([7, 9])
+            .style(if is_settings {
+                theme::nav_active_style
             } else {
-                theme::TEXT_SECONDARY
-            }),
-        ))
-        .on_press(Message::NavigateTo(View::GeneralSettings))
-        .width(Length::Fill)
-        .padding([7, 9])
-        .style(if is_settings {
-            theme::nav_active_style
-        } else {
-            theme::nav_button_style
-        });
+                theme::nav_button_style
+            });
 
-        let nav_about = iced::widget::button(text(format!("ℹ {}", t!("nav_about"))).size(12).style(
-            theme::colored_text(if is_about {
-                theme::ACCENT
+        let nav_about =
+            iced::widget::button(text(format!("ℹ {}", t!("nav_about"))).size(12).style(
+                theme::colored_text(if is_about {
+                    theme::ACCENT
+                } else {
+                    theme::TEXT_SECONDARY
+                }),
+            ))
+            .on_press(Message::NavigateTo(View::About))
+            .width(Length::Fill)
+            .padding([7, 9])
+            .style(if is_about {
+                theme::nav_active_style
             } else {
-                theme::TEXT_SECONDARY
-            }),
-        ))
-        .on_press(Message::NavigateTo(View::About))
-        .width(Length::Fill)
-        .padding([7, 9])
-        .style(if is_about {
-            theme::nav_active_style
-        } else {
-            theme::nav_button_style
-        });
+                theme::nav_button_style
+            });
 
         let sidebar = container(
             column![nav_sync, nav_add, nav_settings, nav_about]
@@ -300,7 +303,8 @@ impl IcedApp {
                     gui::views::account_settings::account_settings_view(account)
                 } else {
                     container(
-                        text(t!("account_not_found").to_string()).style(theme::colored_text(theme::TEXT_MUTED)),
+                        text(t!("account_not_found").to_string())
+                            .style(theme::colored_text(theme::TEXT_MUTED)),
                     )
                     .width(Length::Fill)
                     .height(Length::Fill)
@@ -333,7 +337,9 @@ impl IcedApp {
                 local_path.as_deref(),
                 error.as_deref(),
             ),
-            View::GeneralSettings => gui::views::general_settings::general_settings_view(&self.app.language),
+            View::GeneralSettings => {
+                gui::views::general_settings::general_settings_view(&self.app.language)
+            }
             View::About => gui::views::about::about_view(),
             View::FolderErrors {
                 account_id,
