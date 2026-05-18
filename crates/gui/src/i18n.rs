@@ -12,3 +12,13 @@ pub fn detect_system_language() -> Language {
         Language::En
     }
 }
+
+#[cfg(test)]
+pub fn translate_key_for_test(locale: &str, key: &str) -> String {
+    use rust_i18n::t;
+    let prev = rust_i18n::locale().to_string();
+    rust_i18n::set_locale(locale);
+    let result = t!(key).to_string();
+    rust_i18n::set_locale(&prev);
+    result
+}
