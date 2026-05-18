@@ -1,7 +1,18 @@
 use camino::Utf8Path;
+use std::sync::OnceLock;
 use url::Url;
 
 use crate::error::{Result, SyncError};
+
+fn method_mkcol() -> &'static reqwest::Method {
+    static M: OnceLock<reqwest::Method> = OnceLock::new();
+    M.get_or_init(|| reqwest::Method::from_bytes(b"MKCOL").expect("static HTTP method"))
+}
+
+fn method_move() -> &'static reqwest::Method {
+    static M: OnceLock<reqwest::Method> = OnceLock::new();
+    M.get_or_init(|| reqwest::Method::from_bytes(b"MOVE").expect("static HTTP method"))
+}
 
 /// Remove a file from the local filesystem.
 pub async fn delete_local(path: &Utf8Path) -> Result<()> {
@@ -35,7 +46,7 @@ pub async fn delete_remote(url: &Url) -> Result<()> {
 pub async fn mkdir_remote(url: Url, bearer_token: &str) -> Result<()> {
     let client = ocis_client::build_http_client();
     let resp = client
-        .request(reqwest::Method::from_bytes(b"MKCOL").unwrap(), url.as_str())
+        .request(method_mkcol().clone(), url.as_str())
         .bearer_auth(bearer_token)
         .send()
         .await
@@ -59,10 +70,7 @@ pub async fn mkdir_remote(url: Url, bearer_token: &str) -> Result<()> {
 pub async fn rename_remote(from_url: &Url, to_url: &Url) -> Result<()> {
     let client = ocis_client::build_http_client();
     let resp = client
-        .request(
-            reqwest::Method::from_bytes(b"MOVE").unwrap(),
-            from_url.as_str(),
-        )
+        .request(method_move().clone(), from_url.as_str())
         .header("Destination", to_url.as_str())
         .header("Overwrite", "T")
         .send()

@@ -3,7 +3,7 @@ pub mod propfind;
 
 pub use propfind::{parse_propfind_response, DavEntry, ResourceType};
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use reqwest::{header, Client, Method, StatusCode};
 use tokio::sync::RwLock;
@@ -11,6 +11,21 @@ use url::Url;
 
 use crate::auth::oidc::TokenSet;
 use crate::error::{OcisError, Result};
+
+fn method_propfind() -> &'static Method {
+    static M: OnceLock<Method> = OnceLock::new();
+    M.get_or_init(|| Method::from_bytes(b"PROPFIND").expect("static HTTP method"))
+}
+
+fn method_mkcol() -> &'static Method {
+    static M: OnceLock<Method> = OnceLock::new();
+    M.get_or_init(|| Method::from_bytes(b"MKCOL").expect("static HTTP method"))
+}
+
+fn method_move() -> &'static Method {
+    static M: OnceLock<Method> = OnceLock::new();
+    M.get_or_init(|| Method::from_bytes(b"MOVE").expect("static HTTP method"))
+}
 
 /// HTTP client for WebDAV operations against an oCIS server.
 #[derive(Debug, Clone)]
@@ -72,7 +87,7 @@ impl WebDavClient {
 </D:propfind>"#;
 
         let resp = self
-            .request_with_retry(Method::from_bytes(b"PROPFIND").unwrap(), url, |req| {
+            .request_with_retry(method_propfind().clone(), url, |req| {
                 req.header("Depth", "1")
                     .header(header::CONTENT_TYPE, "application/xml; charset=utf-8")
                     .body(body)
@@ -131,7 +146,7 @@ impl WebDavClient {
     /// MKCOL — create a collection (directory).
     pub async fn mkcol(&self, path: &str) -> Result<()> {
         let url = self.base_url.join(path).map_err(OcisError::Url)?;
-        self.request_with_retry(Method::from_bytes(b"MKCOL").unwrap(), url, |req| req)
+        self.request_with_retry(method_mkcol().clone(), url, |req| req)
             .await?
             .error_for_status()
             .map_err(OcisError::Http)?;
@@ -144,7 +159,7 @@ impl WebDavClient {
         let dest_url = self.base_url.join(destination).map_err(OcisError::Url)?;
         let overwrite_value = if overwrite { "T" } else { "F" };
 
-        self.request_with_retry(Method::from_bytes(b"MOVE").unwrap(), url, |req| {
+        self.request_with_retry(method_move().clone(), url, |req| {
             req.header("Destination", dest_url.as_str())
                 .header("Overwrite", overwrite_value)
         })
