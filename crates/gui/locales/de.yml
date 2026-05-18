@@ -57,6 +57,11 @@ synced_folders_label: "SYNCHRONISIERTE ORDNER"
 
 # about
 about_heading: "Über"
+about_version_prefix: "Version %{version}. Weitere Informationen finden Sie unter"
+about_issues_prefix: "Bekannte Probleme und Hilfe finden Sie unter:"
+about_contributors: "Von %{contributors}"
+about_copyright: "Copyright ownCloud GmbH (A Kiteworks Company)"
+about_license: "Verbreitet unter der GNU General Public License v2"
 
 # main
 account_not_found: "Konto nicht gefunden"

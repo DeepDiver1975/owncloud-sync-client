@@ -57,6 +57,11 @@ synced_folders_label: "已同步文件夹"
 
 # about
 about_heading: "关于"
+about_version_prefix: "版本 %{version}。更多信息请访问"
+about_issues_prefix: "已知问题和帮助，请访问："
+about_contributors: "作者：%{contributors}"
+about_copyright: "版权所有 ownCloud GmbH（A Kiteworks Company）"
+about_license: "依据 GNU 通用公共许可证 v2 发行"
 
 # main
 account_not_found: "找不到账户"

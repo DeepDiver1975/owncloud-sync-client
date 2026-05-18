@@ -18,12 +18,9 @@ pub fn about_view() -> Element<'static, Message> {
     let logo = theme::owncloud_icon_large();
 
     let version_line = row![
-        text(format!(
-            "Version {}. For more information visit ",
-            APP_VERSION
-        ))
-        .size(11)
-        .style(theme::colored_text(theme::TEXT_PRIMARY)),
+        t_text(t!("about_version_prefix", version = APP_VERSION))
+            .size(11)
+            .style(theme::colored_text(theme::TEXT_PRIMARY)),
         button(
             text("https://owncloud.com")
                 .size(11)
@@ -33,10 +30,11 @@ pub fn about_view() -> Element<'static, Message> {
         .padding(0)
         .style(theme::link_button_style),
     ]
+    .spacing(4)
     .align_y(iced::Alignment::Center);
 
     let issues_line = row![
-        text("For known issues and help, please visit: ")
+        t_text(t!("about_issues_prefix"))
             .size(11)
             .style(theme::colored_text(theme::TEXT_PRIMARY)),
         button(
@@ -48,18 +46,19 @@ pub fn about_view() -> Element<'static, Message> {
         .padding(0)
         .style(theme::link_button_style),
     ]
+    .spacing(4)
     .align_y(iced::Alignment::Center);
 
     let credits = column![
         version_line,
         issues_line,
-        text(format!("By {}", CONTRIBUTORS))
+        t_text(t!("about_contributors", contributors = CONTRIBUTORS))
             .size(10)
             .style(theme::colored_text(theme::TEXT_MUTED)),
-        text("Copyright ownCloud GmbH (A Kiteworks Company)")
+        t_text(t!("about_copyright"))
             .size(10)
             .style(theme::colored_text(theme::TEXT_MUTED)),
-        text("Distributed under the GNU General Public License v2")
+        t_text(t!("about_license"))
             .size(10)
             .style(theme::colored_text(theme::TEXT_MUTED)),
     ]
