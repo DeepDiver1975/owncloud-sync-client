@@ -139,7 +139,7 @@ fn parse_lock_version(lock: &str, package: &str) -> Option<String> {
 
 fn track_locales() {
     for entry in std::fs::read_dir("locales")
-        .expect("locales dir must exist")
+        .unwrap_or_else(|e| panic!("failed to read locales dir: {e}"))
         .flatten()
     {
         println!("cargo:rerun-if-changed={}", entry.path().display());
