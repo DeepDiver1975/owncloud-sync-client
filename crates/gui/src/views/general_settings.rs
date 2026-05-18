@@ -108,7 +108,8 @@ pub fn general_settings_view(language: &Language) -> Element<'_, Message> {
         Message::LanguageChanged,
     )
     .text_size(12)
-    .padding([5, 10]);
+    .padding([5, 10])
+    .text_shaping(iced::widget::text::Shaping::Advanced);
 
     let lang_row = container(
         row![
