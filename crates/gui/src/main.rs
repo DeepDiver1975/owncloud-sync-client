@@ -15,6 +15,7 @@ use gui::tray::TrayHandle;
 
 use daemon::paths::{platform_config_dir, platform_gui_socket_path};
 
+use crate::theme::t_text;
 use iced::futures::SinkExt;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Length, Subscription, Task};
@@ -213,24 +214,25 @@ impl IcedApp {
         );
         let is_about = matches!(self.app.active_view, View::About);
 
-        let nav_sync =
-            iced::widget::button(text(format!("☁ {}", t!("nav_sync_status"))).size(12).style(
-                theme::colored_text(if is_sync {
+        let nav_sync = iced::widget::button(
+            t_text(format!("☁ {}", t!("nav_sync_status")))
+                .size(12)
+                .style(theme::colored_text(if is_sync {
                     theme::ACCENT
                 } else {
                     theme::TEXT_SECONDARY
-                }),
-            ))
-            .on_press(Message::NavigateTo(View::SyncStatus))
-            .width(Length::Fill)
-            .padding([7, 9])
-            .style(if is_sync {
-                theme::nav_active_style
-            } else {
-                theme::nav_button_style
-            });
+                })),
+        )
+        .on_press(Message::NavigateTo(View::SyncStatus))
+        .width(Length::Fill)
+        .padding([7, 9])
+        .style(if is_sync {
+            theme::nav_active_style
+        } else {
+            theme::nav_button_style
+        });
 
-        let nav_add = iced::widget::button(text(t!("nav_add_account").to_string()).size(12).style(
+        let nav_add = iced::widget::button(t_text(t!("nav_add_account")).size(12).style(
             theme::colored_text(if is_add {
                 theme::ACCENT
             } else {
@@ -250,7 +252,7 @@ impl IcedApp {
         });
 
         let nav_settings =
-            iced::widget::button(text(format!("⚙ {}", t!("nav_settings"))).size(12).style(
+            iced::widget::button(t_text(format!("⚙ {}", t!("nav_settings"))).size(12).style(
                 theme::colored_text(if is_settings {
                     theme::ACCENT
                 } else {
@@ -267,7 +269,7 @@ impl IcedApp {
             });
 
         let nav_about =
-            iced::widget::button(text(format!("ℹ {}", t!("nav_about"))).size(12).style(
+            iced::widget::button(t_text(format!("ℹ {}", t!("nav_about"))).size(12).style(
                 theme::colored_text(if is_about {
                     theme::ACCENT
                 } else {
@@ -303,7 +305,7 @@ impl IcedApp {
                     gui::views::account_settings::account_settings_view(account)
                 } else {
                     container(
-                        text(t!("account_not_found").to_string())
+                        t_text(t!("account_not_found"))
                             .style(theme::colored_text(theme::TEXT_MUTED)),
                     )
                     .width(Length::Fill)

@@ -1,12 +1,12 @@
 use iced::{
-    widget::{button, column, container, pick_list, row, text, Column},
+    widget::{button, column, container, pick_list, row, Column},
     Alignment, Element, Length,
 };
 use rust_i18n::t;
 
 use crate::app::Message;
 use crate::model::{Language, View};
-use crate::theme;
+use crate::theme::{self, t_text};
 
 struct ToggleRow {
     label: String,
@@ -15,10 +15,10 @@ struct ToggleRow {
 }
 
 fn toggle_row(row: &ToggleRow) -> Element<'static, Message> {
-    let lbl = text(row.label.clone())
+    let lbl = t_text(row.label.clone())
         .size(12)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
-    let sub = text(row.sublabel.clone())
+    let sub = t_text(row.sublabel.clone())
         .size(10)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
@@ -90,15 +90,15 @@ fn toggle_row(row: &ToggleRow) -> Element<'static, Message> {
 }
 
 pub fn general_settings_view(language: &Language) -> Element<'_, Message> {
-    let heading = text(t!("general_settings_heading"))
+    let heading = t_text(t!("general_settings_heading"))
         .size(15)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
     // Language picker row
-    let lang_label = text(t!("language_label"))
+    let lang_label = t_text(t!("language_label"))
         .size(12)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
-    let lang_sub = text(t!("language_sublabel"))
+    let lang_sub = t_text(t!("language_sublabel"))
         .size(10)
         .style(theme::colored_text(theme::TEXT_MUTED));
 
@@ -150,7 +150,7 @@ pub fn general_settings_view(language: &Language) -> Element<'_, Message> {
         .width(Length::Fill)
         .style(theme::card_style);
 
-    let back_btn = button(text(t!("back_btn")).size(12))
+    let back_btn = button(t_text(t!("back_btn")).size(12))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([6, 12])
         .style(theme::ghost_button_style);

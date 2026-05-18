@@ -6,7 +6,7 @@ use rust_i18n::t;
 
 use crate::app::Message;
 use crate::model::{SpaceInfo, View};
-use crate::theme;
+use crate::theme::{self, t_text};
 
 pub fn pick_root_folder_view<'a>(
     account_id: uuid::Uuid,
@@ -14,21 +14,21 @@ pub fn pick_root_folder_view<'a>(
     local_path: Option<&'a str>,
     error: Option<&'a str>,
 ) -> Element<'a, Message> {
-    let heading = text(t!("pick_root_folder_heading").to_string())
+    let heading = t_text(t!("pick_root_folder_heading"))
         .size(16)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 
-    let caption = text(t!("pick_root_folder_caption").to_string())
+    let caption = t_text(t!("pick_root_folder_caption"))
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let folder_label = text(t!("root_folder_label").to_string())
+    let folder_label = t_text(t!("root_folder_label"))
         .size(11)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
     let folder_well = match local_path {
         None => container(
-            text(t!("no_folder_selected").to_string())
+            t_text(t!("no_folder_selected"))
                 .size(13)
                 .style(theme::colored_text(theme::TEXT_MUTED)),
         )
@@ -52,7 +52,7 @@ pub fn pick_root_folder_view<'a>(
 
     let mut preview_col = Column::new().spacing(4);
     if let Some(root) = local_path {
-        let preview_label = text(t!("will_create_label").to_string())
+        let preview_label = t_text(t!("will_create_label"))
             .size(11)
             .style(theme::colored_text(theme::TEXT_MUTED));
         preview_col = preview_col.push(preview_label);
@@ -71,13 +71,13 @@ pub fn pick_root_folder_view<'a>(
     } else {
         t!("change_folder_btn").to_string()
     };
-    let browse_btn = button(text(browse_label).size(13))
+    let browse_btn = button(t_text(browse_label).size(13))
         .on_press(Message::PickRootFolderBrowse)
         .padding([8, 14])
         .style(theme::ghost_button_style);
 
     let confirm_btn = {
-        let b = button(text(t!("start_syncing_btn").to_string()).size(13))
+        let b = button(t_text(t!("start_syncing_btn")).size(13))
             .padding([9, 18])
             .style(theme::primary_button_style);
         if local_path.is_some() {
@@ -87,7 +87,7 @@ pub fn pick_root_folder_view<'a>(
         }
     };
 
-    let cancel_btn = button(text(t!("cancel_btn").to_string()).size(13))
+    let cancel_btn = button(t_text(t!("cancel_btn")).size(13))
         .on_press(Message::NavigateTo(View::SyncStatus))
         .padding([8, 14])
         .style(theme::ghost_button_style);

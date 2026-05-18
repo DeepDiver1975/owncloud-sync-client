@@ -5,12 +5,12 @@ use iced::{
 use rust_i18n::t;
 
 use crate::app::Message;
-use crate::theme;
+use crate::theme::{self, t_text};
 
 include!(concat!(env!("OUT_DIR"), "/build_info.rs"));
 
 pub fn about_view() -> Element<'static, Message> {
-    let heading = text(t!("about_heading").to_string())
+    let heading = t_text(t!("about_heading"))
         .size(15)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
 

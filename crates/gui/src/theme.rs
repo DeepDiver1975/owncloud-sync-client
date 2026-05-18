@@ -3,6 +3,13 @@ use iced::{
     Background, Border, Color,
 };
 
+/// Creates a `text` widget with `Shaping::Advanced` so font fallback runs for
+/// every language, including Chinese (which requires the `other_i` fallback
+/// loop that `Shaping::Basic` skips).
+pub fn t_text<'a>(s: impl Into<String>) -> iced::widget::Text<'a, iced::Theme, iced::Renderer> {
+    text(s.into()).shaping(iced::widget::text::Shaping::Advanced)
+}
+
 // ---------------------------------------------------------------------------
 // Colour palette — dark mode
 // ---------------------------------------------------------------------------

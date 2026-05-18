@@ -9,6 +9,7 @@ use crate::app::Message;
 use crate::model::{AccountView, FolderStatus, View};
 use crate::theme::{
     self, card_style, icon_button_style, section_header_style, status_badge_style, status_color,
+    t_text,
 };
 
 pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
@@ -30,13 +31,13 @@ pub fn sync_status_view(accounts: &[AccountView]) -> Element<'_, Message> {
 
 fn empty_state_view() -> Element<'static, Message> {
     let cloud = theme::cloud_muted();
-    let heading = text(t!("no_accounts_heading").to_string())
+    let heading = t_text(t!("no_accounts_heading"))
         .size(20)
         .style(theme::colored_text(theme::TEXT_PRIMARY));
-    let sub = text(t!("no_accounts_sub").to_string())
+    let sub = t_text(t!("no_accounts_sub"))
         .size(13)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
-    let add_btn = button(text(t!("add_account_btn").to_string()).size(13))
+    let add_btn = button(t_text(t!("add_account_btn")).size(13))
         .on_press(Message::NavigateTo(View::AddAccount {
             url_input: String::new(),
             error: None,
@@ -126,7 +127,7 @@ fn account_section(account: &AccountView) -> Element<'_, Message> {
     if account.folders.is_empty() {
         folders = folders.push(
             container(
-                text(t!("no_folders_configured").to_string())
+                t_text(t!("no_folders_configured"))
                     .size(12)
                     .style(theme::colored_text(theme::TEXT_MUTED)),
             )
@@ -198,7 +199,9 @@ fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Elem
         })),
     };
 
-    let badge_text = text(badge_label).size(11).style(theme::colored_text(color));
+    let badge_text = t_text(badge_label)
+        .size(11)
+        .style(theme::colored_text(color));
 
     let badge_inner = container(badge_text)
         .style(status_badge_style(color))
