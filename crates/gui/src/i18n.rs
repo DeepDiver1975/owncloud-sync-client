@@ -16,6 +16,12 @@ pub fn detect_system_language() -> Language {
 #[cfg(test)]
 pub fn translate_key_for_test(locale: &str, key: &str) -> String {
     use rust_i18n::t;
+    use std::sync::{Mutex, OnceLock};
+
+    static LOCALE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    let lock = LOCALE_LOCK.get_or_init(|| Mutex::new(()));
+    let _guard = lock.lock().unwrap();
     let prev = rust_i18n::locale().to_string();
     rust_i18n::set_locale(locale);
     let result = t!(key).to_string();
