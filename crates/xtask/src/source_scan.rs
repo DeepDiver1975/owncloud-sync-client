@@ -19,7 +19,7 @@ pub fn scan_source_keys(src_dir: &Path) -> anyhow::Result<BTreeSet<String>> {
     for entry in WalkDir::new(src_dir)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
     {
         let src = std::fs::read_to_string(entry.path())?;
         for key in extract_t_keys(&src) {
@@ -57,7 +57,7 @@ pub fn scan_hardcoded_strings(src_dir: &Path) -> anyhow::Result<Vec<(String, Str
     for entry in WalkDir::new(src_dir)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
     {
         let path = entry.path().to_string_lossy().to_string();
         let src = std::fs::read_to_string(entry.path())?;

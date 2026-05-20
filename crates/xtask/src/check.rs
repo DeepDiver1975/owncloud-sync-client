@@ -44,10 +44,7 @@ pub fn collect_violations(
 
     // Hardcoded visible strings
     for (file, s) in hardcoded {
-        violations.push(format!(
-            "hardcoded: '{}' in {} should use t!()",
-            s, file
-        ));
+        violations.push(format!("hardcoded: '{}' in {} should use t!()", s, file));
     }
 
     violations
@@ -88,37 +85,50 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     fn make_locale(keys: &[&str]) -> BTreeMap<String, String> {
-        keys.iter().map(|k| (k.to_string(), "val".to_string())).collect()
+        keys.iter()
+            .map(|k| (k.to_string(), "val".to_string()))
+            .collect()
     }
 
     #[test]
     fn detects_missing_key_in_locale() {
         let source_keys: BTreeSet<String> = ["cancel_btn", "connect_btn"]
-            .iter().map(|s| s.to_string()).collect();
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let mut locales = BTreeMap::new();
-        locales.insert("en".to_string(), make_locale(&["cancel_btn", "connect_btn"]));
+        locales.insert(
+            "en".to_string(),
+            make_locale(&["cancel_btn", "connect_btn"]),
+        );
         locales.insert("de".to_string(), make_locale(&["cancel_btn"]));
 
         let violations = collect_violations(&source_keys, &locales, &[]);
-        assert!(violations.iter().any(|v| v.contains("connect_btn") && v.contains("de")));
+        assert!(violations
+            .iter()
+            .any(|v| v.contains("connect_btn") && v.contains("de")));
     }
 
     #[test]
     fn detects_unused_key_in_locale() {
-        let source_keys: BTreeSet<String> = ["cancel_btn"]
-            .iter().map(|s| s.to_string()).collect();
+        let source_keys: BTreeSet<String> = ["cancel_btn"].iter().map(|s| s.to_string()).collect();
         let mut locales = BTreeMap::new();
         locales.insert("en".to_string(), make_locale(&["cancel_btn", "orphan_key"]));
 
         let violations = collect_violations(&source_keys, &locales, &[]);
-        assert!(violations.iter().any(|v| v.contains("orphan_key") && v.contains("unused")));
+        assert!(violations
+            .iter()
+            .any(|v| v.contains("orphan_key") && v.contains("unused")));
     }
 
     #[test]
     fn detects_hardcoded_string() {
         let source_keys: BTreeSet<String> = BTreeSet::new();
         let locales = BTreeMap::new();
-        let hardcoded = vec![("src/views/foo.rs".to_string(), "Choose a folder".to_string())];
+        let hardcoded = vec![(
+            "src/views/foo.rs".to_string(),
+            "Choose a folder".to_string(),
+        )];
 
         let violations = collect_violations(&source_keys, &locales, &hardcoded);
         assert!(violations.iter().any(|v| v.contains("Choose a folder")));
@@ -126,8 +136,7 @@ mod tests {
 
     #[test]
     fn no_violations_when_clean() {
-        let source_keys: BTreeSet<String> = ["cancel_btn"]
-            .iter().map(|s| s.to_string()).collect();
+        let source_keys: BTreeSet<String> = ["cancel_btn"].iter().map(|s| s.to_string()).collect();
         let mut locales = BTreeMap::new();
         locales.insert("en".to_string(), make_locale(&["cancel_btn"]));
 

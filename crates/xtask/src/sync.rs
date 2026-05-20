@@ -1,4 +1,4 @@
-use crate::check::{LOCALE_NAMES, LOCALES_DIR, SOURCE_DIR};
+use crate::check::{LOCALES_DIR, LOCALE_NAMES, SOURCE_DIR};
 use crate::locale;
 use crate::source_scan;
 use std::path::Path;
@@ -28,7 +28,12 @@ pub fn run() -> anyhow::Result<()> {
 
         let updated = locale::append_stubs(&raw, locale_name, &missing);
         std::fs::write(&path, updated)?;
-        println!("{}.yml: added {} stub(s): {}", locale_name, missing.len(), missing.join(", "));
+        println!(
+            "{}.yml: added {} stub(s): {}",
+            locale_name,
+            missing.len(),
+            missing.join(", ")
+        );
     }
 
     Ok(())

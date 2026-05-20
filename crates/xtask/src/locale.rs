@@ -1,6 +1,6 @@
+use anyhow::Context;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
-use anyhow::Context;
 
 pub type LocaleMap = BTreeMap<String, BTreeMap<String, String>>;
 
