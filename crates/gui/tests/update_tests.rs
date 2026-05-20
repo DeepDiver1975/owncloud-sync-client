@@ -961,6 +961,7 @@ fn language_changed_updates_app_language() {
     assert_eq!(app.language, Language::De);
 }
 
+#[test]
 fn account_snapshot_unknown_status_defaults_to_idle() {
     use daemon::gui_ipc::protocol::{AccountSnapshot, DaemonEvent, FolderSnapshot};
     use gui::app::{update, App, Message};
