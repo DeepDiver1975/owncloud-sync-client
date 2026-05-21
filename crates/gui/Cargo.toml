@@ -16,7 +16,7 @@ rust-i18n = "3"
 sys-locale = "0.3"
 tray-icon = { version = "0.19", optional = true }
 gtk = { version = "0.18", optional = true }
-png = { version = "0.17", optional = true }
+png = "0.17"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
 uuid = { workspace = true }
@@ -30,13 +30,18 @@ daemon = { path = "../daemon" }
 accesskit = { version = "0.24", optional = true }
 accesskit_unix = { version = "0.21", optional = true, default-features = false, features = ["tokio"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-app-kit = { version = "0.2", features = ["NSApplication", "NSImage"] }
+objc2-foundation = { version = "0.2", features = ["NSData"] }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
 
 [features]
 default = ["tray-icon"]
-tray-icon = ["dep:tray-icon", "dep:gtk", "dep:png"]
+tray-icon = ["dep:tray-icon", "dep:gtk"]
 test-accessibility = ["dep:accesskit", "dep:accesskit_unix"]
 
 [build-dependencies]

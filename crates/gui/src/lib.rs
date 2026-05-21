@@ -13,5 +13,8 @@ pub mod theme;
 pub mod tray;
 pub mod views;
 
+#[cfg(target_os = "macos")]
+pub mod macos_icon;
+
 #[cfg(test)]
 mod i18n_tests;

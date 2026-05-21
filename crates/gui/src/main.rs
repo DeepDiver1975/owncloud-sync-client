@@ -58,6 +58,16 @@ fn init_accessibility() {
     std::mem::forget(adapter);
 }
 
+fn load_window_icon() -> Option<iced::window::Icon> {
+    const PNG: &[u8] =
+        include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-32.png"));
+    let decoder = png::Decoder::new(std::io::Cursor::new(PNG));
+    let mut reader = decoder.read_info().ok()?;
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).ok()?;
+    iced::window::icon::from_rgba(buf[..info.buffer_size()].to_vec(), info.width, info.height).ok()
+}
+
 fn main() -> iced::Result {
     #[cfg(feature = "test-accessibility")]
     init_accessibility();
@@ -73,6 +83,7 @@ fn main() -> iced::Result {
         .window(iced::window::Settings {
             size: iced::Size::new(800.0, 480.0),
             min_size: Some(iced::Size::new(600.0, 400.0)),
+            icon: load_window_icon(),
             ..Default::default()
         })
         .subscription(IcedApp::subscription)
@@ -125,6 +136,12 @@ impl IcedApp {
             },
             Message::DaemonConnected,
         );
+        #[cfg(target_os = "macos")]
+        let init_task = Task::batch([
+            init_task,
+            Task::done(Message::ApplyAppIcon),
+        ]);
+
         (
             Self {
                 app: App {
