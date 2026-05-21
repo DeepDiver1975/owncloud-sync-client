@@ -58,9 +58,43 @@ fn init_accessibility() {
     std::mem::forget(adapter);
 }
 
+fn load_window_icon() -> Option<iced::window::Icon> {
+    const PNG: &[u8] =
+        include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-32.png"));
+    let decoder = png::Decoder::new(std::io::Cursor::new(PNG));
+    let mut reader = decoder.read_info().ok()?;
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).ok()?;
+    iced::window::icon::from_rgba(buf[..info.buffer_size()].to_vec(), info.width, info.height).ok()
+}
+
+#[cfg(target_os = "macos")]
+fn set_macos_app_icon() {
+    use objc2::ClassType;
+    use objc2_app_kit::{NSApplication, NSImage};
+    use objc2_foundation::{MainThreadMarker, NSData};
+
+    const PNG: &[u8] =
+        include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-128.png"));
+    unsafe {
+        let mtm = MainThreadMarker::new()
+            .expect("set_macos_app_icon must be called on the main thread");
+        let data = NSData::dataWithBytes_length(
+            PNG.as_ptr() as *mut std::ffi::c_void,
+            PNG.len(),
+        );
+        if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
+            NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&image));
+        }
+    }
+}
+
 fn main() -> iced::Result {
     #[cfg(feature = "test-accessibility")]
     init_accessibility();
+
+    #[cfg(target_os = "macos")]
+    set_macos_app_icon();
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -73,6 +107,7 @@ fn main() -> iced::Result {
         .window(iced::window::Settings {
             size: iced::Size::new(800.0, 480.0),
             min_size: Some(iced::Size::new(600.0, 400.0)),
+            icon: load_window_icon(),
             ..Default::default()
         })
         .subscription(IcedApp::subscription)

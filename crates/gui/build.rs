@@ -16,29 +16,30 @@ fn build_icon(out_dir: &str) {
     let tree = resvg::usvg::Tree::from_str(&svg_data, &opt)
         .unwrap_or_else(|e| panic!("failed to parse SVG: {e}"));
 
-    let size = 16u32;
-    let mut pixmap = tiny_skia::Pixmap::new(size, size).expect("failed to allocate pixmap");
+    for size in [16u32, 32, 128] {
+        let mut pixmap = tiny_skia::Pixmap::new(size, size).expect("failed to allocate pixmap");
+        let scale = f32::min(
+            size as f32 / tree.size().width(),
+            size as f32 / tree.size().height(),
+        );
+        let transform = tiny_skia::Transform::from_scale(scale, scale);
+        resvg::render(&tree, transform, &mut pixmap.as_mut());
 
-    let scale = f32::min(
-        size as f32 / tree.size().width(),
-        size as f32 / tree.size().height(),
-    );
-    let transform = tiny_skia::Transform::from_scale(scale, scale);
-    resvg::render(&tree, transform, &mut pixmap.as_mut());
+        let out_path =
+            std::path::Path::new(out_dir).join(format!("owncloud-icon-{size}.png"));
+        let file = std::fs::File::create(&out_path)
+            .unwrap_or_else(|e| panic!("failed to create output PNG: {e}"));
 
-    let out_path = std::path::Path::new(out_dir).join("owncloud-icon-16.png");
-    let file = std::fs::File::create(&out_path)
-        .unwrap_or_else(|e| panic!("failed to create output PNG: {e}"));
-
-    let mut encoder = png::Encoder::new(file, size, size);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder
-        .write_header()
-        .unwrap_or_else(|e| panic!("failed to write PNG header: {e}"));
-    writer
-        .write_image_data(pixmap.data())
-        .unwrap_or_else(|e| panic!("failed to write PNG data: {e}"));
+        let mut encoder = png::Encoder::new(file, size, size);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder
+            .write_header()
+            .unwrap_or_else(|e| panic!("failed to write PNG header: {e}"));
+        writer
+            .write_image_data(pixmap.data())
+            .unwrap_or_else(|e| panic!("failed to write PNG data: {e}"));
+    }
 }
 
 fn escape_str(s: &str) -> String {
