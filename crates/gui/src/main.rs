@@ -68,33 +68,9 @@ fn load_window_icon() -> Option<iced::window::Icon> {
     iced::window::icon::from_rgba(buf[..info.buffer_size()].to_vec(), info.width, info.height).ok()
 }
 
-#[cfg(target_os = "macos")]
-fn set_macos_app_icon() {
-    use objc2::ClassType;
-    use objc2_app_kit::{NSApplication, NSImage};
-    use objc2_foundation::{MainThreadMarker, NSData};
-
-    const PNG: &[u8] =
-        include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-128.png"));
-    unsafe {
-        let mtm = MainThreadMarker::new()
-            .expect("set_macos_app_icon must be called on the main thread");
-        let data = NSData::dataWithBytes_length(
-            PNG.as_ptr() as *mut std::ffi::c_void,
-            PNG.len(),
-        );
-        if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
-            NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&image));
-        }
-    }
-}
-
 fn main() -> iced::Result {
     #[cfg(feature = "test-accessibility")]
     init_accessibility();
-
-    #[cfg(target_os = "macos")]
-    set_macos_app_icon();
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -160,6 +136,12 @@ impl IcedApp {
             },
             Message::DaemonConnected,
         );
+        #[cfg(target_os = "macos")]
+        let init_task = Task::batch([
+            init_task,
+            Task::done(Message::ApplyAppIcon),
+        ]);
+
         (
             Self {
                 app: App {

@@ -85,6 +85,8 @@ pub enum Message {
     OpenUrl(String),
     DaemonConnected(Option<(DaemonConnection, EventRxCarrier)>),
     LanguageChanged(crate::model::Language),
+    #[cfg(target_os = "macos")]
+    ApplyAppIcon,
 }
 
 pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
@@ -355,6 +357,12 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
         }
 
         Message::DaemonConnected(_) => iced::Task::none(),
+
+        #[cfg(target_os = "macos")]
+        Message::ApplyAppIcon => {
+            crate::macos_icon::set_app_icon();
+            iced::Task::none()
+        }
     }
 }
 
