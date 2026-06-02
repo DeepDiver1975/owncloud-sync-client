@@ -27,7 +27,10 @@ use gui_ipc::{GuiIpcServer, SnapshotProvider};
 use lock::{LockError, LockFile};
 use scheduler::SyncScheduler;
 use socket_api::server::SocketApiServer;
+#[cfg(unix)]
 use socket_api::transport::unix::UnixTransport;
+#[cfg(target_os = "windows")]
+use socket_api::transport::windows::WindowsTransport;
 use space_poller::SpacePoller;
 use sync_engine::SyncReport;
 
@@ -216,14 +219,22 @@ async fn main() -> Result<()> {
     // Spawn SocketApiServer.
     let socket_api_clone = Arc::clone(&socket_api);
     tokio::spawn(async move {
-        let transport = match UnixTransport::bind(&UnixTransport::default_path()).await {
+        #[cfg(unix)]
+        let transport_result = UnixTransport::bind(&UnixTransport::default_path())
+            .await
+            .map(|t| Box::new(t) as Box<dyn socket_api::transport::Transport>);
+        #[cfg(target_os = "windows")]
+        let transport_result = WindowsTransport::bind()
+            .map(|t| Box::new(t) as Box<dyn socket_api::transport::Transport>);
+
+        let transport = match transport_result {
             Ok(t) => t,
             Err(e) => {
                 error!("socket-api bind error: {e}");
                 return;
             }
         };
-        if let Err(e) = socket_api_clone.run(Box::new(transport)).await {
+        if let Err(e) = socket_api_clone.run(transport).await {
             error!("SocketApiServer error: {e}");
         }
     });

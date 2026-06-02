@@ -1,14 +1,12 @@
-use std::sync::Arc;
-use std::time::Duration;
-use tempfile::tempdir;
-use tokio::net::UnixStream;
-use tokio::sync::mpsc;
-use uuid::Uuid;
-
-use daemon::gui_ipc::protocol::{read_event, write_command, DaemonCommand, DaemonEvent};
+use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use daemon::gui_ipc::GuiIpcServer;
 
+#[cfg(unix)]
+use tokio::net::UnixStream;
+
+#[cfg(unix)]
 async fn connect_client(socket_path: &std::path::Path) -> UnixStream {
+    use std::time::Duration;
     for _ in 0..20 {
         if let Ok(stream) = UnixStream::connect(socket_path).await {
             return stream;
@@ -18,8 +16,16 @@ async fn connect_client(socket_path: &std::path::Path) -> UnixStream {
     panic!("could not connect to GUI IPC socket");
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn subscribe_receives_ready_and_sync_started() {
+    use daemon::gui_ipc::protocol::{read_event, write_command};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tempfile::tempdir;
+    use tokio::sync::mpsc;
+    use uuid::Uuid;
+
     let dir = tempdir().unwrap();
     let socket_path = dir.path().join("daemon-gui.sock");
 
@@ -103,8 +109,15 @@ async fn subscribe_receives_ready_and_sync_started() {
     assert_eq!(evt_b2, DaemonEvent::SyncStarted { folder_id });
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn non_subscribed_client_does_not_receive_events() {
+    use daemon::gui_ipc::protocol::read_event;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tempfile::tempdir;
+    use tokio::sync::mpsc;
+
     let dir = tempdir().unwrap();
     let socket_path = dir.path().join("daemon-gui-nosub.sock");
 
@@ -134,7 +147,7 @@ async fn non_subscribed_client_does_not_receive_events() {
 
 #[tokio::test]
 async fn roundtrip_account_add_started() {
-    use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
+    use daemon::gui_ipc::protocol::{read_event, write_message};
     use tokio::io::duplex;
     use uuid::Uuid;
 
@@ -199,7 +212,7 @@ async fn add_account_invalid_url_broadcasts_failed() {
 
 #[tokio::test]
 async fn roundtrip_account_add_failed() {
-    use daemon::gui_ipc::protocol::{read_event, write_message, DaemonEvent};
+    use daemon::gui_ipc::protocol::{read_event, write_message};
     use tokio::io::duplex;
     use uuid::Uuid;
 

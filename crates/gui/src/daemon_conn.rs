@@ -1,6 +1,9 @@
 use std::path::Path;
 
 use thiserror::Error;
+#[cfg(target_os = "windows")]
+use tokio::net::windows::named_pipe::ClientOptions;
+#[cfg(unix)]
 use tokio::net::UnixStream;
 use tokio::sync::mpsc;
 
@@ -32,8 +35,17 @@ impl DaemonConnection {
     pub async fn connect(
         socket_path: &Path,
     ) -> Result<(Self, mpsc::Receiver<DaemonEvent>), ConnError> {
-        let stream = UnixStream::connect(socket_path).await?;
-        let (mut read_half, mut write_half) = stream.into_split();
+        #[cfg(unix)]
+        let (mut read_half, mut write_half) = {
+            let stream = UnixStream::connect(socket_path).await?;
+            stream.into_split()
+        };
+        #[cfg(target_os = "windows")]
+        let (mut read_half, mut write_half) = {
+            let pipe_name = socket_path.to_string_lossy();
+            let stream = ClientOptions::new().open(pipe_name.as_ref())?;
+            tokio::io::split(stream)
+        };
 
         write_command(&mut write_half, &DaemonCommand::Subscribe)
             .await

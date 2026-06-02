@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use std::path::{Path, PathBuf};
 
 use tokio::net::UnixListener;

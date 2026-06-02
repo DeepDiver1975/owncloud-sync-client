@@ -12,6 +12,7 @@ pub trait Transport: Send + Sync {
     async fn accept(&self) -> Result<Connection>;
 }
 
+#[cfg(unix)]
 pub mod unix;
 
 #[cfg(target_os = "windows")]

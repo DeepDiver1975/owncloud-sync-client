@@ -144,3 +144,77 @@ acceptance-setup:
 # Docker Compose is started/stopped automatically by the test fixture.
 acceptance:
 	OCIS_ACCEPTANCE=1 cargo test -p acceptance-test -- --nocapture
+
+# ---------------------------------------------------------------------------
+# Packaging
+# ---------------------------------------------------------------------------
+
+# Build the Linux .deb package (requires cargo-deb: cargo install cargo-deb)
+package-linux:
+    cargo build --release --workspace
+    cargo deb --manifest-path crates/daemon/Cargo.toml --no-build
+
+# Build the macOS .pkg installer (macOS only — requires Xcode CLI tools)
+package-macos:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --release --workspace
+    # Build Swift extensions (continue-on-error since Xcode projects may not exist yet)
+    xcodebuild archive \
+      -project shell-integration/macos/FinderSync/FinderSync.xcodeproj \
+      -scheme FinderSync -archivePath /tmp/FinderSync.xcarchive \
+      CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO || true
+    xcodebuild archive \
+      -project shell-integration/macos/FileProvider/FileProvider.xcodeproj \
+      -scheme FileProvider -archivePath /tmp/FileProvider.xcarchive \
+      CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO || true
+    # Assemble app bundle
+    rm -rf staging/ocsync.app
+    mkdir -p staging/ocsync.app/Contents/MacOS
+    mkdir -p staging/ocsync.app/Contents/PlugIns
+    cp target/release/ocsync staging/ocsync.app/Contents/MacOS/
+    cp target/release/ocsyncd staging/ocsync.app/Contents/MacOS/
+    # Copy extensions if archives succeeded
+    [ -d /tmp/FinderSync.xcarchive/Products ] && \
+      cp -r /tmp/FinderSync.xcarchive/Products/Applications/FinderSync.appex \
+            staging/ocsync.app/Contents/PlugIns/ || true
+    [ -d /tmp/FileProvider.xcarchive/Products ] && \
+      cp -r /tmp/FileProvider.xcarchive/Products/Applications/FileProvider.appex \
+            staging/ocsync.app/Contents/PlugIns/ || true
+    # Create minimal Info.plist
+    cat > staging/ocsync.app/Contents/Info.plist <<'PLIST'
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0"><dict>
+      <key>CFBundleIdentifier</key><string>com.owncloud.sync</string>
+      <key>CFBundleName</key><string>ownCloud Sync</string>
+      <key>CFBundleVersion</key><string>0.1.0</string>
+      <key>CFBundleExecutable</key><string>ocsync</string>
+      <key>LSUIElement</key><true/>
+    </dict></plist>
+    PLIST
+    pkgbuild \
+      --root staging/ocsync.app \
+      --install-location /Applications/ownCloud.app \
+      --scripts packaging/macos/scripts \
+      --identifier com.owncloud.sync \
+      --version 0.1.0 \
+      component.pkg
+    productbuild \
+      --distribution packaging/macos/Distribution.xml \
+      --package-path . \
+      owncloud.pkg
+    echo "Built: owncloud.pkg"
+
+# Build the Windows MSI installer (Windows only — requires dotnet + wix)
+package-windows:
+    cargo build --release -p daemon -p gui
+    cargo build --release --manifest-path shell-integration/windows/Cargo.toml --workspace
+    dotnet tool install --global wix || true
+    wix build packaging/windows/owncloud.wxs \
+      -d "BinDir=target/release" \
+      -o owncloud-setup.msi
+    echo "Built: owncloud-setup.msi"
+
+# Build all platform packages sequentially
+package: package-linux package-macos package-windows

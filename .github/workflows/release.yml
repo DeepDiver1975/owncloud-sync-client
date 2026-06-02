@@ -1,0 +1,175 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  package-linux:
+    name: Package Linux (.deb)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev
+
+      - name: Build release binaries
+        run: cargo build --release --workspace
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked
+
+      - name: Build .deb
+        run: cargo deb --manifest-path crates/daemon/Cargo.toml --no-build
+
+      - name: Rename .deb for upload
+        run: cp target/debian/owncloud-sync_*.deb owncloud.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: owncloud.deb
+          retention-days: 1
+
+  package-macos:
+    name: Package macOS (.pkg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binaries
+        run: cargo build --release --workspace
+
+      - name: Build Swift extensions
+        run: |
+          xcodebuild archive \
+            -project shell-integration/macos/FinderSync/FinderSync.xcodeproj \
+            -scheme FinderSync -archivePath /tmp/FinderSync.xcarchive \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO || true
+          xcodebuild archive \
+            -project shell-integration/macos/FileProvider/FileProvider.xcodeproj \
+            -scheme FileProvider -archivePath /tmp/FileProvider.xcarchive \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO || true
+
+      - name: Assemble app bundle
+        run: |
+          rm -rf staging/ocsync.app
+          mkdir -p staging/ocsync.app/Contents/MacOS
+          mkdir -p staging/ocsync.app/Contents/PlugIns
+          cp target/release/ocsync staging/ocsync.app/Contents/MacOS/
+          cp target/release/ocsyncd staging/ocsync.app/Contents/MacOS/
+          [ -d /tmp/FinderSync.xcarchive/Products ] && \
+            cp -r /tmp/FinderSync.xcarchive/Products/Applications/FinderSync.appex \
+                  staging/ocsync.app/Contents/PlugIns/ || true
+          [ -d /tmp/FileProvider.xcarchive/Products ] && \
+            cp -r /tmp/FileProvider.xcarchive/Products/Applications/FileProvider.appex \
+                  staging/ocsync.app/Contents/PlugIns/ || true
+          cat > staging/ocsync.app/Contents/Info.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleIdentifier</key><string>com.owncloud.sync</string>
+            <key>CFBundleName</key><string>ownCloud Sync</string>
+            <key>CFBundleVersion</key><string>0.1.0</string>
+            <key>CFBundleExecutable</key><string>ocsync</string>
+            <key>LSUIElement</key><true/>
+          </dict></plist>
+          PLIST
+
+      - name: Build .pkg
+        run: |
+          pkgbuild \
+            --root staging/ocsync.app \
+            --install-location /Applications/ownCloud.app \
+            --scripts packaging/macos/scripts \
+            --identifier com.owncloud.sync \
+            --version 0.1.0 \
+            component.pkg
+          productbuild \
+            --distribution packaging/macos/Distribution.xml \
+            --package-path . \
+            owncloud.pkg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-pkg
+          path: owncloud.pkg
+          retention-days: 1
+
+  package-windows:
+    name: Package Windows (.msi)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binaries (main workspace)
+        run: cargo build --release -p daemon -p gui
+
+      - name: Build release DLLs (shell-integration)
+        run: cargo build --release --manifest-path shell-integration/windows/Cargo.toml --workspace
+
+      - name: Install WiX 4
+        run: dotnet tool install --global wix
+
+      - name: Refresh PATH for WiX
+        run: echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build MSI
+        run: |
+          # TODO: sign with signtool.exe /f cert.pfx /p $env:CERT_PASSWORD owncloud-setup.msi
+          wix build packaging/windows/owncloud.wxs `
+            -d "BinDir=target/release" `
+            -o owncloud-setup.msi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: owncloud-setup.msi
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub Release
+    needs: [package-linux, package-macos, package-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist/
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            dist/*.deb dist/*.pkg dist/*.msi \
+            --generate-notes \
+            --title "ownCloud Sync ${{ github.ref_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

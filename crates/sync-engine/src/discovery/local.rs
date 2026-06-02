@@ -1,4 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt as _;
 use std::time::SystemTime;
 
@@ -34,7 +35,10 @@ fn walk_dir(dir: &Utf8Path, entries: &mut Vec<LocalEntry>) -> Result<()> {
 
         if meta.is_dir() {
             let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+            #[cfg(unix)]
             let inode = meta.ino();
+            #[cfg(not(unix))]
+            let inode = 0u64;
             entries.push(LocalEntry {
                 path: path.clone(),
                 mtime,
@@ -46,7 +50,10 @@ fn walk_dir(dir: &Utf8Path, entries: &mut Vec<LocalEntry>) -> Result<()> {
             subdirs.push(path);
         } else if meta.is_file() {
             let mtime = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+            #[cfg(unix)]
             let inode = meta.ino();
+            #[cfg(not(unix))]
+            let inode = 0u64;
             entries.push(LocalEntry {
                 path,
                 mtime,

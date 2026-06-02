@@ -1,0 +1,10 @@
+#!/bin/bash
+# macOS installer scripts run as root; get the actual console user to register
+# the login item for the right account.
+CONSOLE_USER=$(/usr/bin/stat -f "%Su" /dev/console)
+if [ "$CONSOLE_USER" != "root" ] && [ -n "$CONSOLE_USER" ]; then
+  sudo -u "$CONSOLE_USER" osascript -e \
+    'tell application "System Events" to make login item at end with properties {path:"/Applications/ownCloud.app", hidden:true}' \
+    2>/dev/null || true
+fi
+exit 0

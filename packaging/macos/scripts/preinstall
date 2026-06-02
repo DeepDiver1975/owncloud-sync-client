@@ -1,0 +1,9 @@
+#!/bin/bash
+# Kill running processes before upgrade; pkill exits 1 if nothing matched, which is fine.
+pkill -x ocsync 2>/dev/null || true
+pkill -x ocsyncd 2>/dev/null || true
+sleep 2
+# Force-kill any lingering processes to avoid file-lock conflicts during install.
+pkill -9 -x ocsync 2>/dev/null || true
+pkill -9 -x ocsyncd 2>/dev/null || true
+exit 0
