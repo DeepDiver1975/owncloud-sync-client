@@ -9,8 +9,15 @@ updates:
     reviewers:
       - DeepDiver1975
     groups:
+      # Group only non-breaking (minor/patch) bumps so they land in a single
+      # PR. Major bumps are excluded and arrive as separate, reviewable PRs,
+      # since they routinely carry breaking API changes (e.g. iced 0.13->0.14,
+      # quick-xml 0.31->0.39) that need a manual migration.
       cargo-deps:
         patterns: ["*"]
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: cargo
     directory: /shell-integration/windows
@@ -23,6 +30,9 @@ updates:
     groups:
       cargo-deps-windows:
         patterns: ["*"]
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
