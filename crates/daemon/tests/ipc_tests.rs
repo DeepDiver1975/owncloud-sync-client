@@ -167,7 +167,6 @@ async fn add_account_invalid_url_broadcasts_failed() {
     use daemon::gui_ipc::handler::{handle_command, HandleContext};
     use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
     use daemon::gui_ipc::GuiIpcServer;
-    use daemon::gui_ipc::handler::handle_command;
     use daemon::scheduler::SyncScheduler;
     use std::sync::Arc;
     use tempfile::NamedTempFile;

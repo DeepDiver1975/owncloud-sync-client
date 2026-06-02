@@ -55,8 +55,9 @@ impl GuiIpcServer {
                     Ok((stream, _addr)) => {
                         let server = Arc::clone(&self);
                         let tx = cmd_tx.clone();
+                        let snap = Arc::clone(&snapshot);
                         tokio::spawn(async move {
-                            if let Err(e) = handle_connection(server, stream, tx).await {
+                            if let Err(e) = handle_connection(server, stream, tx, snap).await {
                                 debug!("GUI IPC connection closed: {e}");
                             }
                         });
@@ -98,8 +99,9 @@ impl GuiIpcServer {
                     Ok(()) => {
                         let server = Arc::clone(&self);
                         let tx = cmd_tx.clone();
+                        let snap = Arc::clone(&snapshot);
                         tokio::spawn(async move {
-                            if let Err(e) = handle_connection(server, server_pipe, tx).await {
+                            if let Err(e) = handle_connection(server, server_pipe, tx, snap).await {
                                 debug!("GUI IPC connection closed: {e}");
                             }
                         });
@@ -123,7 +125,7 @@ async fn handle_connection(
     snapshot: SnapshotProvider,
 ) -> Result<()> {
     let (read_half, write_half) = stream.into_split();
-    handle_connection_inner(server, read_half, write_half, cmd_tx).await
+    handle_connection_inner(server, read_half, write_half, cmd_tx, snapshot).await
 }
 
 #[cfg(target_os = "windows")]
@@ -131,9 +133,10 @@ async fn handle_connection(
     server: Arc<GuiIpcServer>,
     stream: NamedPipeServer,
     cmd_tx: mpsc::Sender<DaemonCommand>,
+    snapshot: SnapshotProvider,
 ) -> Result<()> {
     let (read_half, write_half) = tokio::io::split(stream);
-    handle_connection_inner(server, read_half, write_half, cmd_tx).await
+    handle_connection_inner(server, read_half, write_half, cmd_tx, snapshot).await
 }
 
 async fn handle_connection_inner<R, W>(
@@ -141,6 +144,7 @@ async fn handle_connection_inner<R, W>(
     read_half: R,
     mut write_half: W,
     cmd_tx: mpsc::Sender<DaemonCommand>,
+    snapshot: SnapshotProvider,
 ) -> Result<()>
 where
     R: tokio::io::AsyncRead + Unpin,
@@ -176,7 +180,7 @@ where
                     // that arrive between snapshot generation and loop entry.
                     let rx = server.event_tx.subscribe();
                     let snap_event = snapshot().await;
-                    write_message(&mut writer, &snap_event).await?;
+                    write_message(&mut write_half, &snap_event).await?;
                     event_rx = Some(rx);
                 }
                 Ok(cmd) => {
