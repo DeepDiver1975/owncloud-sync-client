@@ -117,18 +117,23 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
 
         Message::AddAccountSubmit => {
             if let View::AddAccount { url_input, error } = &mut app.active_view {
-                let url = url_input.clone();
-                if url.is_empty() {
+                let raw = url_input.trim().to_string();
+                let normalized = raw
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://")
+                    .to_string();
+                *url_input = normalized.clone();
+                if normalized.is_empty() {
                     *error = Some(t!("error_enter_url").to_string());
                     return iced::Task::none();
                 }
                 let sent = app
                     .daemon
-                    .send(DaemonCommand::AddAccount { url: url.clone() });
+                    .send(DaemonCommand::AddAccount { url: normalized.clone() });
                 if sent {
                     app.active_view = View::AddAccountWaiting {
                         account_id: Uuid::nil(),
-                        url_input: url,
+                        url_input: normalized,
                     };
                 } else {
                     *error = Some(t!("error_not_connected").to_string());
