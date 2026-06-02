@@ -125,9 +125,15 @@ impl TestEnvironment {
     /// the same socket the GUI uses, exercising the same daemon code path.
     pub async fn add_account(&mut self) -> Result<String> {
         // 1. Send AddAccount to the daemon.
+        // Note: url field must be bare domain with port, no schema prefix.
+        let bare_url = format!(
+            "{}:{}",
+            self.ocis_url.host_str().unwrap_or("127.0.0.1"),
+            self.ocis_url.port().unwrap_or(9200)
+        );
         self.daemon_ipc
             .send(DaemonCommand::AddAccount {
-                url: self.ocis_url.to_string(),
+                url: bare_url,
             })
             .await
             .context("failed to send AddAccount")?;

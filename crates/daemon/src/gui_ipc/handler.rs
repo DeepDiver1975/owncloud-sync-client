@@ -691,7 +691,7 @@ mod tests {
         // OIDC discovery against a non-existent server must broadcast AccountAddFailed.
         let result = handle_command(
             DaemonCommand::AddAccount {
-                url: "https://cloud.example.com".to_string(),
+                url: "cloud.example.com".to_string(),
             },
             &mut HandleContext {
                 scheduler: Arc::clone(&scheduler),
