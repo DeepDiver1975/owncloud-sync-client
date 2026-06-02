@@ -11,7 +11,6 @@ use crate::callback::{
     register_hydration_callback, unregister_hydration_callback, HydrationCallbackContext,
     HydrationRequest,
 };
-use crate::error::VfsWindowsError;
 use crate::hydration;
 use crate::pin;
 use crate::placeholder;

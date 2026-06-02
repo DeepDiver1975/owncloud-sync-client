@@ -4,7 +4,6 @@ fn main() {}
 #[cfg(target_os = "windows")]
 mod tests {
     use camino::{Utf8Path, Utf8PathBuf};
-    use std::sync::Arc;
     use std::time::SystemTime;
     use tokio::sync::mpsc;
     use vfs_core::{Vfs, VfsFileItem, VfsStatus};

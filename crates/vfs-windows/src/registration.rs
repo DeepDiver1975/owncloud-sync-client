@@ -9,7 +9,7 @@ use windows::core::HSTRING;
 use windows::Win32::Storage::CloudFilters::{
     CfRegisterSyncRoot, CfUnregisterSyncRoot, CF_HYDRATION_POLICY, CF_HYDRATION_POLICY_MODIFIER,
     CF_HYDRATION_POLICY_PARTIAL, CF_POPULATION_POLICY, CF_POPULATION_POLICY_MODIFIER,
-    CF_POPULATION_POLICY_PARTIAL, CF_REGISTER_FLAG_NONE, CF_SYNC_REGISTRATION,
+    CF_POPULATION_POLICY_PARTIAL, CF_REGISTER_FLAG_NONE, CF_SYNC_POLICIES, CF_SYNC_REGISTRATION,
 };
 
 /// Register `path` as a CfAPI sync root.
@@ -33,28 +33,25 @@ pub fn register_sync_root(
         ProviderId: windows::core::GUID::zeroed(),
     };
 
-    let hydration_policy = CF_HYDRATION_POLICY {
-        Primary: CF_HYDRATION_POLICY_PARTIAL,
-        Modifier: CF_HYDRATION_POLICY_MODIFIER(0),
-    };
-
-    let population_policy = CF_POPULATION_POLICY {
-        Primary: CF_POPULATION_POLICY_PARTIAL,
-        Modifier: CF_POPULATION_POLICY_MODIFIER(0),
+    // In windows 0.52 the hydration and population policies are passed together
+    // inside a single `CF_SYNC_POLICIES` struct rather than as separate args.
+    let policies = CF_SYNC_POLICIES {
+        StructSize: std::mem::size_of::<CF_SYNC_POLICIES>() as u32,
+        Hydration: CF_HYDRATION_POLICY {
+            Primary: CF_HYDRATION_POLICY_PARTIAL,
+            Modifier: CF_HYDRATION_POLICY_MODIFIER(0),
+        },
+        Population: CF_POPULATION_POLICY {
+            Primary: CF_POPULATION_POLICY_PARTIAL,
+            Modifier: CF_POPULATION_POLICY_MODIFIER(0),
+        },
+        ..Default::default()
     };
 
     // Safety: all pointer fields in registration reference data that lives at
     // least as long as this stack frame.
-    unsafe {
-        CfRegisterSyncRoot(
-            &path_wide,
-            &registration,
-            &hydration_policy,
-            &population_policy,
-            CF_REGISTER_FLAG_NONE,
-        )
-    }
-    .map_err(VfsWindowsError::CfApi)?;
+    unsafe { CfRegisterSyncRoot(&path_wide, &registration, &policies, CF_REGISTER_FLAG_NONE) }
+        .map_err(VfsWindowsError::CfApi)?;
 
     Ok(())
 }
