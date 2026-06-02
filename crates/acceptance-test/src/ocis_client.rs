@@ -55,12 +55,24 @@ impl OcisClient {
     }
 
     pub(crate) fn webdav_url(&self, path: &str) -> Result<Url> {
-        let p = format!(
-            "/dav/spaces/{}/{}",
-            self.space_id,
-            path.trim_start_matches('/')
-        );
-        Ok(self.base_url.join(&p)?)
+        // Build the URL by pushing path segments so each component is
+        // percent-encoded. `Url::join` would treat characters like `?` in a
+        // filename (e.g. "测试 file?name.txt") as a query delimiter, sending
+        // the PUT to the wrong path — which is exactly what made the down-sync
+        // test silently store the file under the wrong name.
+        let mut url = self.base_url.clone();
+        {
+            let mut segments = url
+                .path_segments_mut()
+                .map_err(|_| anyhow!("base_url cannot be a base"))?;
+            segments.push("dav");
+            segments.push("spaces");
+            segments.push(&self.space_id);
+            for component in path.trim_start_matches('/').split('/') {
+                segments.push(component);
+            }
+        }
+        Ok(url)
     }
 
     pub async fn put(&self, path: &str, content: &[u8]) -> Result<()> {

@@ -39,8 +39,22 @@ async fn test_account_setup() {
         !account.folder.is_empty(),
         "expected at least 1 folder in account after setup"
     );
-    let personal = account.folder.iter().find(|f| f.display_name == "Personal");
-    assert!(personal.is_some(), "expected a 'Personal' folder");
+    // oCIS names the personal space after the user (e.g. "Admin"), not
+    // literally "Personal"; match the name discovered during add_account().
+    let personal = account
+        .folder
+        .iter()
+        .find(|f| f.display_name == env.personal_space_name);
+    assert!(
+        personal.is_some(),
+        "expected the personal space folder ({:?}) in config, got {:?}",
+        env.personal_space_name,
+        account
+            .folder
+            .iter()
+            .map(|f| &f.display_name)
+            .collect::<Vec<_>>()
+    );
 }
 
 #[tokio::test]
