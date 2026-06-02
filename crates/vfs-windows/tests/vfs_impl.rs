@@ -5,9 +5,8 @@ fn main() {}
 mod tests {
     use camino::{Utf8Path, Utf8PathBuf};
     use std::time::SystemTime;
-    use tokio::sync::mpsc;
     use vfs_core::{Vfs, VfsFileItem, VfsStatus};
-    use vfs_windows::{HydrationRequest, VfsWindows};
+    use vfs_windows::VfsWindows;
 
     fn make_item(name: &str) -> VfsFileItem {
         VfsFileItem {
@@ -27,9 +26,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(dir.path()).unwrap().to_owned();
 
-        let (tx, _rx) = mpsc::channel::<HydrationRequest>(16);
-        let vfs = VfsWindows::new(root.clone(), "TestProvider", tx)
-            .expect("VfsWindows::new should succeed");
+        let vfs = VfsWindows::new(root.clone()).expect("VfsWindows::new should succeed");
 
         let item = make_item("test.txt");
         vfs.create_placeholder(&item)
