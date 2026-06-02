@@ -207,7 +207,12 @@ fn parse_propfind(
                     }
 
                     if is_collection {
-                        if let Ok(mut sub_url) = space_root.join(rel) {
+                        // `rel` is the decoded path; build the sub-collection URL
+                        // with per-segment percent-encoding (a raw `?`/`#` in a
+                        // name must not be parsed as a query/fragment).
+                        if let Ok(mut sub_url) =
+                            crate::join_remote_path(space_root, rel.trim_end_matches('/'))
+                        {
                             if !sub_url.path().ends_with('/') {
                                 sub_url.set_path(&format!("{}/", sub_url.path()));
                             }

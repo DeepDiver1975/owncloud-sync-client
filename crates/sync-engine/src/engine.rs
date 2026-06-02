@@ -156,10 +156,7 @@ impl SyncEngine {
 
         for (rel_path, instruction, rem_entry, _) in dir_instructions {
             let local_path = self.cfg.local_root.join(&rel_path);
-            let remote_url = self
-                .cfg
-                .space_root
-                .join(rel_path.as_str())
+            let remote_url = crate::join_remote_path(&self.cfg.space_root, rel_path.as_str())
                 .map_err(|e| SyncError::Parse(e.to_string()))?;
 
             match instruction {
@@ -227,10 +224,7 @@ impl SyncEngine {
 
         for (rel_path, instruction, rem_entry, _) in file_instructions {
             let local_path = self.cfg.local_root.join(&rel_path);
-            let remote_url = self
-                .cfg
-                .space_root
-                .join(rel_path.as_str())
+            let remote_url = crate::join_remote_path(&self.cfg.space_root, rel_path.as_str())
                 .map_err(|e| SyncError::Parse(e.to_string()))?;
 
             let sem = semaphore.clone();
