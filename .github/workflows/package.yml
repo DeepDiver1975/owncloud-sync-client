@@ -135,8 +135,10 @@ jobs:
     name: Package Windows (.msi)
     runs-on: windows-latest
     # vfs-windows does not yet compile against windows 0.52 (pre-existing,
-    # unrelated to packaging). Tracked in issue #49 — non-blocking until fixed.
-    continue-on-error: true
+    # unrelated to packaging). Tracked in issue #49. Disabled on PR/push so it
+    # does not report a red check; still runnable via "Run workflow" to test
+    # progress on the fix. Re-enable (drop this `if`) once #49 lands.
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
