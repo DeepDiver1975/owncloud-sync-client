@@ -10,18 +10,18 @@ name = "ocsync"
 path = "src/main.rs"
 
 [dependencies]
-iced = { version = "0.13", features = ["tokio", "svg"] }
-rfd = "0.15"
+iced = { version = "0.14", features = ["tokio", "svg"] }
+rfd = "0.17"
 rust-i18n = "4"
 sys-locale = "0.3"
-tray-icon = { version = "0.19", optional = true }
-png = "0.17"
+tray-icon = { version = "0.24", optional = true }
+png = "0.18"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
 uuid = { workspace = true }
 anyhow = "1"
-dirs = "5"
-toml = "0.8"
+dirs = "6"
+toml = "1.1"
 thiserror = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -36,9 +36,9 @@ accesskit_unix = { version = "0.21", optional = true, default-features = false, 
 gtk = { version = "0.18", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.5"
-objc2-app-kit = { version = "0.2", features = ["NSApplication", "NSImage"] }
-objc2-foundation = { version = "0.2", features = ["NSData"] }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSImage"] }
+objc2-foundation = { version = "0.3", features = ["NSData"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
@@ -50,6 +50,6 @@ tray-icon = ["dep:tray-icon", "dep:gtk"]
 test-accessibility = ["dep:accesskit", "dep:accesskit_unix"]
 
 [build-dependencies]
-resvg = "0.42"
-tiny-skia = "0.11"
-png = "0.17"
+resvg = "0.45"
+tiny-skia = "0.12"
+png = "0.18"
