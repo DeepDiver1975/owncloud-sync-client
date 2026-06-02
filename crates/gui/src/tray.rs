@@ -1,6 +1,9 @@
 use crate::app::Message;
 
-#[cfg(feature = "tray-icon")]
+// The tray-icon backend on Linux is driven by a GTK event loop, so the real
+// implementation depends on the `gtk` crate (Linux-only). macOS/Windows have
+// no gtk crate available, so they fall back to the no-op stub below.
+#[cfg(all(feature = "tray-icon", target_os = "linux"))]
 mod inner {
     use rust_i18n::t;
     use tray_icon::{
@@ -148,7 +151,7 @@ mod inner {
     }
 }
 
-#[cfg(not(feature = "tray-icon"))]
+#[cfg(not(all(feature = "tray-icon", target_os = "linux")))]
 mod inner {
     pub struct TrayHandle;
 

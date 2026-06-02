@@ -15,7 +15,6 @@ rfd = "0.15"
 rust-i18n = "3"
 sys-locale = "0.3"
 tray-icon = { version = "0.19", optional = true }
-gtk = { version = "0.18", optional = true }
 png = "0.17"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
@@ -29,6 +28,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 daemon = { path = "../daemon" }
 accesskit = { version = "0.24", optional = true }
 accesskit_unix = { version = "0.21", optional = true, default-features = false, features = ["tokio"] }
+
+# gtk (GTK3) only exists on Linux; the tray-icon backend there needs a
+# running GTK event loop. macOS/Windows use tray-icon's native backends, so
+# gtk must not be pulled in (its atk-sys etc. cannot build off-Linux).
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = { version = "0.18", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5"

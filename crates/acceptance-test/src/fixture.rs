@@ -25,6 +25,10 @@ pub struct TestEnvironment {
     pub daemon_ipc: DaemonIpcClient,
     pub ocis_client: OcisClient,
     pub daemon_stdout: Lines<BufReader<tokio::process::ChildStdout>>,
+    /// Name of the personal space as reported by oCIS during `add_account`.
+    /// oCIS names the personal space after the user (e.g. "Admin"), not
+    /// literally "Personal", and that name is also the local sync sub-folder.
+    pub personal_space_name: String,
     daemon: Child,
     gui: Child,
 }
@@ -109,6 +113,8 @@ impl TestEnvironment {
             daemon_ipc,
             ocis_client,
             daemon_stdout,
+            // Populated by add_account() once the personal space is discovered.
+            personal_space_name: String::new(),
             daemon,
             gui,
         })
@@ -193,6 +199,10 @@ impl TestEnvironment {
             .find(|s| s.drive_type == "personal")
             .ok_or_else(|| anyhow!("no personal space in SpacesListed"))?;
 
+        // oCIS names the personal space after the user (e.g. "Admin"); remember
+        // it so the test can locate the folder in config and on disk.
+        self.personal_space_name = personal.name.clone();
+
         // 7. Set account folders — personal space as a sub-folder of sync_dir.
         let root = self.sync_dir.path().to_string_lossy().into_owned();
         self.daemon_ipc
@@ -220,10 +230,11 @@ impl TestEnvironment {
     }
 
     /// Returns the local path where the personal space syncs.
-    /// After SetAccountFolders, the personal space lands at sync_dir/<personal_name>.
-    /// oCIS personal spaces are named "Personal" by default.
+    /// After SetAccountFolders, the personal space lands at
+    /// sync_dir/<personal_space_name>. oCIS names the personal space after the
+    /// user (e.g. "Admin"), captured during add_account().
     pub fn personal_sync_dir(&self) -> std::path::PathBuf {
-        self.sync_dir.path().join("Personal")
+        self.sync_dir.path().join(&self.personal_space_name)
     }
 
     /// Reads daemon stdout until a `OIDC_AUTH_URL=<url>` line is found, then returns the URL.

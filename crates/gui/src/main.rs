@@ -59,8 +59,7 @@ fn init_accessibility() {
 }
 
 fn load_window_icon() -> Option<iced::window::Icon> {
-    const PNG: &[u8] =
-        include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-32.png"));
+    const PNG: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-32.png"));
     let decoder = png::Decoder::new(std::io::Cursor::new(PNG));
     let mut reader = decoder.read_info().ok()?;
     let mut buf = vec![0u8; reader.output_buffer_size()];
@@ -137,10 +136,7 @@ impl IcedApp {
             Message::DaemonConnected,
         );
         #[cfg(target_os = "macos")]
-        let init_task = Task::batch([
-            init_task,
-            Task::done(Message::ApplyAppIcon),
-        ]);
+        let init_task = Task::batch([init_task, Task::done(Message::ApplyAppIcon)]);
 
         (
             Self {

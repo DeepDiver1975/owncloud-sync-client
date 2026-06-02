@@ -25,8 +25,7 @@ fn build_icon(out_dir: &str) {
         let transform = tiny_skia::Transform::from_scale(scale, scale);
         resvg::render(&tree, transform, &mut pixmap.as_mut());
 
-        let out_path =
-            std::path::Path::new(out_dir).join(format!("owncloud-icon-{size}.png"));
+        let out_path = std::path::Path::new(out_dir).join(format!("owncloud-icon-{size}.png"));
         let file = std::fs::File::create(&out_path)
             .unwrap_or_else(|e| panic!("failed to create output PNG: {e}"));
 

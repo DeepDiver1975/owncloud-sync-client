@@ -14,10 +14,7 @@ pub fn set_app_icon() {
             tracing::warn!("set_app_icon called off main thread — skipping");
             return;
         };
-        let data = NSData::dataWithBytes_length(
-            PNG.as_ptr() as *mut std::ffi::c_void,
-            PNG.len(),
-        );
+        let data = NSData::dataWithBytes_length(PNG.as_ptr() as *mut std::ffi::c_void, PNG.len());
         if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
             NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&image));
         }
