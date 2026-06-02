@@ -161,7 +161,7 @@ async fn roundtrip_account_add_started() {
 }
 
 #[tokio::test]
-async fn add_account_invalid_url_broadcasts_failed() {
+async fn add_account_bare_domain_emits_started_not_failed() {
     use daemon::config::{AppConfig, GeneralConfig};
     use daemon::folder_manager::FolderManager;
     use daemon::gui_ipc::handler::{handle_command, HandleContext};
@@ -184,7 +184,8 @@ async fn add_account_invalid_url_broadcasts_failed() {
     let (watcher_tx, _watcher_rx) = tokio::sync::mpsc::channel::<(uuid::Uuid, notify::Event)>(1);
     handle_command(
         DaemonCommand::AddAccount {
-            url: "not-a-url".to_string(),
+            // bare domain — no schema — as the GUI now sends after normalization
+            url: "cloud.example.com".to_string(),
         },
         &mut HandleContext {
             scheduler: Arc::clone(&scheduler),
@@ -203,10 +204,11 @@ async fn add_account_invalid_url_broadcasts_failed() {
     .await
     .unwrap();
 
-    let evt = event_rx.try_recv().unwrap();
+    // The daemon must emit AccountAddStarted (not AccountAddFailed) for a bare domain.
+    let evt = event_rx.try_recv().expect("expected AccountAddStarted");
     assert!(
-        matches!(evt, DaemonEvent::AccountAddFailed { .. }),
-        "expected AccountAddFailed, got {evt:?}"
+        matches!(evt, DaemonEvent::AccountAddStarted { .. }),
+        "expected AccountAddStarted for bare domain, got {evt:?}"
     );
 }
 
