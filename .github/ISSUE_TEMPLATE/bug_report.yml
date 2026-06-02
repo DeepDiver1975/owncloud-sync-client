@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a problem with the ownCloud Sync Client
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Please fill in as much
+        detail as you can — it helps us reproduce and fix the issue faster.
+
+        **Do not report security vulnerabilities here.** See our
+        [Security Policy](https://github.com/DeepDiver1975/owncloud-sync-client/security/policy).
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce the behavior?
+      placeholder: |
+        1. Configure account '...'
+        2. Sync folder '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened?
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system / platform
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other (specify below)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Client version
+      description: "Which version of the client are you running? (e.g. 0.1.0 or a commit hash)"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant daemon and/or GUI logs. Please redact any secrets, tokens, or
+        personal data. This will be rendered as code, so no need for backticks.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help us understand the problem.
+    validations:
+      required: false
