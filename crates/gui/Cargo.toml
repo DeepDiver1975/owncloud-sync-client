@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 iced = { version = "0.13", features = ["tokio", "svg"] }
 rfd = "0.15"
-rust-i18n = "3"
+rust-i18n = "4"
 sys-locale = "0.3"
 tray-icon = { version = "0.19", optional = true }
 png = "0.17"
