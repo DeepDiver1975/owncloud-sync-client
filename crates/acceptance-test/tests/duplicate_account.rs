@@ -20,15 +20,9 @@ async fn test_duplicate_account_rejected() {
         .expect("first account setup via OIDC failed");
 
     // Send a second AddAccount command for the same server.
-    // Note: url field must be bare domain with port, no schema prefix.
-    let bare_url = format!(
-        "{}:{}",
-        env.ocis_url.host_str().unwrap_or("127.0.0.1"),
-        env.ocis_url.port().unwrap_or(9200)
-    );
     env.daemon_ipc
         .send(DaemonCommand::AddAccount {
-            url: bare_url,
+            url: env.bare_url(),
         })
         .await
         .expect("failed to send second AddAccount");
