@@ -76,13 +76,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
         DaemonCommand::AddAccount { url } => {
             let account_id = Uuid::new_v4();
 
-            if !url.starts_with("http://") && !url.starts_with("https://") {
-                ipc.broadcast(DaemonEvent::AccountAddFailed {
-                    account_id,
-                    reason: "URL must start with http:// or https://".to_string(),
-                });
-                return Ok(ShouldQuit::No);
-            }
+            let url = format!("https://{url}");
 
             let insecure = config.lock().await.general.insecure;
 
