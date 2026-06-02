@@ -12,11 +12,10 @@ folder_status_error_other: "⚠ %{count} 个错误"
 # add_account
 add_account_heading: "添加账户"
 add_account_caption: "输入您的 ownCloud 服务器地址，登录将在浏览器中打开。"
-server_url_label: "服务器地址"
-server_url_helper: "请包含完整地址，包括 https://"
+server_url_label: "服务器域名"
 connect_btn: "连接 →"
 cancel_btn: "取消"
-error_enter_url: "请输入服务器地址"
+error_enter_url: "请输入服务器域名"
 error_not_connected: "未连接到同步守护进程"
 
 # add_account_waiting

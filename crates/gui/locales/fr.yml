@@ -12,11 +12,10 @@ folder_status_error_other: "⚠ %{count} erreurs"
 # add_account
 add_account_heading: "Ajouter un compte"
 add_account_caption: "Entrez l'adresse de votre serveur ownCloud. La connexion s'ouvrira dans votre navigateur."
-server_url_label: "URL du serveur"
-server_url_helper: "Incluez l'adresse complète avec https://"
+server_url_label: "Domaine du serveur"
 connect_btn: "Connecter →"
 cancel_btn: "Annuler"
-error_enter_url: "Veuillez entrer une URL de serveur"
+error_enter_url: "Veuillez entrer un domaine de serveur"
 error_not_connected: "Non connecté au daemon de synchronisation"
 
 # add_account_waiting
