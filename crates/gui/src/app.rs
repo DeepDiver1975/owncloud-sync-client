@@ -117,18 +117,19 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
 
         Message::AddAccountSubmit => {
             if let View::AddAccount { url_input, error } = &mut app.active_view {
-                let url = url_input.clone();
-                if url.is_empty() {
+                let normalized = strip_url_schema(url_input.trim()).to_string();
+                *url_input = normalized.clone();
+                if normalized.is_empty() {
                     *error = Some(t!("error_enter_url").to_string());
                     return iced::Task::none();
                 }
-                let sent = app
-                    .daemon
-                    .send(DaemonCommand::AddAccount { url: url.clone() });
+                let sent = app.daemon.send(DaemonCommand::AddAccount {
+                    url: normalized.clone(),
+                });
                 if sent {
                     app.active_view = View::AddAccountWaiting {
                         account_id: Uuid::nil(),
-                        url_input: url,
+                        url_input: normalized,
                     };
                 } else {
                     *error = Some(t!("error_not_connected").to_string());
@@ -610,6 +611,17 @@ fn set_folder_status(app: &mut App, folder_id: Uuid, status: FolderStatus) {
     if let Some(folder) = find_folder_mut(app, folder_id) {
         folder.status = status;
     }
+}
+
+fn strip_url_schema(s: &str) -> &str {
+    for prefix in ["https://", "http://"] {
+        if let Some(rest) = s.get(..prefix.len()) {
+            if rest.eq_ignore_ascii_case(prefix) {
+                return &s[prefix.len()..];
+            }
+        }
+    }
+    s
 }
 
 fn derive_root(existing_paths: &[String]) -> String {

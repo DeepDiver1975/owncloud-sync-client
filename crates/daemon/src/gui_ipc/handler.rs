@@ -76,13 +76,14 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
         DaemonCommand::AddAccount { url } => {
             let account_id = Uuid::new_v4();
 
-            if !url.starts_with("http://") && !url.starts_with("https://") {
-                ipc.broadcast(DaemonEvent::AccountAddFailed {
-                    account_id,
-                    reason: "URL must start with http:// or https://".to_string(),
-                });
-                return Ok(ShouldQuit::No);
-            }
+            // Always use https. The GUI normally strips any schema before sending,
+            // but strip defensively here too so a stray prefix can't produce
+            // "https://http://host".
+            let bare = url
+                .strip_prefix("https://")
+                .or_else(|| url.strip_prefix("http://"))
+                .unwrap_or(&url);
+            let url = format!("https://{bare}");
 
             let insecure = config.lock().await.general.insecure;
 
@@ -697,7 +698,7 @@ mod tests {
         // OIDC discovery against a non-existent server must broadcast AccountAddFailed.
         let result = handle_command(
             DaemonCommand::AddAccount {
-                url: "https://cloud.example.com".to_string(),
+                url: "cloud.example.com".to_string(),
             },
             &mut HandleContext {
                 scheduler: Arc::clone(&scheduler),

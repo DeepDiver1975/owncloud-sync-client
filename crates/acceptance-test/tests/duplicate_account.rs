@@ -22,7 +22,7 @@ async fn test_duplicate_account_rejected() {
     // Send a second AddAccount command for the same server.
     env.daemon_ipc
         .send(DaemonCommand::AddAccount {
-            url: env.ocis_url.to_string(),
+            url: env.bare_url(),
         })
         .await
         .expect("failed to send second AddAccount");

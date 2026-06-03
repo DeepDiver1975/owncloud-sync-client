@@ -127,7 +127,7 @@ impl TestEnvironment {
         // 1. Send AddAccount to the daemon.
         self.daemon_ipc
             .send(DaemonCommand::AddAccount {
-                url: self.ocis_url.to_string(),
+                url: self.bare_url(),
             })
             .await
             .context("failed to send AddAccount")?;
@@ -227,6 +227,15 @@ impl TestEnvironment {
             .ok_or_else(|| anyhow!("AccountFolderAdded not received"))?;
 
         Ok(callback_title)
+    }
+
+    /// Returns the bare `host:port` string expected by `DaemonCommand::AddAccount`.
+    pub fn bare_url(&self) -> String {
+        format!(
+            "{}:{}",
+            self.ocis_url.host_str().unwrap_or("127.0.0.1"),
+            self.ocis_url.port().unwrap_or(9200)
+        )
     }
 
     /// Returns the local path where the personal space syncs.

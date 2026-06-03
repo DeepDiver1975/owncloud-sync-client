@@ -12,11 +12,10 @@ folder_status_error_other: "⚠ %{count} errors"
 # add_account
 add_account_heading: "Add Account"
 add_account_caption: "Enter your ownCloud server address. Sign-in will open in your browser."
-server_url_label: "Server URL"
-server_url_helper: "Include the full address including https://"
+server_url_label: "Server Domain"
 connect_btn: "Connect →"
 cancel_btn: "Cancel"
-error_enter_url: "Please enter a server URL"
+error_enter_url: "Please enter a server domain"
 error_not_connected: "Not connected to sync daemon"
 
 # add_account_waiting

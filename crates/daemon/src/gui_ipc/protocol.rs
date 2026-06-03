@@ -229,7 +229,7 @@ mod tests {
     #[tokio::test]
     async fn roundtrip_add_account() {
         roundtrip(DaemonCommand::AddAccount {
-            url: "https://ocis.example.com".into(),
+            url: "ocis.example.com".into(),
         })
         .await;
     }

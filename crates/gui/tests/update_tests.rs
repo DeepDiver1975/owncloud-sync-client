@@ -83,6 +83,54 @@ fn add_account_submit_empty_url_sets_error() {
 }
 
 #[test]
+fn add_account_submit_schema_only_sets_error() {
+    use gui::app::{update, App, Message};
+    use gui::model::View;
+
+    for schema_only in &["https://", "http://", "HTTPS://", "HTTP://"] {
+        let mut app = App {
+            active_view: View::AddAccount {
+                url_input: schema_only.to_string(),
+                error: None,
+            },
+            ..App::default()
+        };
+        let _ = update(&mut app, Message::AddAccountSubmit);
+        if let View::AddAccount { error, .. } = &app.active_view {
+            assert!(
+                error.is_some(),
+                "schema-only input {schema_only:?} should trigger error"
+            );
+        } else {
+            panic!("expected AddAccount view for input {schema_only:?}");
+        }
+    }
+}
+
+#[test]
+fn add_account_submit_strips_http_prefix() {
+    use gui::app::{update, App, Message};
+    use gui::daemon_conn::DaemonConnection;
+    use gui::model::View;
+
+    let (conn, _rx) = DaemonConnection::connected_for_test();
+    let mut app = App {
+        daemon: conn,
+        active_view: View::AddAccount {
+            url_input: "http://cloud.example.com".to_string(),
+            error: None,
+        },
+        ..App::default()
+    };
+    let _ = update(&mut app, Message::AddAccountSubmit);
+    if let View::AddAccountWaiting { url_input, .. } = &app.active_view {
+        assert_eq!(url_input, "cloud.example.com");
+    } else {
+        panic!("expected AddAccountWaiting view");
+    }
+}
+
+#[test]
 fn daemon_event_sync_started_sets_syncing() {
     let folder_id = Uuid::new_v4();
     let mut app = make_app_with_folder(folder_id);
@@ -299,7 +347,7 @@ fn add_account_submit_with_url_navigates_to_waiting_when_connected() {
             account_id.is_nil(),
             "account_id should be nil before daemon responds"
         );
-        assert_eq!(url_input, "https://cloud.example.com");
+        assert_eq!(url_input, "cloud.example.com");
     } else {
         panic!("expected AddAccountWaiting view, got {:?}", app.active_view);
     }

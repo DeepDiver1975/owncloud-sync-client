@@ -25,17 +25,13 @@ pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Eleme
         .size(11)
         .style(theme::colored_text(theme::TEXT_SECONDARY));
 
-    let url_field = text_input("https://your.server.com", url_input)
+    let url_field = text_input("your.server.com", url_input)
         .id(URL_INPUT_ID.clone())
         .on_input(Message::AddAccountUrlChanged)
         .on_submit(Message::AddAccountSubmit)
         .padding([9, 11])
         .size(13)
         .style(theme::text_input_style);
-
-    let helper = t_text(t!("server_url_helper"))
-        .size(11)
-        .style(theme::colored_text(theme::TEXT_MUTED));
 
     let connect_btn = button(t_text(t!("connect_btn")).size(13))
         .on_press(Message::AddAccountSubmit)
@@ -47,13 +43,9 @@ pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Eleme
         .padding([8, 14])
         .style(theme::ghost_button_style);
 
-    let mut col = column![
-        heading,
-        caption,
-        column![url_label, url_field, helper].spacing(4),
-    ]
-    .spacing(14)
-    .max_width(420);
+    let mut col = column![heading, caption, column![url_label, url_field].spacing(4),]
+        .spacing(14)
+        .max_width(420);
 
     if let Some(err) = error {
         let banner = container(
