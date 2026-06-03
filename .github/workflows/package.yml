@@ -150,7 +150,9 @@ jobs:
         run: cargo build --release --manifest-path shell-integration/windows/Cargo.toml --workspace
 
       - name: Install WiX 4
-        run: dotnet tool install --global wix
+        # Pin to 4.x: the .wxs uses the v4 schema, and WiX v6/v7 added a
+        # mandatory OSMF EULA gate (error WIX7015) that breaks unattended CI.
+        run: dotnet tool install --global wix --version 4.0.6
 
       - name: Refresh PATH for WiX
         run: echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
