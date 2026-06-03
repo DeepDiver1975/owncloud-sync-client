@@ -69,6 +69,8 @@ account_not_found: "Konto nicht gefunden"
 tray_open: "Öffnen"
 tray_about: "Über"
 tray_quit: "Beenden"
+tray_daemon_running: "Dienst läuft"
+tray_daemon_stopped: "Dienst gestoppt — zum Starten klicken"
 
 # nav
 nav_sync_status: "Synchronisierungsstatus"

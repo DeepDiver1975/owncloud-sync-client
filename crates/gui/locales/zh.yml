@@ -69,6 +69,8 @@ account_not_found: "找不到账户"
 tray_open: "打开"
 tray_about: "关于"
 tray_quit: "退出"
+tray_daemon_running: "守护进程运行中"
+tray_daemon_stopped: "守护进程已停止 — 点击启动"
 
 # nav
 nav_sync_status: "同步状态"

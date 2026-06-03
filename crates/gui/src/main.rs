@@ -174,6 +174,8 @@ impl IcedApp {
     fn update(&mut self, message: Message) -> Task<Message> {
         if let Message::DaemonConnected(Some((conn, carrier))) = &message {
             self.app.daemon = conn.clone();
+            self.app.daemon_running = true;
+            gui::app::sync_tray(&self.app);
             let carrier = carrier.clone();
             let our_rx = self.event_rx.clone();
             return Task::perform(
@@ -186,7 +188,15 @@ impl IcedApp {
             );
         }
 
+        if matches!(message, Message::DaemonConnected(None)) {
+            self.app.daemon_running = false;
+            gui::app::sync_tray(&self.app);
+            return Task::none();
+        }
+
         if matches!(message, Message::DaemonDisconnected) {
+            self.app.daemon_running = false;
+            gui::app::sync_tray(&self.app);
             let socket = platform_gui_socket_path();
             return Task::perform(
                 async move {
@@ -201,6 +211,31 @@ impl IcedApp {
                         }
                         Err(e) => {
                             tracing::warn!("daemon reconnect failed: {e}");
+                            None
+                        }
+                    }
+                },
+                Message::DaemonConnected,
+            );
+        }
+
+        if matches!(message, Message::StartDaemon) {
+            // Triggered from the tray status item when the daemon is stopped.
+            // Same as the disconnect reconnect path but without the 2s backoff,
+            // since this is a user-initiated start.
+            let socket = platform_gui_socket_path();
+            return Task::perform(
+                async move {
+                    if ensure_daemon_running(&socket).await.is_err() {
+                        return None;
+                    }
+                    match DaemonConnection::connect(&socket).await {
+                        Ok((conn, rx)) => {
+                            let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
+                            Some((conn, carrier))
+                        }
+                        Err(e) => {
+                            tracing::warn!("daemon start failed: {e}");
                             None
                         }
                     }
