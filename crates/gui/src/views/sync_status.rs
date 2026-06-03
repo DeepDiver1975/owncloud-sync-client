@@ -84,14 +84,15 @@ fn account_led_color(account: &AccountView) -> iced::Color {
 
 fn account_section(account: &AccountView) -> Element<'_, Message> {
     let led_color = account_led_color(account);
-    let led = container(Space::new().width(7).height(7)).style(move |_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(led_color)),
-        border: iced::Border {
-            radius: 4.0.into(),
+    let led =
+        container(Space::new().width(7).height(7)).style(move |_| iced::widget::container::Style {
+            background: Some(iced::Background::Color(led_color)),
+            border: iced::Border {
+                radius: 4.0.into(),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        });
 
     let name = text(&account.display_name)
         .size(13)
@@ -144,14 +145,15 @@ fn account_section(account: &AccountView) -> Element<'_, Message> {
 
 fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Element<'_, Message> {
     let color = status_color(&folder.status);
-    let led = container(Space::new().width(6).height(6)).style(move |_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(color)),
-        border: iced::Border {
-            radius: 3.0.into(),
+    let led =
+        container(Space::new().width(6).height(6)).style(move |_| iced::widget::container::Style {
+            background: Some(iced::Background::Color(color)),
+            border: iced::Border {
+                radius: 3.0.into(),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        });
 
     let name = text(&folder.display_name)
         .size(12)

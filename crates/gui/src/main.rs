@@ -400,33 +400,34 @@ impl IcedApp {
         // The builder passed to `run_with` must be a non-capturing `fn` pointer,
         // so the event receiver is threaded through the hashable `data` argument
         // rather than captured.
-        let daemon_sub = Subscription::run_with(
-            DaemonSubId(self.event_rx.clone()),
-            |id: &DaemonSubId| {
+        let daemon_sub =
+            Subscription::run_with(DaemonSubId(self.event_rx.clone()), |id: &DaemonSubId| {
                 let rx = id.0.clone();
-                iced::stream::channel(16, move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
-                    loop {
-                        let msg = {
-                            let mut guard = rx.lock().await;
-                            if let Some(receiver) = guard.as_mut() {
-                                let m = next_message(receiver).await;
-                                if matches!(m, Some(Message::DaemonDisconnected)) {
-                                    *guard = None;
+                iced::stream::channel(
+                    16,
+                    move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                        loop {
+                            let msg = {
+                                let mut guard = rx.lock().await;
+                                if let Some(receiver) = guard.as_mut() {
+                                    let m = next_message(receiver).await;
+                                    if matches!(m, Some(Message::DaemonDisconnected)) {
+                                        *guard = None;
+                                    }
+                                    m
+                                } else {
+                                    drop(guard);
+                                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                    None
                                 }
-                                m
-                            } else {
-                                drop(guard);
-                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                                None
+                            };
+                            if let Some(m) = msg {
+                                let _ = output.send(m).await;
                             }
-                        };
-                        if let Some(m) = msg {
-                            let _ = output.send(m).await;
                         }
-                    }
-                })
-            },
-        );
+                    },
+                )
+            });
 
         let tray_sub = self
             .app
