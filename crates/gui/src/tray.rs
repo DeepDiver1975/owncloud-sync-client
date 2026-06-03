@@ -119,16 +119,15 @@ mod inner {
                     return;
                 }
 
-                let build_result =
-                    (|| -> anyhow::Result<(tray_icon::TrayIcon, MenuItems)> {
-                        let (menu, items) = build_menu(&initial)?;
-                        let icon_handle = TrayIconBuilder::new()
-                            .with_icon(icon)
-                            .with_menu(Box::new(menu))
-                            .with_tooltip("ownCloud Sync")
-                            .build()?;
-                        Ok((icon_handle, items))
-                    })();
+                let build_result = (|| -> anyhow::Result<(tray_icon::TrayIcon, MenuItems)> {
+                    let (menu, items) = build_menu(&initial)?;
+                    let icon_handle = TrayIconBuilder::new()
+                        .with_icon(icon)
+                        .with_menu(Box::new(menu))
+                        .with_tooltip("ownCloud Sync")
+                        .build()?;
+                    Ok((icon_handle, items))
+                })();
 
                 match build_result {
                     Ok((icon_handle, items)) => {
