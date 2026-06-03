@@ -40,36 +40,57 @@ mod inner {
         Ok(Icon::from_rgba(rgba.to_vec(), info.width, info.height)?)
     }
 
-    fn build_menu(state: &TrayState) -> anyhow::Result<Menu> {
+    /// Handles to the mutable menu items, kept so the menu can be updated in
+    /// place rather than rebuilt. Rebuilding (via `set_menu`) causes the tray
+    /// menu to fully repaint and flicker; `set_text`/`set_enabled` on the live
+    /// items does not.
+    struct MenuItems {
+        daemon_status: MenuItem,
+        open: MenuItem,
+        about: MenuItem,
+        quit: MenuItem,
+    }
+
+    impl MenuItems {
+        /// Apply a new state to the existing items in place.
+        fn apply(&self, state: &TrayState) {
+            self.daemon_status.set_text(&state.daemon_status);
+            // Disabled (informational) when running; enabled (clickable to
+            // start) when stopped.
+            self.daemon_status.set_enabled(!state.daemon_running);
+            self.open.set_text(&state.open);
+            self.about.set_text(&state.about);
+            self.quit.set_text(&state.quit);
+        }
+    }
+
+    fn build_menu(state: &TrayState) -> anyhow::Result<(Menu, MenuItems)> {
         let menu = Menu::new();
-        // The daemon-status item is disabled (informational) when the daemon is
-        // running, and enabled (clickable to start it) when it is stopped.
-        menu.append(&MenuItem::with_id(
+        let daemon_status = MenuItem::with_id(
             MenuId::new("daemon_status"),
             &state.daemon_status,
             !state.daemon_running,
             None,
-        ))?;
+        );
+        let open = MenuItem::with_id(MenuId::new("open"), &state.open, true, None);
+        let about = MenuItem::with_id(MenuId::new("about"), &state.about, true, None);
+        let quit = MenuItem::with_id(MenuId::new("quit"), &state.quit, true, None);
+
+        menu.append(&daemon_status)?;
         menu.append(&PredefinedMenuItem::separator())?;
-        menu.append(&MenuItem::with_id(
-            MenuId::new("open"),
-            &state.open,
-            true,
-            None,
-        ))?;
-        menu.append(&MenuItem::with_id(
-            MenuId::new("about"),
-            &state.about,
-            true,
-            None,
-        ))?;
-        menu.append(&MenuItem::with_id(
-            MenuId::new("quit"),
-            &state.quit,
-            true,
-            None,
-        ))?;
-        Ok(menu)
+        menu.append(&open)?;
+        menu.append(&about)?;
+        menu.append(&quit)?;
+
+        Ok((
+            menu,
+            MenuItems {
+                daemon_status,
+                open,
+                about,
+                quit,
+            },
+        ))
     }
 
     pub struct TrayHandle {
@@ -98,28 +119,31 @@ mod inner {
                     return;
                 }
 
-                let build_result = (|| -> anyhow::Result<tray_icon::TrayIcon> {
-                    let menu = build_menu(&initial)?;
-                    Ok(TrayIconBuilder::new()
-                        .with_icon(icon)
-                        .with_menu(Box::new(menu))
-                        .with_tooltip("ownCloud Sync")
-                        .build()?)
-                })();
+                let build_result =
+                    (|| -> anyhow::Result<(tray_icon::TrayIcon, MenuItems)> {
+                        let (menu, items) = build_menu(&initial)?;
+                        let icon_handle = TrayIconBuilder::new()
+                            .with_icon(icon)
+                            .with_menu(Box::new(menu))
+                            .with_tooltip("ownCloud Sync")
+                            .build()?;
+                        Ok((icon_handle, items))
+                    })();
 
                 match build_result {
-                    Ok(icon_handle) => {
+                    Ok((icon_handle, items)) => {
                         let _ = ready_tx.send(Ok(()));
-                        // Poll for menu rebuild requests while the GTK main loop runs.
-                        // We use an idle callback that drains the channel each time it fires.
+                        // Poll for state updates while the GTK main loop runs and
+                        // apply them to the existing menu items in place. The
+                        // TrayIcon handle is kept alive (moved in) for the loop's
+                        // lifetime; we never rebuild the menu, so no flicker.
+                        let _icon_handle = icon_handle;
                         let menu_rx = std::cell::RefCell::new(menu_rx);
                         gtk::glib::timeout_add_local(
                             std::time::Duration::from_millis(100),
                             move || {
                                 while let Ok(state) = menu_rx.borrow().try_recv() {
-                                    if let Ok(menu) = build_menu(&state) {
-                                        icon_handle.set_menu(Some(Box::new(menu)));
-                                    }
+                                    items.apply(&state);
                                 }
                                 gtk::glib::ControlFlow::Continue
                             },
