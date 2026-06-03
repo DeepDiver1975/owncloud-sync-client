@@ -161,8 +161,11 @@ jobs:
         run: |
           $sha7 = "${{ github.sha }}".Substring(0, 7)
           # TODO: sign with signtool.exe /f cert.pfx /p $env:CERT_PASSWORD owncloud-setup-$sha7.msi
+          # Main workspace binaries (ocsync, ocsyncd) and the shell-integration
+          # DLLs live in two separate cargo workspaces with separate target dirs.
           wix build packaging/windows/owncloud.wxs `
             -d "BinDir=target/release" `
+            -d "ShellBinDir=shell-integration/windows/target/release" `
             -o "owncloud-setup-$sha7.msi"
 
       - uses: actions/upload-artifact@v4

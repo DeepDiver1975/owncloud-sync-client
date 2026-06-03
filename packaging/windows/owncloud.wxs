@@ -75,18 +75,18 @@
       <!-- Overlay COM DLL. COM registration (ShellIconOverlayIdentifiers etc.)
            is performed by the DLL's own DllRegisterServer, not authored here. -->
       <Component Id="oc_overlay_dll" Guid="*">
-        <File Id="oc_overlay_dll" Source="$(var.BinDir)\oc_overlay.dll" KeyPath="yes" />
+        <File Id="oc_overlay_dll" Source="$(var.ShellBinDir)\oc_overlay.dll" KeyPath="yes" />
       </Component>
 
       <!-- Context menu COM DLL. COM registration (ContextMenuHandlers etc.) is
            performed by the DLL's own DllRegisterServer, not authored here. -->
       <Component Id="oc_contextmenu_dll" Guid="*">
-        <File Id="oc_contextmenu_dll" Source="$(var.BinDir)\oc_contextmenu.dll" KeyPath="yes" />
+        <File Id="oc_contextmenu_dll" Source="$(var.ShellBinDir)\oc_contextmenu.dll" KeyPath="yes" />
       </Component>
 
       <!-- IPC helper DLL -->
       <Component Id="oc_ipc_dll" Guid="*">
-        <File Id="oc_ipc_dll" Source="$(var.BinDir)\oc_ipc.dll" KeyPath="yes" />
+        <File Id="oc_ipc_dll" Source="$(var.ShellBinDir)\oc_ipc.dll" KeyPath="yes" />
       </Component>
 
     </ComponentGroup>
