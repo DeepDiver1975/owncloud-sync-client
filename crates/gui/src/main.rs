@@ -77,8 +77,12 @@ fn main() -> iced::Result {
         )
         .init();
 
-    iced::application("ownCloud Sync", IcedApp::update, IcedApp::view)
-        .theme(|_| theme::app_theme())
+    // iced 0.14 takes the boot/init function as the first argument to
+    // `application`; the window title moved to the `.title()` builder and
+    // `.run_with(init)` collapsed into `.run()`.
+    iced::application(IcedApp::init, IcedApp::update, IcedApp::view)
+        .title("ownCloud Sync")
+        .theme(|_: &IcedApp| theme::app_theme())
         .window(iced::window::Settings {
             size: iced::Size::new(800.0, 480.0),
             min_size: Some(iced::Size::new(600.0, 400.0)),
@@ -86,12 +90,27 @@ fn main() -> iced::Result {
             ..Default::default()
         })
         .subscription(IcedApp::subscription)
-        .run_with(IcedApp::init)
+        .run()
 }
 
 struct IcedApp {
     app: App,
     event_rx: EventRxCarrier,
+}
+
+/// Identity + payload for the daemon-events subscription.
+///
+/// iced 0.14's `Subscription::run_with` takes a non-capturing `fn(&D) -> S`
+/// builder and hashes `D` to identify the subscription. We carry the event
+/// receiver here and give it a constant hash, since there is exactly one
+/// daemon-events subscription for the lifetime of the app.
+#[derive(Clone)]
+struct DaemonSubId(EventRxCarrier);
+
+impl std::hash::Hash for DaemonSubId {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        "daemon-events".hash(state);
+    }
 }
 
 impl IcedApp {
@@ -378,30 +397,35 @@ impl IcedApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let rx = self.event_rx.clone();
-        let daemon_sub = Subscription::run_with_id(
-            "daemon-events",
-            iced::stream::channel(16, move |mut output| async move {
-                loop {
-                    let msg = {
-                        let mut guard = rx.lock().await;
-                        if let Some(receiver) = guard.as_mut() {
-                            let m = next_message(receiver).await;
-                            if matches!(m, Some(Message::DaemonDisconnected)) {
-                                *guard = None;
+        // The builder passed to `run_with` must be a non-capturing `fn` pointer,
+        // so the event receiver is threaded through the hashable `data` argument
+        // rather than captured.
+        let daemon_sub = Subscription::run_with(
+            DaemonSubId(self.event_rx.clone()),
+            |id: &DaemonSubId| {
+                let rx = id.0.clone();
+                iced::stream::channel(16, move |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                    loop {
+                        let msg = {
+                            let mut guard = rx.lock().await;
+                            if let Some(receiver) = guard.as_mut() {
+                                let m = next_message(receiver).await;
+                                if matches!(m, Some(Message::DaemonDisconnected)) {
+                                    *guard = None;
+                                }
+                                m
+                            } else {
+                                drop(guard);
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                                None
                             }
-                            m
-                        } else {
-                            drop(guard);
-                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                            None
+                        };
+                        if let Some(m) = msg {
+                            let _ = output.send(m).await;
                         }
-                    };
-                    if let Some(m) = msg {
-                        let _ = output.send(m).await;
                     }
-                }
-            }),
+                })
+            },
         );
 
         let tray_sub = self

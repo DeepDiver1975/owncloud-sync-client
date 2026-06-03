@@ -44,7 +44,7 @@ fn toggle_row(row: &ToggleRow) -> Element<'static, Message> {
         )
     };
 
-    let thumb = container(iced::widget::Space::new(13, 13)).style(move |_| {
+    let thumb = container(iced::widget::Space::new().width(13).height(13)).style(move |_| {
         iced::widget::container::Style {
             background: Some(iced::Background::Color(iced::Color::WHITE)),
             border: iced::Border {
@@ -71,7 +71,7 @@ fn toggle_row(row: &ToggleRow) -> Element<'static, Message> {
     container(
         row![
             column![lbl, sub].spacing(2),
-            iced::widget::horizontal_space(),
+            iced::widget::Space::new().width(Length::Fill),
             toggle,
         ]
         .align_y(Alignment::Center)
@@ -114,7 +114,7 @@ pub fn general_settings_view(language: &Language) -> Element<'_, Message> {
     let lang_row = container(
         row![
             column![lang_label, lang_sub].spacing(2),
-            iced::widget::horizontal_space(),
+            iced::widget::Space::new().width(Length::Fill),
             lang_picker,
         ]
         .align_y(Alignment::Center)

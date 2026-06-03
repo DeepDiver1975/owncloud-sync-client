@@ -30,7 +30,7 @@ pub fn account_settings_view(account: &AccountView) -> Element<'_, Message> {
 
     let header = row![
         column![acct_name, acct_url].spacing(2),
-        iced::widget::horizontal_space(),
+        iced::widget::Space::new().width(Length::Fill),
         add_space_btn,
         remove_btn,
     ]

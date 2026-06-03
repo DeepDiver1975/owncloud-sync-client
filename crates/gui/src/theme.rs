@@ -113,6 +113,7 @@ pub fn palette() -> iced::theme::Palette {
         text: TEXT_PRIMARY,
         primary: ACCENT,
         success: STATUS_OK,
+        warning: STATUS_PAUSED,
         danger: STATUS_ERROR,
     }
 }
@@ -268,6 +269,7 @@ pub fn link_button_style(_theme: &iced::Theme, status: button::Status) -> button
         text_color,
         border: iced::Border::default(),
         shadow: iced::Shadow::default(),
+        ..Default::default()
     }
 }
 
@@ -407,7 +409,7 @@ pub fn text_input_style(_theme: &iced::Theme, status: text_input::Status) -> tex
             value: TEXT_PRIMARY,
             selection: Color { a: 0.3, ..ACCENT },
         },
-        text_input::Status::Focused => text_input::Style {
+        text_input::Status::Focused { .. } => text_input::Style {
             background: Background::Color(BG_CARD),
             border: Border {
                 color: ACCENT,
