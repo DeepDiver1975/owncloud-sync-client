@@ -614,15 +614,14 @@ fn set_folder_status(app: &mut App, folder_id: Uuid, status: FolderStatus) {
 }
 
 fn strip_url_schema(s: &str) -> &str {
-    let lower = s.to_ascii_lowercase();
-    let prefix_len = if lower.starts_with("https://") {
-        8
-    } else if lower.starts_with("http://") {
-        7
-    } else {
-        0
-    };
-    &s[prefix_len..]
+    for prefix in ["https://", "http://"] {
+        if let Some(rest) = s.get(..prefix.len()) {
+            if rest.eq_ignore_ascii_case(prefix) {
+                return &s[prefix.len()..];
+            }
+        }
+    }
+    s
 }
 
 fn derive_root(existing_paths: &[String]) -> String {

@@ -76,8 +76,14 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
         DaemonCommand::AddAccount { url } => {
             let account_id = Uuid::new_v4();
 
-            // Always use https — the GUI strips any http:// prefix before sending.
-            let url = format!("https://{url}");
+            // Always use https. The GUI normally strips any schema before sending,
+            // but strip defensively here too so a stray prefix can't produce
+            // "https://http://host".
+            let bare = url
+                .strip_prefix("https://")
+                .or_else(|| url.strip_prefix("http://"))
+                .unwrap_or(&url);
+            let url = format!("https://{bare}");
 
             let insecure = config.lock().await.general.insecure;
 
