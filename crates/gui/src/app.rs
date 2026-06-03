@@ -21,6 +21,10 @@ pub struct App {
     pub tray: Option<TrayHandle>,
     pub window_visible: bool,
     pub daemon_running: bool,
+    /// True while a spawn+connect attempt is in flight (auto-reconnect after a
+    /// disconnect, or a user-triggered start). Guards against launching a second
+    /// concurrent connection — see `IcedApp::update`.
+    pub daemon_connecting: bool,
     pub language: crate::model::Language,
     pub gui_config_path: PathBuf,
 }
@@ -34,6 +38,7 @@ impl Default for App {
             tray: None,
             window_visible: true,
             daemon_running: false,
+            daemon_connecting: false,
             language: crate::model::Language::En,
             gui_config_path: PathBuf::new(),
         }

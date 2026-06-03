@@ -58,6 +58,35 @@ fn init_accessibility() {
     std::mem::forget(adapter);
 }
 
+/// Spawn the daemon (if not already reachable) and connect to it, after an
+/// optional backoff. Resolves to `Message::DaemonConnected` carrying the new
+/// connection on success, or `None` on failure. Shared by the auto-reconnect
+/// (on disconnect) and the user-triggered start (tray status item) paths.
+fn spawn_and_connect(backoff_ms: u64) -> Task<Message> {
+    let socket = platform_gui_socket_path();
+    Task::perform(
+        async move {
+            if backoff_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+            }
+            if ensure_daemon_running(&socket).await.is_err() {
+                return None;
+            }
+            match DaemonConnection::connect(&socket).await {
+                Ok((conn, rx)) => {
+                    let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
+                    Some((conn, carrier))
+                }
+                Err(e) => {
+                    tracing::warn!("daemon connect failed: {e}");
+                    None
+                }
+            }
+        },
+        Message::DaemonConnected,
+    )
+}
+
 fn load_window_icon() -> Option<iced::window::Icon> {
     const PNG: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-32.png"));
     let decoder = png::Decoder::new(std::io::Cursor::new(PNG));
@@ -134,26 +163,9 @@ impl IcedApp {
             .ok();
 
         let event_rx: EventRxCarrier = Arc::new(Mutex::new(None));
-        let init_task = Task::perform(
-            async {
-                let socket = platform_gui_socket_path();
-                if let Err(e) = ensure_daemon_running(&socket).await {
-                    tracing::warn!("daemon not available: {e}");
-                    return None;
-                }
-                match DaemonConnection::connect(&socket).await {
-                    Ok((conn, rx)) => {
-                        let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
-                        Some((conn, carrier))
-                    }
-                    Err(e) => {
-                        tracing::error!("failed to connect to daemon: {e}");
-                        None
-                    }
-                }
-            },
-            Message::DaemonConnected,
-        );
+        // The initial connect is in flight, so mark it: a tray "start" click
+        // before it resolves must not launch a second connection.
+        let init_task = spawn_and_connect(0);
         #[cfg(target_os = "macos")]
         let init_task = Task::batch([init_task, Task::done(Message::ApplyAppIcon)]);
 
@@ -163,6 +175,7 @@ impl IcedApp {
                     tray,
                     language,
                     gui_config_path,
+                    daemon_connecting: true,
                     ..App::default()
                 },
                 event_rx,
@@ -172,23 +185,26 @@ impl IcedApp {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
-        if let Message::DaemonConnected(Some((conn, carrier))) = &message {
-            self.app.daemon = conn.clone();
-            self.app.daemon_running = true;
-            gui::app::sync_tray(&self.app);
-            let carrier = carrier.clone();
-            let our_rx = self.event_rx.clone();
-            return Task::perform(
-                async move {
-                    let mut guard = carrier.lock().await;
-                    let mut ours = our_rx.lock().await;
-                    *ours = guard.take();
-                },
-                |_| Message::NavigateTo(gui::model::View::SyncStatus),
-            );
-        }
-
-        if matches!(message, Message::DaemonConnected(None)) {
+        if let Message::DaemonConnected(payload) = &message {
+            // A connect attempt has resolved (success or failure), so clear the
+            // in-flight guard regardless of outcome.
+            self.app.daemon_connecting = false;
+            if let Some((conn, carrier)) = payload {
+                self.app.daemon = conn.clone();
+                self.app.daemon_running = true;
+                gui::app::sync_tray(&self.app);
+                let carrier = carrier.clone();
+                let our_rx = self.event_rx.clone();
+                return Task::perform(
+                    async move {
+                        let mut guard = carrier.lock().await;
+                        let mut ours = our_rx.lock().await;
+                        *ours = guard.take();
+                    },
+                    |_| Message::NavigateTo(gui::model::View::SyncStatus),
+                );
+            }
+            // Connect failed.
             self.app.daemon_running = false;
             gui::app::sync_tray(&self.app);
             return Task::none();
@@ -197,51 +213,25 @@ impl IcedApp {
         if matches!(message, Message::DaemonDisconnected) {
             self.app.daemon_running = false;
             gui::app::sync_tray(&self.app);
-            let socket = platform_gui_socket_path();
-            return Task::perform(
-                async move {
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                    if ensure_daemon_running(&socket).await.is_err() {
-                        return None;
-                    }
-                    match DaemonConnection::connect(&socket).await {
-                        Ok((conn, rx)) => {
-                            let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
-                            Some((conn, carrier))
-                        }
-                        Err(e) => {
-                            tracing::warn!("daemon reconnect failed: {e}");
-                            None
-                        }
-                    }
-                },
-                Message::DaemonConnected,
-            );
+            // Auto-reconnect after a 2s backoff, unless a connect is already in
+            // flight (e.g. the user clicked "start" during the window).
+            if self.app.daemon_connecting {
+                return Task::none();
+            }
+            self.app.daemon_connecting = true;
+            return spawn_and_connect(2_000);
         }
 
         if matches!(message, Message::StartDaemon) {
             // Triggered from the tray status item when the daemon is stopped.
-            // Same as the disconnect reconnect path but without the 2s backoff,
-            // since this is a user-initiated start.
-            let socket = platform_gui_socket_path();
-            return Task::perform(
-                async move {
-                    if ensure_daemon_running(&socket).await.is_err() {
-                        return None;
-                    }
-                    match DaemonConnection::connect(&socket).await {
-                        Ok((conn, rx)) => {
-                            let carrier: EventRxCarrier = Arc::new(Mutex::new(Some(rx)));
-                            Some((conn, carrier))
-                        }
-                        Err(e) => {
-                            tracing::warn!("daemon start failed: {e}");
-                            None
-                        }
-                    }
-                },
-                Message::DaemonConnected,
-            );
+            // Same as the disconnect reconnect path but without the backoff,
+            // since this is a user-initiated start. Ignore if a connect is
+            // already in flight to avoid a duplicate connection.
+            if self.app.daemon_connecting {
+                return Task::none();
+            }
+            self.app.daemon_connecting = true;
+            return spawn_and_connect(0);
         }
 
         update(&mut self.app, message)
