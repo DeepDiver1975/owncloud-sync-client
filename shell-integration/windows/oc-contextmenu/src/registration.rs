@@ -5,7 +5,6 @@
 //! Default value = CLSID string. No elevation required.
 
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::ERROR_SUCCESS;
 use windows::Win32::System::Registry::{
     RegCloseKey, RegCreateKeyExW, RegDeleteKeyW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
     KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ,
@@ -14,8 +13,7 @@ use windows::Win32::System::Registry::{
 use crate::CLSID_OC_CONTEXT_MENU;
 use windows::core::GUID;
 
-const HANDLER_KEY: &str =
-    "Software\\Classes\\*\\shellex\\ContextMenuHandlers\\ownCloud";
+const HANDLER_KEY: &str = "Software\\Classes\\*\\shellex\\ContextMenuHandlers\\ownCloud";
 
 fn guid_to_string(g: &GUID) -> String {
     format!(
@@ -42,7 +40,7 @@ pub fn register() -> Result<(), windows::core::Error> {
     let mut hkey = HKEY::default();
 
     // SAFETY: `key_wide` is a valid null-terminated UTF-16 string.
-    let result = unsafe {
+    unsafe {
         RegCreateKeyExW(
             HKEY_CURRENT_USER,
             PCWSTR(key_wide.as_ptr()),
@@ -54,10 +52,7 @@ pub fn register() -> Result<(), windows::core::Error> {
             &mut hkey,
             None,
         )
-    };
-    if result != ERROR_SUCCESS {
-        return Err(windows::core::Error::from_win32());
-    }
+    }?;
 
     let clsid_str = guid_to_string(&CLSID_OC_CONTEXT_MENU);
     let value_bytes: Vec<u8> = clsid_str
@@ -67,16 +62,14 @@ pub fn register() -> Result<(), windows::core::Error> {
         .collect();
 
     // SAFETY: `hkey` is a valid open registry key obtained above.
-    let result2 =
-        unsafe { RegSetValueExW(hkey, PCWSTR::null(), 0, REG_SZ, Some(&value_bytes)) };
+    let result2 = unsafe { RegSetValueExW(hkey, PCWSTR::null(), 0, REG_SZ, Some(&value_bytes)) };
 
     // SAFETY: Must close the key handle.
-    unsafe { RegCloseKey(hkey) };
-
-    if result2 != ERROR_SUCCESS {
-        return Err(windows::core::Error::from_win32());
+    unsafe {
+        let _ = RegCloseKey(hkey);
     }
-    Ok(())
+
+    result2
 }
 
 pub fn unregister() -> Result<(), windows::core::Error> {

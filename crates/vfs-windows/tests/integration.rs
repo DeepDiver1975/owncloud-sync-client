@@ -20,9 +20,8 @@
 mod tests {
     use camino::{Utf8Path, Utf8PathBuf};
     use std::time::SystemTime;
-    use tokio::sync::mpsc;
     use vfs_core::{Vfs, VfsFileItem, VfsStatus};
-    use vfs_windows::{HydrationRequest, VfsWindows};
+    use vfs_windows::VfsWindows;
 
     fn make_item(name: &str, size: u64, file_id: &str) -> VfsFileItem {
         VfsFileItem {
@@ -45,10 +44,8 @@ mod tests {
             .expect("temp dir path is not valid UTF-8")
             .to_owned();
 
-        let (tx, mut rx) = mpsc::channel::<HydrationRequest>(16);
-
-        let vfs = VfsWindows::new(root.clone(), "IntegrationTestProvider", tx)
-            .expect("VfsWindows::new should succeed on NTFS volume");
+        let vfs =
+            VfsWindows::new(root.clone()).expect("VfsWindows::new should succeed on NTFS volume");
 
         let item = make_item("integration_test.txt", 1024, "integration-file-id-001");
         vfs.create_placeholder(&item)
@@ -75,11 +72,6 @@ mod tests {
             .await
             .expect("dehydrate should succeed on placeholder");
 
-        assert!(
-            rx.try_recv().is_err(),
-            "no hydration request should have been sent during this test"
-        );
-
         drop(vfs);
     }
 
@@ -89,9 +81,8 @@ mod tests {
     async fn update_placeholder_changes_size() {
         let dir = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(dir.path()).unwrap().to_owned();
-        let (tx, _rx) = mpsc::channel::<HydrationRequest>(8);
 
-        let vfs = VfsWindows::new(root.clone(), "IntegrationTestProvider", tx).unwrap();
+        let vfs = VfsWindows::new(root.clone()).unwrap();
 
         let original = make_item("update_test.txt", 512, "upd-fid");
         vfs.create_placeholder(&original).await.unwrap();
@@ -118,9 +109,8 @@ mod tests {
     async fn set_pinned_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(dir.path()).unwrap().to_owned();
-        let (tx, _rx) = mpsc::channel::<HydrationRequest>(8);
 
-        let vfs = VfsWindows::new(root.clone(), "IntegrationTestProvider", tx).unwrap();
+        let vfs = VfsWindows::new(root.clone()).unwrap();
 
         let item = make_item("pin_test.txt", 256, "pin-fid");
         vfs.create_placeholder(&item).await.unwrap();

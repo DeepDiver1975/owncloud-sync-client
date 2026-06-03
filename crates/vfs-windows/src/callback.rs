@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 
 use windows::core::HSTRING;
 use windows::Win32::Storage::CloudFilters::{
-    CfConnectSyncRoot, CfDisconnectSyncRoot, CF_CALLBACK, CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS,
+    CfConnectSyncRoot, CfDisconnectSyncRoot, CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS,
     CF_CALLBACK_REGISTRATION, CF_CALLBACK_TYPE_FETCH_DATA, CF_CALLBACK_TYPE_NONE,
     CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE,
 };
@@ -110,39 +110,38 @@ pub fn register_hydration_callback(
     ctx: Arc<HydrationCallbackContext>,
 ) -> Result<CF_CONNECTION_KEY> {
     let state = Box::new(CallbackState { ctx });
-    let state_ptr = Box::into_raw(state) as *mut _;
+    let state_ptr = Box::into_raw(state);
 
     let callbacks = [
         CF_CALLBACK_REGISTRATION {
             Type: CF_CALLBACK_TYPE_FETCH_DATA,
-            Callback: CF_CALLBACK {
-                FetchData: Some(fetch_data_callback),
-            },
+            // In windows 0.52 `CF_CALLBACK` is a type alias for
+            // `Option<unsafe extern "system" fn(..)>`, not a union.
+            Callback: Some(fetch_data_callback),
         },
         // Sentinel entry required by CfConnectSyncRoot.
         CF_CALLBACK_REGISTRATION {
             Type: CF_CALLBACK_TYPE_NONE,
-            Callback: CF_CALLBACK { FetchData: None },
+            Callback: None,
         },
     ];
 
     let root_wide = HSTRING::from(root.as_str());
-    let mut connection_key = CF_CONNECTION_KEY(0);
 
     // Safety: callbacks ends with CF_CALLBACK_TYPE_NONE; state_ptr is valid for
     // the duration of the connection; root_wide is a valid wide string.
-    unsafe {
+    // CfConnectSyncRoot returns the connection key directly in 0.52.
+    let connection_key = unsafe {
         CfConnectSyncRoot(
             windows::core::PCWSTR(root_wide.as_ptr()),
             callbacks.as_ptr(),
-            state_ptr,
+            Some(state_ptr as *const core::ffi::c_void),
             CF_CONNECT_FLAG_NONE,
-            &mut connection_key,
         )
     }
     .map_err(|e| {
         // Safety: CfConnectSyncRoot failed so no callback was installed; reclaim.
-        unsafe { drop(Box::from_raw(state_ptr as *mut CallbackState)) };
+        unsafe { drop(Box::from_raw(state_ptr)) };
         VfsWindowsError::CfApi(e)
     })?;
 

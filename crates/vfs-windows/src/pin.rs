@@ -50,14 +50,7 @@ pub fn set_pinned(path: &Utf8Path, pinned: bool) -> Result<()> {
     };
 
     // Safety: handle is valid; CloseHandle is always called before returning.
-    let result = unsafe {
-        CfSetPinState(
-            handle,
-            pin_state,
-            CF_SET_PIN_FLAG_NONE,
-            std::ptr::null_mut(),
-        )
-    };
+    let result = unsafe { CfSetPinState(handle, pin_state, CF_SET_PIN_FLAG_NONE, None) };
 
     // Safety: CloseHandle takes ownership of handle; called exactly once.
     unsafe { CloseHandle(handle).ok() };

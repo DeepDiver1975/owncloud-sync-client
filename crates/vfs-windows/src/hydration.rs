@@ -11,10 +11,9 @@ use windows::Win32::Storage::CloudFilters::{
 };
 use windows::Win32::Storage::FileSystem::{
     CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
-    FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_DELETE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, OPEN_EXISTING,
+    FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+    FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
-use windows::Win32::System::WindowsProgramming::FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS;
 
 use vfs_core::VfsStatus;
 
@@ -65,8 +64,7 @@ pub fn hydrate(path: &Utf8Path) -> Result<()> {
     let handle = unsafe { open_for_cf(path, true) }?;
 
     // Safety: handle is valid; length=-1 means "hydrate the whole file".
-    let result =
-        unsafe { CfHydratePlaceholder(handle, 0, -1, CF_HYDRATE_FLAG_NONE, std::ptr::null_mut()) };
+    let result = unsafe { CfHydratePlaceholder(handle, 0, -1, CF_HYDRATE_FLAG_NONE, None) };
 
     // Safety: CloseHandle takes ownership of handle; called exactly once.
     unsafe { CloseHandle(handle).ok() };
@@ -85,9 +83,7 @@ pub fn dehydrate(path: &Utf8Path) -> Result<()> {
     let handle = unsafe { open_for_cf(path, true) }?;
 
     // Safety: handle is valid; length=-1 means "dehydrate the whole file".
-    let result = unsafe {
-        CfDehydratePlaceholder(handle, 0, -1, CF_DEHYDRATE_FLAG_NONE, std::ptr::null_mut())
-    };
+    let result = unsafe { CfDehydratePlaceholder(handle, 0, -1, CF_DEHYDRATE_FLAG_NONE, None) };
 
     // Safety: CloseHandle takes ownership of handle; called exactly once.
     unsafe { CloseHandle(handle).ok() };

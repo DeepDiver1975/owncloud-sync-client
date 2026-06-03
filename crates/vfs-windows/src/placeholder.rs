@@ -52,11 +52,8 @@ pub fn create_placeholder(root: &Utf8Path, item: &VfsFileItem) -> Result<()> {
     let filename_wide = HSTRING::from(filename);
 
     let last_write = system_time_to_filetime(item.last_modified);
-    let last_write_large: i64 = unsafe {
-        std::mem::transmute(
-            ((last_write.dwHighDateTime as u64) << 32) | (last_write.dwLowDateTime as u64),
-        )
-    };
+    let last_write_large =
+        (((last_write.dwHighDateTime as u64) << 32) | (last_write.dwLowDateTime as u64)) as i64;
 
     let mut create_info = CF_PLACEHOLDER_CREATE_INFO {
         RelativeFileName: windows::core::PCWSTR(filename_wide.as_ptr()),
@@ -72,9 +69,7 @@ pub fn create_placeholder(root: &Utf8Path, item: &VfsFileItem) -> Result<()> {
         },
         FileIdentity: identity.as_ptr() as *const _,
         FileIdentityLength: identity.len() as u32,
-        FileIdentityExtensionLength: 0,
-        FileIdentityExtension: std::ptr::null(),
-        CreateFlags: CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC,
+        Flags: CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC,
         Result: windows::Win32::Foundation::S_OK,
         CreateUsn: 0,
     };
@@ -83,14 +78,14 @@ pub fn create_placeholder(root: &Utf8Path, item: &VfsFileItem) -> Result<()> {
 
     // Safety: all pointer fields in create_info reference data that lives at
     // least as long as this stack frame; CfCreatePlaceholders does not retain
-    // them after the call returns.
+    // them after the call returns. In 0.52 the placeholder array is passed as
+    // a slice and the entries-processed out-param is `Option<*mut u32>`.
     unsafe {
         CfCreatePlaceholders(
             windows::core::PCWSTR(root_wide.as_ptr()),
-            &mut create_info,
-            1,
+            std::slice::from_mut(&mut create_info),
             CF_CREATE_FLAG_NONE,
-            std::ptr::null_mut(),
+            None,
         )
     }
     .map_err(VfsWindowsError::CfApi)?;
@@ -111,11 +106,8 @@ pub fn update_placeholder(path: &Utf8Path, item: &VfsFileItem) -> Result<()> {
     let path_wide = HSTRING::from(path.as_str());
     let identity = item.file_id.as_bytes();
     let last_write = system_time_to_filetime(item.last_modified);
-    let last_write_large: i64 = unsafe {
-        std::mem::transmute(
-            ((last_write.dwHighDateTime as u64) << 32) | (last_write.dwLowDateTime as u64),
-        )
-    };
+    let last_write_large =
+        (((last_write.dwHighDateTime as u64) << 32) | (last_write.dwLowDateTime as u64)) as i64;
 
     // Safety: CreateFileW is an FFI call; path_wide is a valid null-terminated
     // wide string. The returned HANDLE is checked immediately.
@@ -152,14 +144,13 @@ pub fn update_placeholder(path: &Utf8Path, item: &VfsFileItem) -> Result<()> {
     let result = unsafe {
         CfUpdatePlaceholder(
             handle,
-            &fs_metadata,
-            identity.as_ptr() as *const _,
+            Some(&fs_metadata),
+            Some(identity.as_ptr() as *const _),
             identity.len() as u32,
-            std::ptr::null(),
-            0,
+            None,
             CF_UPDATE_FLAG_MARK_IN_SYNC,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
+            None,
+            None,
         )
     };
 

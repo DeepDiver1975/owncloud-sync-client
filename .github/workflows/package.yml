@@ -134,11 +134,6 @@ jobs:
   package-windows:
     name: Package Windows (.msi)
     runs-on: windows-latest
-    # vfs-windows does not yet compile against windows 0.52 (pre-existing,
-    # unrelated to packaging). Tracked in issue #49. Disabled on PR/push so it
-    # does not report a red check; still runnable via "Run workflow" to test
-    # progress on the fix. Re-enable (drop this `if`) once #49 lands.
-    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -155,7 +150,9 @@ jobs:
         run: cargo build --release --manifest-path shell-integration/windows/Cargo.toml --workspace
 
       - name: Install WiX 4
-        run: dotnet tool install --global wix
+        # Pin to 4.x: the .wxs uses the v4 schema, and WiX v6/v7 added a
+        # mandatory OSMF EULA gate (error WIX7015) that breaks unattended CI.
+        run: dotnet tool install --global wix --version 4.0.6
 
       - name: Refresh PATH for WiX
         run: echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -164,8 +161,11 @@ jobs:
         run: |
           $sha7 = "${{ github.sha }}".Substring(0, 7)
           # TODO: sign with signtool.exe /f cert.pfx /p $env:CERT_PASSWORD owncloud-setup-$sha7.msi
+          # Main workspace binaries (ocsync, ocsyncd) and the shell-integration
+          # DLLs live in two separate cargo workspaces with separate target dirs.
           wix build packaging/windows/owncloud.wxs `
             -d "BinDir=target/release" `
+            -d "ShellBinDir=shell-integration/windows/target/release" `
             -o "owncloud-setup-$sha7.msi"
 
       - uses: actions/upload-artifact@v4

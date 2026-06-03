@@ -11,13 +11,18 @@ use crate::callback::{
     register_hydration_callback, unregister_hydration_callback, HydrationCallbackContext,
     HydrationRequest,
 };
-use crate::error::VfsWindowsError;
 use crate::hydration;
 use crate::pin;
 use crate::placeholder;
 use crate::registration::{register_sync_root, unregister_sync_root};
 
 use windows::Win32::Storage::CloudFilters::CF_CONNECTION_KEY;
+
+/// Provider name registered with the CfAPI sync root.
+const PROVIDER_NAME: &str = "ownCloud";
+
+/// Capacity of the internal hydration-request channel.
+const HYDRATION_CHANNEL_CAPACITY: usize = 64;
 
 /// A VFS implementation backed by the Windows CloudFiles API.
 ///
@@ -27,36 +32,36 @@ use windows::Win32::Storage::CloudFilters::CF_CONNECTION_KEY;
 pub struct VfsWindows {
     root: Utf8PathBuf,
     callback_key: CF_CONNECTION_KEY,
+    /// Receiver for hydration requests produced by the CfAPI callback. Held so
+    /// the channel stays open for the lifetime of the sync root; servicing it
+    /// (forwarding requests to the sync engine) is not yet wired up.
     #[allow(dead_code)]
-    hydration_tx: mpsc::Sender<HydrationRequest>,
+    hydration_rx: mpsc::Receiver<HydrationRequest>,
 }
 
 impl VfsWindows {
     /// Create a new `VfsWindows` for `root`.
     ///
-    /// Calls `CfRegisterSyncRoot` then `CfConnectSyncRoot`. Any hydration
-    /// requests from Windows will be forwarded to `hydration_tx`.
+    /// Calls `CfRegisterSyncRoot` then `CfConnectSyncRoot`. Hydration requests
+    /// from Windows are forwarded onto an internal channel whose receiver is
+    /// retained by the returned `VfsWindows`.
     ///
     /// # Errors
     ///
     /// Returns [`VfsError`] if either CfAPI call fails.
-    pub fn new(
-        root: Utf8PathBuf,
-        provider_name: &str,
-        hydration_tx: mpsc::Sender<HydrationRequest>,
-    ) -> Result<Self, VfsError> {
-        register_sync_root(&root, provider_name, "1.0.0").map_err(VfsError::from)?;
+    pub fn new(root: Utf8PathBuf) -> Result<Self, VfsError> {
+        register_sync_root(&root, PROVIDER_NAME, "1.0.0").map_err(VfsError::from)?;
 
-        let ctx = Arc::new(HydrationCallbackContext {
-            tx: hydration_tx.clone(),
-        });
+        let (hydration_tx, hydration_rx) = mpsc::channel(HYDRATION_CHANNEL_CAPACITY);
+
+        let ctx = Arc::new(HydrationCallbackContext { tx: hydration_tx });
 
         let callback_key = register_hydration_callback(&root, ctx).map_err(VfsError::from)?;
 
         Ok(Self {
             root,
             callback_key,
-            hydration_tx,
+            hydration_rx,
         })
     }
 }

@@ -11,9 +11,9 @@ mod registration;
 mod win_impl {
     use std::sync::atomic::{AtomicI32, Ordering};
     use std::sync::Mutex;
-    use windows::core::{implement, IUnknown, GUID, HRESULT, PCWSTR, PSTR, PWSTR};
+    use windows::core::{implement, ComInterface, IUnknown, GUID, HRESULT, PCWSTR, PSTR};
     use windows::Win32::Foundation::{
-        CLASS_E_NOAGGREGATION, E_FAIL, E_POINTER, HINSTANCE, S_FALSE, S_OK,
+        CLASS_E_NOAGGREGATION, E_FAIL, E_POINTER, HINSTANCE, LPARAM, LRESULT, S_FALSE, S_OK, WPARAM,
     };
     use windows::Win32::System::Com::{IClassFactory, IClassFactory_Impl, IDataObject};
     use windows::Win32::System::Ole::CF_HDROP;
@@ -24,8 +24,8 @@ mod win_impl {
         CMINVOKECOMMANDINFO,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        AppendMenuW, CreatePopupMenu, DestroyMenu, InsertMenuW, HMENU, MF_BYPOSITION,
-        MF_GRAYED, MF_POPUP, MF_SEPARATOR, MF_STRING,
+        AppendMenuW, CreatePopupMenu, DestroyMenu, InsertMenuW, HMENU, MF_BYPOSITION, MF_GRAYED,
+        MF_POPUP, MF_SEPARATOR, MF_STRING,
     };
 
     use super::menu_builder::{parse_menu_items, MenuItemDef};
@@ -74,7 +74,11 @@ mod win_impl {
 
     #[no_mangle]
     pub extern "system" fn DllCanUnloadNow() -> HRESULT {
-        if DLL_REF_COUNT.load(Ordering::SeqCst) == 0 { S_OK } else { S_FALSE }
+        if DLL_REF_COUNT.load(Ordering::SeqCst) == 0 {
+            S_OK
+        } else {
+            S_FALSE
+        }
     }
 
     #[no_mangle]
@@ -123,10 +127,7 @@ mod win_impl {
             unsafe { handler.query(iid, ppv).ok() }
         }
 
-        fn LockServer(
-            &self,
-            lock: windows::Win32::Foundation::BOOL,
-        ) -> windows::core::Result<()> {
+        fn LockServer(&self, lock: windows::Win32::Foundation::BOOL) -> windows::core::Result<()> {
             if lock.as_bool() {
                 DLL_REF_COUNT.fetch_add(1, Ordering::SeqCst);
             } else {
@@ -161,7 +162,7 @@ mod win_impl {
     impl IShellExtInit_Impl for OcContextMenu {
         fn Initialize(
             &self,
-            _pidlfolder: *mut windows::Win32::UI::Shell::Common::ITEMIDLIST,
+            _pidlfolder: *const windows::Win32::UI::Shell::Common::ITEMIDLIST,
             pdataobj: Option<&IDataObject>,
             _hkeyprogid: HKEY,
         ) -> windows::core::Result<()> {
@@ -174,8 +175,9 @@ mod win_impl {
                 tymed: windows::Win32::System::Com::TYMED_HGLOBAL.0 as u32,
             };
             let medium = unsafe { data_obj.GetData(&format_etc)? };
-            let hdrop =
-                windows::Win32::UI::Shell::HDROP(medium.Anonymous.hGlobal.0 as isize);
+            // SAFETY: tymed was requested as TYMED_HGLOBAL, so the hGlobal union
+            // arm is the valid one to read.
+            let hdrop = unsafe { windows::Win32::UI::Shell::HDROP(medium.u.hGlobal.0 as isize) };
             let count = unsafe { DragQueryFileW(hdrop, 0xFFFF_FFFF, None) };
 
             let mut paths: Vec<String> = Vec::with_capacity(count as usize);
@@ -187,9 +189,7 @@ mod win_impl {
             }
 
             unsafe {
-                windows::Win32::System::Com::ReleaseStgMedium(
-                    &medium as *const _ as *mut _,
-                );
+                windows::Win32::System::Ole::ReleaseStgMedium(&medium as *const _ as *mut _);
             }
 
             let menu_items = if let Some(first_path) = paths.first() {
@@ -224,9 +224,16 @@ mod win_impl {
             }
             let submenu = unsafe { CreatePopupMenu()? };
             for (i, item) in items.iter().enumerate() {
-                let label_wide: Vec<u16> =
-                    item.label.encode_utf16().chain(std::iter::once(0)).collect();
-                let flags = if item.enabled { MF_STRING } else { MF_STRING | MF_GRAYED };
+                let label_wide: Vec<u16> = item
+                    .label
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+                let flags = if item.enabled {
+                    MF_STRING
+                } else {
+                    MF_STRING | MF_GRAYED
+                };
                 let ok = unsafe {
                     AppendMenuW(
                         submenu,
@@ -236,7 +243,9 @@ mod win_impl {
                     )
                 };
                 if ok.is_err() {
-                    unsafe { let _ = DestroyMenu(submenu); }
+                    unsafe {
+                        let _ = DestroyMenu(submenu);
+                    }
                     return Err(E_FAIL.into());
                 }
             }
@@ -249,8 +258,10 @@ mod win_impl {
                     0,
                     PCWSTR(sep_label.as_ptr()),
                 )?;
-                let submenu_label: Vec<u16> =
-                    "ownCloud".encode_utf16().chain(std::iter::once(0)).collect();
+                let submenu_label: Vec<u16> = "ownCloud"
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
                 InsertMenuW(
                     hmenu,
                     indexmenu + 1,
@@ -275,7 +286,11 @@ mod win_impl {
             let items = self.menu_items.lock().unwrap();
             let item = items.get(idcmd).ok_or(E_FAIL)?;
             if utype == GCS_VERBW || utype == GCS_HELPTEXTW {
-                let text = if utype == GCS_VERBW { &item.command } else { &item.label };
+                let text = if utype == GCS_VERBW {
+                    &item.command
+                } else {
+                    &item.label
+                };
                 let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
                 let len = wide.len().min(cchmax as usize);
                 unsafe {
@@ -285,10 +300,7 @@ mod win_impl {
             Ok(())
         }
 
-        fn InvokeCommand(
-            &self,
-            pici: *const CMINVOKECOMMANDINFO,
-        ) -> windows::core::Result<()> {
+        fn InvokeCommand(&self, pici: *const CMINVOKECOMMANDINFO) -> windows::core::Result<()> {
             if pici.is_null() {
                 return Err(E_POINTER.into());
             }
@@ -316,8 +328,8 @@ mod win_impl {
         fn HandleMenuMsg(
             &self,
             _umsg: u32,
-            _wparam: usize,
-            _lparam: isize,
+            _wparam: WPARAM,
+            _lparam: LPARAM,
         ) -> windows::core::Result<()> {
             Ok(())
         }
@@ -327,9 +339,9 @@ mod win_impl {
         fn HandleMenuMsg2(
             &self,
             _umsg: u32,
-            _wparam: usize,
-            _lparam: isize,
-            _plresult: *mut isize,
+            _wparam: WPARAM,
+            _lparam: LPARAM,
+            _plresult: *mut LRESULT,
         ) -> windows::core::Result<()> {
             Ok(())
         }

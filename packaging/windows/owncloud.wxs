@@ -72,31 +72,21 @@
         <File Id="ocsyncd_exe" Source="$(var.BinDir)\ocsyncd.exe" KeyPath="yes" />
       </Component>
 
-      <!-- Overlay COM DLL -->
+      <!-- Overlay COM DLL. COM registration (ShellIconOverlayIdentifiers etc.)
+           is performed by the DLL's own DllRegisterServer, not authored here. -->
       <Component Id="oc_overlay_dll" Guid="*">
-        <File Id="oc_overlay_dll" Source="$(var.BinDir)\oc_overlay.dll" KeyPath="yes" />
-        <!-- COM CLSID is a placeholder — replace with real CLSID from oc-overlay source -->
-        <Class
-          Id="A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
-          Context="InprocServer32"
-          Description="ownCloud Overlay Handler"
-          ThreadingModel="apartment" />
+        <File Id="oc_overlay_dll" Source="$(var.ShellBinDir)\oc_overlay.dll" KeyPath="yes" />
       </Component>
 
-      <!-- Context menu COM DLL -->
+      <!-- Context menu COM DLL. COM registration (ContextMenuHandlers etc.) is
+           performed by the DLL's own DllRegisterServer, not authored here. -->
       <Component Id="oc_contextmenu_dll" Guid="*">
-        <File Id="oc_contextmenu_dll" Source="$(var.BinDir)\oc_contextmenu.dll" KeyPath="yes" />
-        <!-- COM CLSID is a placeholder — replace with real CLSID from oc-contextmenu source -->
-        <Class
-          Id="B2C3D4E5-F6A7-8901-BCDE-F12345678901"
-          Context="InprocServer32"
-          Description="ownCloud Context Menu Handler"
-          ThreadingModel="apartment" />
+        <File Id="oc_contextmenu_dll" Source="$(var.ShellBinDir)\oc_contextmenu.dll" KeyPath="yes" />
       </Component>
 
       <!-- IPC helper DLL -->
       <Component Id="oc_ipc_dll" Guid="*">
-        <File Id="oc_ipc_dll" Source="$(var.BinDir)\oc_ipc.dll" KeyPath="yes" />
+        <File Id="oc_ipc_dll" Source="$(var.ShellBinDir)\oc_ipc.dll" KeyPath="yes" />
       </Component>
 
     </ComponentGroup>

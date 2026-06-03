@@ -22,7 +22,8 @@ pub fn create_vfs(mode: &str, root: &Utf8Path) -> Result<Arc<dyn Vfs>, DaemonErr
             #[cfg(target_os = "windows")]
             {
                 use vfs_windows::VfsWindows;
-                let vfs = VfsWindows::new(root).map_err(|e| DaemonError::VfsInit(e.to_string()))?;
+                let vfs = VfsWindows::new(root.into())
+                    .map_err(|e| DaemonError::VfsInit(e.to_string()))?;
                 Ok(Arc::new(vfs))
             }
             #[cfg(not(target_os = "windows"))]

@@ -24,7 +24,7 @@ mod tests {
 
     #[test]
     fn io_error_converts_to_vfs_io() {
-        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "test");
+        let io_err = std::io::Error::other("test");
         let err = VfsWindowsError::Io(io_err);
         let vfs_err: VfsError = err.into();
         assert!(matches!(vfs_err, VfsError::Io(_)));
