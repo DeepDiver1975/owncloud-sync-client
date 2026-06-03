@@ -8,15 +8,14 @@
 //! No elevation is required because we write to HKCU.
 
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::ERROR_SUCCESS;
 use windows::Win32::System::Registry::{
     RegCloseKey, RegCreateKeyExW, RegDeleteKeyW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
     KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ,
 };
 
 use crate::{
-    CLSID_OC_OVERLAY_ERROR, CLSID_OC_OVERLAY_EXCLUDED, CLSID_OC_OVERLAY_OK,
-    CLSID_OC_OVERLAY_SYNC, CLSID_OC_OVERLAY_WARNING,
+    CLSID_OC_OVERLAY_ERROR, CLSID_OC_OVERLAY_EXCLUDED, CLSID_OC_OVERLAY_OK, CLSID_OC_OVERLAY_SYNC,
+    CLSID_OC_OVERLAY_WARNING,
 };
 use windows::core::GUID;
 
@@ -45,7 +44,7 @@ fn write_reg_key(subkey: &str, value: &str) -> Result<(), windows::core::Error> 
     let mut hkey = HKEY::default();
 
     // SAFETY: `full_path` is a valid null-terminated UTF-16 string.
-    let result = unsafe {
+    unsafe {
         RegCreateKeyExW(
             HKEY_CURRENT_USER,
             PCWSTR(full_path.as_ptr()),
@@ -57,10 +56,7 @@ fn write_reg_key(subkey: &str, value: &str) -> Result<(), windows::core::Error> 
             &mut hkey,
             None,
         )
-    };
-    if result != ERROR_SUCCESS {
-        return Err(windows::core::Error::from_win32());
-    }
+    }?;
 
     let value_wide: Vec<u8> = value
         .encode_utf16()
@@ -69,16 +65,14 @@ fn write_reg_key(subkey: &str, value: &str) -> Result<(), windows::core::Error> 
         .collect();
 
     // SAFETY: `hkey` is a valid open registry key.
-    let result2 =
-        unsafe { RegSetValueExW(hkey, PCWSTR::null(), 0, REG_SZ, Some(&value_wide)) };
+    let result2 = unsafe { RegSetValueExW(hkey, PCWSTR::null(), 0, REG_SZ, Some(&value_wide)) };
 
     // SAFETY: Must close to release the OS handle.
-    unsafe { RegCloseKey(hkey) };
-
-    if result2 != ERROR_SUCCESS {
-        return Err(windows::core::Error::from_win32());
+    unsafe {
+        let _ = RegCloseKey(hkey);
     }
-    Ok(())
+
+    result2
 }
 
 pub fn register() -> Result<(), windows::core::Error> {

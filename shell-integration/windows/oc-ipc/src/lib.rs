@@ -24,15 +24,14 @@ pub enum IpcError {
 #[cfg(windows)]
 mod win_impl {
     use super::IpcError;
+    use windows::core::PCWSTR;
     use windows::Win32::Foundation::{
         CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE,
     };
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, ReadFile, FILE_FLAG_OVERLAPPED, FILE_SHARE_NONE, OPEN_EXISTING,
+        CreateFileW, ReadFile, WriteFile, FILE_FLAG_OVERLAPPED, FILE_SHARE_NONE, OPEN_EXISTING,
     };
-    use windows::Win32::System::IO::WriteFile;
     use windows::Win32::System::Pipes::{SetNamedPipeHandleState, PIPE_READMODE_MESSAGE};
-    use windows::core::PCWSTR;
 
     /// A synchronous named pipe connection to the ocsyncd daemon.
     pub struct PipeConnection {
@@ -46,8 +45,10 @@ mod win_impl {
         pub fn connect() -> Result<Self, IpcError> {
             let username = std::env::var("USERNAME").map_err(|_| IpcError::NoUsername)?;
             let pipe_name = format!(r"\\.\pipe\ownCloud-{}", username);
-            let pipe_name_wide: Vec<u16> =
-                pipe_name.encode_utf16().chain(std::iter::once(0u16)).collect();
+            let pipe_name_wide: Vec<u16> = pipe_name
+                .encode_utf16()
+                .chain(std::iter::once(0u16))
+                .collect();
 
             // SAFETY: `pipe_name_wide` is a valid null-terminated wide string.
             let handle = unsafe {
@@ -69,10 +70,10 @@ mod win_impl {
                 ));
             }
 
-            let mut mode = PIPE_READMODE_MESSAGE;
-            // SAFETY: `handle` is valid; `mode` is a local u32.
+            let mode = PIPE_READMODE_MESSAGE;
+            // SAFETY: `handle` is valid; `mode` is a local NAMED_PIPE_MODE.
             unsafe {
-                SetNamedPipeHandleState(handle, Some(&mut mode), None, None)
+                SetNamedPipeHandleState(handle, Some(&mode), None, None)
                     .map_err(|e| IpcError::Connect(e.to_string()))?;
             }
 
@@ -86,26 +87,16 @@ mod win_impl {
 
             // SAFETY: `self.handle` is valid for the lifetime of `self`.
             unsafe {
-                WriteFile(
-                    self.handle,
-                    Some(&payload),
-                    Some(&mut bytes_written),
-                    None,
-                )
-                .map_err(|e| IpcError::Write(e.to_string()))?;
+                WriteFile(self.handle, Some(&payload), Some(&mut bytes_written), None)
+                    .map_err(|e| IpcError::Write(e.to_string()))?;
             }
 
             let mut buf = [0u8; 4096];
             let mut bytes_read: u32 = 0;
             // SAFETY: `self.handle` is valid; `buf` is a 4096-byte local array.
             unsafe {
-                ReadFile(
-                    self.handle,
-                    Some(&mut buf),
-                    Some(&mut bytes_read),
-                    None,
-                )
-                .map_err(|e| IpcError::Read(e.to_string()))?;
+                ReadFile(self.handle, Some(&mut buf), Some(&mut bytes_read), None)
+                    .map_err(|e| IpcError::Read(e.to_string()))?;
             }
 
             let raw = &buf[..bytes_read as usize];
