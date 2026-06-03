@@ -10,7 +10,7 @@ name = "ocsync"
 path = "src/main.rs"
 
 [dependencies]
-iced = { version = "0.13", features = ["tokio", "svg"] }
+iced = { version = "0.14", features = ["tokio", "svg"] }
 rfd = "0.15"
 rust-i18n = "4"
 sys-locale = "0.3"

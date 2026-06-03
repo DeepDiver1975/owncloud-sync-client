@@ -116,30 +116,34 @@ mod inner {
             use iced::Subscription;
             use tray_icon::menu::MenuEvent;
 
-            Subscription::run_with_id(
-                "tray-menu-events",
-                stream::channel(8, |mut tx| async move {
-                    loop {
-                        // MenuEvent::receiver() is a crossbeam Receiver; we can't .await it,
-                        // so we poll at 50 ms intervals to stay async-friendly.
-                        match MenuEvent::receiver().try_recv() {
-                            Ok(event) => {
-                                let msg = if event.id == tray_icon::menu::MenuId::new("quit") {
-                                    super::Message::Quit
-                                } else if event.id == tray_icon::menu::MenuId::new("about") {
-                                    super::Message::ShowAbout
-                                } else {
-                                    super::Message::ToggleWindow
-                                };
-                                let _ = tx.send(msg).await;
-                            }
-                            Err(_) => {
-                                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            // `run` identifies the subscription by the type of the stream builder
+            // (a unique `fn` item here), replacing the explicit id used in 0.13.
+            Subscription::run(|| {
+                stream::channel(
+                    8,
+                    |mut tx: iced::futures::channel::mpsc::Sender<super::Message>| async move {
+                        loop {
+                            // MenuEvent::receiver() is a crossbeam Receiver; we can't .await it,
+                            // so we poll at 50 ms intervals to stay async-friendly.
+                            match MenuEvent::receiver().try_recv() {
+                                Ok(event) => {
+                                    let msg = if event.id == tray_icon::menu::MenuId::new("quit") {
+                                        super::Message::Quit
+                                    } else if event.id == tray_icon::menu::MenuId::new("about") {
+                                        super::Message::ShowAbout
+                                    } else {
+                                        super::Message::ToggleWindow
+                                    };
+                                    let _ = tx.send(msg).await;
+                                }
+                                Err(_) => {
+                                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                                }
                             }
                         }
-                    }
-                }),
-            )
+                    },
+                )
+            })
         }
     }
 

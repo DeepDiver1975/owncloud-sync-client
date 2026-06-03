@@ -9,8 +9,8 @@ use crate::app::Message;
 use crate::model::View;
 use crate::theme::{self, t_text};
 
-pub static URL_INPUT_ID: std::sync::LazyLock<text_input::Id> =
-    std::sync::LazyLock::new(text_input::Id::unique);
+pub static URL_INPUT_ID: std::sync::LazyLock<iced::widget::Id> =
+    std::sync::LazyLock::new(iced::widget::Id::unique);
 
 pub fn add_account_view<'a>(url_input: &'a str, error: Option<&'a str>) -> Element<'a, Message> {
     let heading = t_text(t!("add_account_heading"))

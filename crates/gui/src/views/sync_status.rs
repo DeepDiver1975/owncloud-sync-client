@@ -84,14 +84,15 @@ fn account_led_color(account: &AccountView) -> iced::Color {
 
 fn account_section(account: &AccountView) -> Element<'_, Message> {
     let led_color = account_led_color(account);
-    let led = container(Space::new(7, 7)).style(move |_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(led_color)),
-        border: iced::Border {
-            radius: 4.0.into(),
+    let led =
+        container(Space::new().width(7).height(7)).style(move |_| iced::widget::container::Style {
+            background: Some(iced::Background::Color(led_color)),
+            border: iced::Border {
+                radius: 4.0.into(),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        });
 
     let name = text(&account.display_name)
         .size(13)
@@ -113,7 +114,7 @@ fn account_section(account: &AccountView) -> Element<'_, Message> {
         row![
             led,
             column![name, url].spacing(1),
-            Space::with_width(Length::Fill),
+            Space::new().width(Length::Fill),
             settings_btn
         ]
         .spacing(8)
@@ -144,14 +145,15 @@ fn account_section(account: &AccountView) -> Element<'_, Message> {
 
 fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Element<'_, Message> {
     let color = status_color(&folder.status);
-    let led = container(Space::new(6, 6)).style(move |_| iced::widget::container::Style {
-        background: Some(iced::Background::Color(color)),
-        border: iced::Border {
-            radius: 3.0.into(),
+    let led =
+        container(Space::new().width(6).height(6)).style(move |_| iced::widget::container::Style {
+            background: Some(iced::Background::Color(color)),
+            border: iced::Border {
+                radius: 3.0.into(),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        });
 
     let name = text(&folder.display_name)
         .size(12)
@@ -223,20 +225,20 @@ fn folder_row(folder: &crate::model::FolderView, account_id: uuid::Uuid) -> Elem
         } else {
             0.0
         };
-        progress_bar(0.0..=100.0, pct).height(3).into()
+        progress_bar(0.0..=100.0, pct).girth(3).into()
     } else {
-        Space::new(0, 0).into()
+        Space::new().into()
     };
 
     let right = column![
-        row![progress, Space::with_width(Length::Fill)].spacing(0),
+        row![progress, Space::new().width(Length::Fill)].spacing(0),
         row![open_btn, badge].spacing(6).align_y(Alignment::Center),
     ]
     .spacing(4)
     .align_x(Alignment::End);
 
     container(
-        row![led, info, Space::with_width(Length::Fill), right]
+        row![led, info, Space::new().width(Length::Fill), right]
             .spacing(10)
             .align_y(Alignment::Center)
             .padding([10, 14]),

@@ -36,7 +36,8 @@ pub fn pick_spaces_view<'a>(
                 _ => "Space",
             }
         );
-        let cb = checkbox(label, is_checked)
+        let cb = checkbox(is_checked)
+            .label(label)
             .on_toggle(move |checked| Message::ToggleSpaceSelection {
                 account_id,
                 space_id: space_id.clone(),
