@@ -69,6 +69,8 @@ account_not_found: "Account not found"
 tray_open: "Open"
 tray_about: "About"
 tray_quit: "Quit"
+tray_daemon_running: "Daemon running"
+tray_daemon_stopped: "Daemon stopped"
 
 # nav
 nav_sync_status: "Sync Status"

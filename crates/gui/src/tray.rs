@@ -1,13 +1,30 @@
 use crate::app::Message;
 
+/// Fully-resolved labels for a tray menu rebuild.
+///
+/// All strings are already localized (and, for `daemon_status`, already carry
+/// the running/stopped marker) so the GTK thread can build the menu without
+/// touching i18n state.
+#[derive(Debug, Clone)]
+pub struct TrayState {
+    /// Whether the daemon is currently running. Drives whether the status item
+    /// is disabled (running = informational) or enabled (stopped = clickable).
+    pub daemon_running: bool,
+    /// Label for the daemon-status item, including its marker prefix.
+    pub daemon_status: String,
+    pub open: String,
+    pub about: String,
+    pub quit: String,
+}
+
 // The tray-icon backend on Linux is driven by a GTK event loop, so the real
 // implementation depends on the `gtk` crate (Linux-only). macOS/Windows have
 // no gtk crate available, so they fall back to the no-op stub below.
 #[cfg(all(feature = "tray-icon", target_os = "linux"))]
 mod inner {
-    use rust_i18n::t;
+    use super::TrayState;
     use tray_icon::{
-        menu::{Menu, MenuId, MenuItem},
+        menu::{Menu, MenuId, MenuItem, PredefinedMenuItem},
         Icon, TrayIconBuilder,
     };
 
@@ -23,24 +40,62 @@ mod inner {
         Ok(Icon::from_rgba(rgba.to_vec(), info.width, info.height)?)
     }
 
-    fn build_menu(open: &str, about: &str, quit: &str) -> anyhow::Result<Menu> {
-        let menu = Menu::new();
-        menu.append(&MenuItem::with_id(MenuId::new("open"), open, true, None))?;
-        menu.append(&MenuItem::with_id(MenuId::new("about"), about, true, None))?;
-        menu.append(&MenuItem::with_id(MenuId::new("quit"), quit, true, None))?;
-        Ok(menu)
+    /// Handles to the mutable menu items, kept so the menu can be updated in
+    /// place rather than rebuilt. Rebuilding (via `set_menu`) causes the tray
+    /// menu to fully repaint and flicker; `set_text`/`set_enabled` on the live
+    /// items does not.
+    struct MenuItems {
+        daemon_status: MenuItem,
+        open: MenuItem,
+        about: MenuItem,
+        quit: MenuItem,
     }
 
-    /// Message sent from the iced thread to the GTK thread to rebuild the tray menu.
-    struct RebuildRequest {
-        open: String,
-        about: String,
-        quit: String,
+    impl MenuItems {
+        /// Apply a new state to the existing items in place.
+        fn apply(&self, state: &TrayState) {
+            self.daemon_status.set_text(&state.daemon_status);
+            // Disabled (informational) when running; enabled (clickable to
+            // start) when stopped.
+            self.daemon_status.set_enabled(!state.daemon_running);
+            self.open.set_text(&state.open);
+            self.about.set_text(&state.about);
+            self.quit.set_text(&state.quit);
+        }
+    }
+
+    fn build_menu(state: &TrayState) -> anyhow::Result<(Menu, MenuItems)> {
+        let menu = Menu::new();
+        let daemon_status = MenuItem::with_id(
+            MenuId::new("daemon_status"),
+            &state.daemon_status,
+            !state.daemon_running,
+            None,
+        );
+        let open = MenuItem::with_id(MenuId::new("open"), &state.open, true, None);
+        let about = MenuItem::with_id(MenuId::new("about"), &state.about, true, None);
+        let quit = MenuItem::with_id(MenuId::new("quit"), &state.quit, true, None);
+
+        menu.append(&daemon_status)?;
+        menu.append(&PredefinedMenuItem::separator())?;
+        menu.append(&open)?;
+        menu.append(&about)?;
+        menu.append(&quit)?;
+
+        Ok((
+            menu,
+            MenuItems {
+                daemon_status,
+                open,
+                about,
+                quit,
+            },
+        ))
     }
 
     pub struct TrayHandle {
         _gtk_thread: std::thread::JoinHandle<()>,
-        menu_tx: std::sync::mpsc::SyncSender<RebuildRequest>,
+        menu_tx: std::sync::mpsc::SyncSender<TrayState>,
     }
 
     impl TrayHandle {
@@ -50,7 +105,13 @@ mod inner {
             // tray-icon on Linux requires gtk::init() and a running GTK event loop.
             // We start a dedicated thread that owns all GTK objects; iced never touches GTK.
             let (ready_tx, ready_rx) = std::sync::mpsc::channel::<anyhow::Result<()>>();
-            let (menu_tx, menu_rx) = std::sync::mpsc::sync_channel::<RebuildRequest>(1);
+            let (menu_tx, menu_rx) = std::sync::mpsc::sync_channel::<TrayState>(1);
+
+            // The daemon has not connected yet at startup, so the initial menu
+            // shows the stopped state. main.rs rebuilds it once connection state
+            // is known. We resolve the labels here on the iced thread (where the
+            // i18n locale lives) and hand the GTK thread fully-built strings.
+            let initial = super::tray_state(false);
 
             let gtk_thread = std::thread::spawn(move || {
                 if let Err(e) = gtk::init() {
@@ -58,28 +119,30 @@ mod inner {
                     return;
                 }
 
-                let build_result = (|| -> anyhow::Result<tray_icon::TrayIcon> {
-                    let menu = build_menu(&t!("tray_open"), &t!("tray_about"), &t!("tray_quit"))?;
-                    Ok(TrayIconBuilder::new()
+                let build_result = (|| -> anyhow::Result<(tray_icon::TrayIcon, MenuItems)> {
+                    let (menu, items) = build_menu(&initial)?;
+                    let icon_handle = TrayIconBuilder::new()
                         .with_icon(icon)
                         .with_menu(Box::new(menu))
                         .with_tooltip("ownCloud Sync")
-                        .build()?)
+                        .build()?;
+                    Ok((icon_handle, items))
                 })();
 
                 match build_result {
-                    Ok(icon_handle) => {
+                    Ok((icon_handle, items)) => {
                         let _ = ready_tx.send(Ok(()));
-                        // Poll for menu rebuild requests while the GTK main loop runs.
-                        // We use an idle callback that drains the channel each time it fires.
+                        // Poll for state updates while the GTK main loop runs and
+                        // apply them to the existing menu items in place. The
+                        // TrayIcon handle is kept alive (moved in) for the loop's
+                        // lifetime; we never rebuild the menu, so no flicker.
+                        let _icon_handle = icon_handle;
                         let menu_rx = std::cell::RefCell::new(menu_rx);
                         gtk::glib::timeout_add_local(
                             std::time::Duration::from_millis(100),
                             move || {
-                                while let Ok(req) = menu_rx.borrow().try_recv() {
-                                    if let Ok(menu) = build_menu(&req.open, &req.about, &req.quit) {
-                                        icon_handle.set_menu(Some(Box::new(menu)));
-                                    }
+                                while let Ok(state) = menu_rx.borrow().try_recv() {
+                                    items.apply(&state);
                                 }
                                 gtk::glib::ControlFlow::Continue
                             },
@@ -102,12 +165,8 @@ mod inner {
             })
         }
 
-        pub fn rebuild_menu(&self, open: &str, about: &str, quit: &str) {
-            let _ = self.menu_tx.try_send(RebuildRequest {
-                open: open.to_owned(),
-                about: about.to_owned(),
-                quit: quit.to_owned(),
-            });
+        pub fn rebuild_menu(&self, state: TrayState) {
+            let _ = self.menu_tx.try_send(state);
         }
 
         pub fn tray_events(&self) -> iced::Subscription<super::Message> {
@@ -131,6 +190,12 @@ mod inner {
                                         super::Message::Quit
                                     } else if event.id == tray_icon::menu::MenuId::new("about") {
                                         super::Message::ShowAbout
+                                    } else if event.id
+                                        == tray_icon::menu::MenuId::new("daemon_status")
+                                    {
+                                        // Only fires when stopped; the item is disabled (no
+                                        // event) while the daemon is running.
+                                        super::Message::StartDaemon
                                     } else {
                                         super::Message::ToggleWindow
                                     };
@@ -157,6 +222,8 @@ mod inner {
 
 #[cfg(not(all(feature = "tray-icon", target_os = "linux")))]
 mod inner {
+    use super::TrayState;
+
     pub struct TrayHandle;
 
     impl TrayHandle {
@@ -164,7 +231,7 @@ mod inner {
             Ok(Self)
         }
 
-        pub fn rebuild_menu(&self, _open: &str, _about: &str, _quit: &str) {}
+        pub fn rebuild_menu(&self, _state: TrayState) {}
 
         pub fn tray_events(&self) -> iced::Subscription<super::Message> {
             iced::Subscription::none()
@@ -173,6 +240,25 @@ mod inner {
 }
 
 pub use inner::TrayHandle;
+
+/// Build a [`TrayState`] for the given daemon-running flag, resolving labels
+/// against the current i18n locale. Shared by the initial tray build and the
+/// runtime rebuilds driven from `app`/`main`.
+pub fn tray_state(daemon_running: bool) -> TrayState {
+    use rust_i18n::t;
+    let (marker, status_key) = if daemon_running {
+        ("●", "tray_daemon_running")
+    } else {
+        ("○", "tray_daemon_stopped")
+    };
+    TrayState {
+        daemon_running,
+        daemon_status: format!("{marker} {}", t!(status_key)),
+        open: t!("tray_open").to_string(),
+        about: t!("tray_about").to_string(),
+        quit: t!("tray_quit").to_string(),
+    }
+}
 
 // iced requires App (and all its fields) to implement Clone + Debug.
 // TrayHandle wraps a non-Clone OS resource; we never actually clone App

@@ -69,6 +69,8 @@ account_not_found: "Compte introuvable"
 tray_open: "Ouvrir"
 tray_about: "À propos"
 tray_quit: "Quitter"
+tray_daemon_running: "Service en cours d'exécution"
+tray_daemon_stopped: "Service arrêté"
 
 # nav
 nav_sync_status: "État de synchronisation"

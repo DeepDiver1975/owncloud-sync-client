@@ -20,6 +20,11 @@ pub struct App {
     pub active_view: View,
     pub tray: Option<TrayHandle>,
     pub window_visible: bool,
+    pub daemon_running: bool,
+    /// True while a spawn+connect attempt is in flight (auto-reconnect after a
+    /// disconnect, or a user-triggered start). Guards against launching a second
+    /// concurrent connection — see `IcedApp::update`.
+    pub daemon_connecting: bool,
     pub language: crate::model::Language,
     pub gui_config_path: PathBuf,
 }
@@ -32,6 +37,8 @@ impl Default for App {
             active_view: View::SyncStatus,
             tray: None,
             window_visible: true,
+            daemon_running: false,
+            daemon_connecting: false,
             language: crate::model::Language::En,
             gui_config_path: PathBuf::new(),
         }
@@ -82,11 +89,22 @@ pub enum Message {
     OpenFolder(String),
     Quit,
     ShowAbout,
+    StartDaemon,
     OpenUrl(String),
     DaemonConnected(Option<(DaemonConnection, EventRxCarrier)>),
     LanguageChanged(crate::model::Language),
     #[cfg(target_os = "macos")]
     ApplyAppIcon,
+}
+
+/// Rebuild the tray menu to reflect the current daemon-running state.
+///
+/// No-op when there is no tray handle. Called whenever `daemon_running` changes
+/// or the language changes, so the status item label stays in sync.
+pub fn sync_tray(app: &App) {
+    if let Some(tray) = &app.tray {
+        tray.rebuild_menu(crate::tray::tray_state(app.daemon_running));
+    }
 }
 
 pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
@@ -317,11 +335,9 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
 
         Message::LanguageChanged(lang) => {
             rust_i18n::set_locale(lang.as_locale());
-            if let Some(tray) = &app.tray {
-                tray.rebuild_menu(&t!("tray_open"), &t!("tray_about"), &t!("tray_quit"));
-            }
-            let path = app.gui_config_path.clone();
             app.language = lang.clone();
+            sync_tray(app);
+            let path = app.gui_config_path.clone();
             let cfg = crate::gui_config::GuiConfig {
                 language: Some(lang),
             };
@@ -337,6 +353,11 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
             app.daemon.send(DaemonCommand::Quit);
             iced::exit()
         }
+
+        // StartDaemon is intercepted in IcedApp::update (it needs the async
+        // spawn+connect task and socket path), so it never reaches here. This
+        // arm only keeps the match exhaustive.
+        Message::StartDaemon => iced::Task::none(),
 
         Message::ShowAbout => {
             app.window_visible = true;
