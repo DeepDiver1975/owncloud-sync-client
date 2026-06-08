@@ -16,7 +16,7 @@ jobs:
     name: Package Linux (.deb)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -39,7 +39,7 @@ jobs:
       - name: Rename .deb for upload
         run: cp target/debian/owncloud-sync_*.deb owncloud.deb
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-deb
           path: owncloud.deb
@@ -49,7 +49,7 @@ jobs:
     name: Package macOS (.pkg)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -110,7 +110,7 @@ jobs:
             --package-path . \
             owncloud.pkg
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-pkg
           path: owncloud.pkg
@@ -120,7 +120,7 @@ jobs:
     name: Package Windows (.msi)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -147,7 +147,7 @@ jobs:
             -d "BinDir=target/release" `
             -o owncloud-setup.msi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-msi
           path: owncloud-setup.msi
@@ -158,9 +158,9 @@ jobs:
     needs: [package-linux, package-macos, package-windows]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
           path: dist/
