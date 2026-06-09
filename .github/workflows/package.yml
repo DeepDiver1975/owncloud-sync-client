@@ -17,7 +17,7 @@ jobs:
     name: Package Linux (.deb)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -49,7 +49,7 @@ jobs:
           BASE=$(basename "$DEB" .deb)
           cp "$DEB" "${BASE}-${SHA7}.deb"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-deb
           path: "*.deb"
@@ -59,7 +59,7 @@ jobs:
     name: Package macOS (.pkg)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -125,7 +125,7 @@ jobs:
             --package-path . \
             "owncloud-${SHA7}.pkg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-pkg
           path: "owncloud-*.pkg"
@@ -135,7 +135,7 @@ jobs:
     name: Package Windows (.msi)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -168,7 +168,7 @@ jobs:
             -d "ShellBinDir=shell-integration/windows/target/release" `
             -o "owncloud-setup-$sha7.msi"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-msi
           path: "*.msi"
