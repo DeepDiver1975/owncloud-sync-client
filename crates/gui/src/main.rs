@@ -118,6 +118,10 @@ fn main() -> iced::Result {
             icon: load_window_icon(),
             ..Default::default()
         })
+        // Don't let iced close the window (and exit the process) on the OS "X".
+        // We intercept the close ourselves and hide the window to the tray, so
+        // the tray keeps running. See `Message::WindowCloseRequested`.
+        .exit_on_close_request(false)
         .subscription(IcedApp::subscription)
         .run()
 }
@@ -461,6 +465,11 @@ impl IcedApp {
             .map(|t| t.tray_events())
             .unwrap_or(Subscription::none());
 
-        Subscription::batch([daemon_sub, tray_sub])
+        // Learn the main window id once it opens, and intercept close requests
+        // (the OS "X") so we can hide to the tray rather than exit.
+        let window_opened = iced::window::open_events().map(Message::WindowOpened);
+        let window_close = iced::window::close_requests().map(Message::WindowCloseRequested);
+
+        Subscription::batch([daemon_sub, tray_sub, window_opened, window_close])
     }
 }

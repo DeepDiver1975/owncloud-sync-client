@@ -46,6 +46,27 @@ fn toggle_window_flips_visibility() {
 }
 
 #[test]
+fn window_opened_stores_id() {
+    let mut app = App::default();
+    assert!(app.window_id.is_none());
+    let id = iced::window::Id::unique();
+    let _ = update(&mut app, Message::WindowOpened(id));
+    assert_eq!(app.window_id, Some(id));
+}
+
+#[test]
+fn window_close_without_tray_keeps_visible_flag() {
+    // No tray (default), so close falls back to exiting the process; it must
+    // not flip `window_visible` to a hidden state (there is no tray to reach).
+    let mut app = App::default();
+    assert!(app.tray.is_none());
+    assert!(app.window_visible);
+    let id = iced::window::Id::unique();
+    let _ = update(&mut app, Message::WindowCloseRequested(id));
+    assert!(app.window_visible);
+}
+
+#[test]
 fn add_account_url_changed_updates_input() {
     let mut app = App {
         active_view: View::AddAccount {

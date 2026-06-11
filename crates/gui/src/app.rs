@@ -20,6 +20,10 @@ pub struct App {
     pub active_view: View,
     pub tray: Option<TrayHandle>,
     pub window_visible: bool,
+    /// Id of the main window, learned from the `WindowOpened` event. Needed to
+    /// hide/show the window in place (rather than closing it, which would exit
+    /// the process). `None` until the window has opened — e.g. in unit tests.
+    pub window_id: Option<iced::window::Id>,
     pub daemon_running: bool,
     /// True while a spawn+connect attempt is in flight (auto-reconnect after a
     /// disconnect, or a user-triggered start). Guards against launching a second
@@ -37,6 +41,7 @@ impl Default for App {
             active_view: View::SyncStatus,
             tray: None,
             window_visible: true,
+            window_id: None,
             daemon_running: false,
             daemon_connecting: false,
             language: crate::model::Language::En,
@@ -51,6 +56,11 @@ pub enum Message {
     DaemonDisconnected,
     NavigateTo(View),
     ToggleWindow,
+    /// The main window has opened; carries its id so we can later hide/show it.
+    WindowOpened(iced::window::Id),
+    /// The user requested to close the main window (e.g. the OS "X" button).
+    /// Hides the window to the tray instead of exiting, when a tray is present.
+    WindowCloseRequested(iced::window::Id),
     AddAccountUrlChanged(String),
     AddAccountSubmit,
     // Space selection (setup wizard)
@@ -107,6 +117,23 @@ pub fn sync_tray(app: &App) {
     }
 }
 
+/// Show or hide the main window in place (without closing it, which would exit
+/// the process). When showing, also raise/focus the window. No-op when the
+/// window id is not yet known (e.g. in unit tests before the window opens).
+fn set_window_visibility(
+    window_id: Option<iced::window::Id>,
+    visible: bool,
+) -> iced::Task<Message> {
+    match window_id {
+        Some(id) if visible => iced::Task::batch([
+            iced::window::set_mode(id, iced::window::Mode::Windowed),
+            iced::window::gain_focus(id),
+        ]),
+        Some(id) => iced::window::set_mode(id, iced::window::Mode::Hidden),
+        None => iced::Task::none(),
+    }
+}
+
 pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
     match message {
         Message::DaemonEvent(event) => handle_daemon_event(app, event),
@@ -123,7 +150,26 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
 
         Message::ToggleWindow => {
             app.window_visible = !app.window_visible;
+            set_window_visibility(app.window_id, app.window_visible)
+        }
+
+        Message::WindowOpened(id) => {
+            app.window_id = Some(id);
             iced::Task::none()
+        }
+
+        Message::WindowCloseRequested(id) => {
+            // Closing the window should not tear down the GUI process (and with
+            // it the in-process tray). Hide the window to the tray instead, so
+            // the tray stays available to reopen it or quit. Without a tray
+            // there would be no way back, so fall back to exiting — the daemon
+            // is a separate process and keeps running regardless.
+            if app.tray.is_some() {
+                app.window_visible = false;
+                iced::window::set_mode(id, iced::window::Mode::Hidden)
+            } else {
+                iced::exit()
+            }
         }
 
         Message::AddAccountUrlChanged(url) => {
@@ -360,9 +406,10 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
         Message::StartDaemon => iced::Task::none(),
 
         Message::ShowAbout => {
+            // Triggered from the tray, so surface the window if it was hidden.
             app.window_visible = true;
             app.active_view = View::About;
-            iced::Task::none()
+            set_window_visibility(app.window_id, true)
         }
 
         Message::OpenUrl(url) => {
