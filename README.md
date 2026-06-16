@@ -121,4 +121,4 @@ A Cargo workspace of focused crates:
 
 ## 📄 License
 
-Licensed under the **Apache License, Version 2.0** (see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE)).
+Licensed under the **Apache License, Version 2.0** (see [`LICENSE`](LICENSE)).
