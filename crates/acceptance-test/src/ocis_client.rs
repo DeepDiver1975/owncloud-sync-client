@@ -125,4 +125,33 @@ impl OcisClient {
             .await?;
         Ok(resp.status().as_u16() == 207)
     }
+
+    /// Deletes a file or collection on the server via WebDAV DELETE.
+    pub async fn delete(&self, path: &str) -> Result<()> {
+        self.client
+            .request(reqwest::Method::DELETE, self.webdav_url(path)?)
+            .basic_auth(&self.username, Some(&self.password))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    /// Moves/renames a file or collection on the server via WebDAV MOVE.
+    /// `to` is a space-relative path, encoded the same way as `from`.
+    pub async fn move_item(&self, from: &str, to: &str) -> Result<()> {
+        let destination = self.webdav_url(to)?;
+        self.client
+            .request(
+                reqwest::Method::from_bytes(b"MOVE").unwrap(),
+                self.webdav_url(from)?,
+            )
+            .basic_auth(&self.username, Some(&self.password))
+            .header("Destination", destination.as_str())
+            .header("Overwrite", "T")
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
 }
