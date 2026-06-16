@@ -20,6 +20,11 @@ use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent, SpaceSelection};
 /// Returned by [`TestEnvironment::add_account_as`] so multi-account tests can
 /// address each account independently without relying on the single-account
 /// scalar fields that [`TestEnvironment::add_account`] populates.
+///
+/// The `personal_*` field names are retained for API compatibility, but they
+/// hold whichever space was selected during setup — for accounts created via
+/// [`TestEnvironment::add_account_on_space`] that is a project space, not the
+/// personal one.
 #[derive(Debug, Clone)]
 pub struct AccountHandle {
     pub account_id: uuid::Uuid,
@@ -249,7 +254,7 @@ impl TestEnvironment {
         };
         let selected_space_name = selected.name.clone();
 
-        // 7. Set account folders — personal space under the requested root.
+        // 7. Set account folders — selected space under the requested root.
         let root = root_path.to_string_lossy().into_owned();
         self.daemon_ipc
             .send(DaemonCommand::SetAccountFolders {
