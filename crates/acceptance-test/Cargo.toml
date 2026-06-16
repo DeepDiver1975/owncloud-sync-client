@@ -30,6 +30,10 @@ path = "tests/delete.rs"
 name = "edit"
 path = "tests/edit.rs"
 
+[[test]]
+name = "move_rename"
+path = "tests/move_rename.rs"
+
 [dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }
