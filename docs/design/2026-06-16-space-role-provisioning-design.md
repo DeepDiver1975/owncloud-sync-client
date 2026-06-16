@@ -93,10 +93,11 @@ Constructed exactly like `UserProvisioner`: insecure reqwest client + bootstrap
 
 > **Correction (applied during PR #72 CI fix — supersedes the two bullets above):**
 > The role endpoints proved to be under the Graph mount's **`v1beta1`** namespace
-> (`/graph/v1beta1/...`), not `/graph/v1.0/...`, and the roleDefinitions response
-> wraps the array in a `value` field. (Dropping the `/graph` mount prefix returns
-> HTTP 200 with the web HTML index, which fails JSON decode with the misleading
-> "expected value at line 1 column 1".) More importantly, **roles are matched by
+> (`/graph/v1beta1/...`), not `/graph/v1.0/...`. The roleDefinitions response is
+> a **bare JSON array** (oCIS `render.JSON(w, r, roles)`), not a `value`-wrapped
+> object as the OpenAPI example suggests. (Dropping the `/graph` mount prefix
+> instead returns HTTP 200 with the web HTML index, which fails JSON decode with
+> the misleading "expected value at line 1 column 1".) More importantly, **roles are matched by
 > their stable built-in UUID, not by `displayName`**: oCIS display names collide
 > (`SpaceViewer` and `Viewer` are both "Can view"; several editor variants are
 > "Can edit") and are localized, so a name match is ambiguous. The implementation

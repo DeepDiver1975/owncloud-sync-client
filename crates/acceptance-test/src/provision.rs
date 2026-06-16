@@ -171,13 +171,6 @@ struct CreatedDrive {
     name: String,
 }
 
-/// The roleDefinitions endpoint wraps the array in a `value` field.
-#[derive(Deserialize)]
-struct RoleDefinitionsResponse {
-    #[serde(default)]
-    value: Vec<RoleDefinition>,
-}
-
 #[derive(Deserialize)]
 struct RoleDefinition {
     id: String,
@@ -234,13 +227,14 @@ impl SpaceProvisioner {
     /// Fetch the set of `unifiedRoleDefinition` ids the server currently exposes,
     /// via `GET /graph/v1beta1/roleManagement/permissions/roleDefinitions`. The
     /// role endpoints live under the Graph mount's `v1beta1` namespace (not
-    /// `v1.0`), and the response wraps the array in a `value` field.
+    /// `v1.0`). oCIS renders this as a **bare JSON array** of role definitions
+    /// (despite the OpenAPI example showing a `value` wrapper).
     async fn available_role_ids(&self) -> Result<Vec<String>> {
         let url = self
             .base_url
             .join("/graph/v1beta1/roleManagement/permissions/roleDefinitions")
             .context("invalid roleDefinitions URL")?;
-        let resp: RoleDefinitionsResponse = self
+        let defs: Vec<RoleDefinition> = self
             .client
             .get(url)
             .basic_auth(&self.admin_user, Some(&self.admin_pass))
@@ -252,7 +246,7 @@ impl SpaceProvisioner {
             .json()
             .await
             .context("roleDefinitions response was not valid JSON")?;
-        Ok(resp.value.into_iter().map(|d| d.id).collect())
+        Ok(defs.into_iter().map(|d| d.id).collect())
     }
 
     /// Assign the built-in role `role_id` (see [`role_ids`]) to user `user_id` on
