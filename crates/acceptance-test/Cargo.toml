@@ -46,6 +46,10 @@ path = "tests/multi_account.rs"
 name = "remove_one_of_two"
 path = "tests/remove_one_of_two.rs"
 
+[[test]]
+name = "space_roles"
+path = "tests/space_roles.rs"
+
 [dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }
