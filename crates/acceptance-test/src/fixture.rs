@@ -32,6 +32,9 @@ pub struct TestEnvironment {
     /// oCIS names the personal space after the user (e.g. "Admin"), not
     /// literally "Personal", and that name is also the local sync sub-folder.
     pub personal_space_name: String,
+    /// `folder_id` of the personal-space sync folder, captured from the
+    /// `AccountFolderAdded` event during `add_account()`. `None` until then.
+    pub personal_folder_id: Option<uuid::Uuid>,
     daemon: Child,
     gui: Child,
 }
@@ -118,6 +121,7 @@ impl TestEnvironment {
             daemon_stdout,
             // Populated by add_account() once the personal space is discovered.
             personal_space_name: String::new(),
+            personal_folder_id: None,
             daemon,
             gui,
         })
@@ -220,14 +224,18 @@ impl TestEnvironment {
             .await
             .context("failed to send SetAccountFolders")?;
 
-        // 8. Wait for folder added.
-        self.daemon_ipc
+        // 8. Wait for folder added, capturing the personal folder_id.
+        let folder_added = self
+            .daemon_ipc
             .wait_for(
                 |e| matches!(e, DaemonEvent::AccountFolderAdded { .. }),
                 Duration::from_secs(30),
             )
             .await
             .ok_or_else(|| anyhow!("AccountFolderAdded not received"))?;
+        if let DaemonEvent::AccountFolderAdded { folder_id, .. } = folder_added {
+            self.personal_folder_id = Some(folder_id);
+        }
 
         Ok(callback_title)
     }
@@ -247,6 +255,13 @@ impl TestEnvironment {
     /// user (e.g. "Admin"), captured during add_account().
     pub fn personal_sync_dir(&self) -> std::path::PathBuf {
         self.sync_dir.path().join(&self.personal_space_name)
+    }
+
+    /// Returns the personal-space sync folder's `folder_id`, captured during
+    /// `add_account()`. Panics if called before a successful `add_account()`.
+    pub fn personal_folder_id(&self) -> uuid::Uuid {
+        self.personal_folder_id
+            .expect("personal_folder_id not set — call add_account() first")
     }
 
     /// Reads daemon stdout until a `OIDC_AUTH_URL=<url>` line is found, then returns the URL.
