@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 fn main() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     build_icon(&out_dir);

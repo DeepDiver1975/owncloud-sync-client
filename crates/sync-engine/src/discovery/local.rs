@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use camino::{Utf8Path, Utf8PathBuf};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt as _;

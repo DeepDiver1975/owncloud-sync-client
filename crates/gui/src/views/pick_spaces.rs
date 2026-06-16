@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use iced::{
     widget::{button, checkbox, column, container, row, scrollable, text},
     Alignment, Element, Length,

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use tempfile::{NamedTempFile, TempDir};

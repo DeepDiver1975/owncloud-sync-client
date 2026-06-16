@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! oc-contextmenu: IContextMenu3 COM DLL for ownCloud right-click integration.
 
 #![allow(non_snake_case)]

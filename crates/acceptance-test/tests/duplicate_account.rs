@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use acceptance_test::fixture::TestEnvironment;
 use acceptance_test::playwright::complete_oidc_login;
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 // crates/sync-db/src/db.rs
 use std::path::Path;
 use std::str::FromStr;

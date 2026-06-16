@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 #![allow(dead_code)]
 
 rust_i18n::i18n!("locales", fallback = "en");

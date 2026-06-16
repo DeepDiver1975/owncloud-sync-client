@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use sync_engine::SyncReport;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use crate::types::{ConflictStrategy, LocalEntry, RemoteEntry, SyncInstruction};
 
 /// A minimal journal baseline: the etag and size recorded after the last

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 pub fn handle_share(path: &str) -> String {
     format!("SHARE:OK:{path}\n")
 }

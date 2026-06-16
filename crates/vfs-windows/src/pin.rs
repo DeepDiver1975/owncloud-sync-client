@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! Pin-state management via CfSetPinState.
 
 use camino::Utf8Path;

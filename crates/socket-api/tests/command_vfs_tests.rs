@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use socket_api::broadcast::BroadcastSender;
 use socket_api::commands::vfs_cmds::{handle_make_available_locally, handle_make_online_only};
 use std::sync::Arc;

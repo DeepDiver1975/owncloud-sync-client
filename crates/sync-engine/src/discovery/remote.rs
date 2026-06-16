@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use camino::Utf8PathBuf;
 use percent_encoding::percent_decode_str;
 use std::collections::{HashSet, VecDeque};

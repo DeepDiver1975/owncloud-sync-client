@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! icons.rs — Embed overlay icon PNGs at compile time and create HICONs.
 //!
 //! Each PNG is a 16x16 RGBA image embedded via include_bytes!. On first use

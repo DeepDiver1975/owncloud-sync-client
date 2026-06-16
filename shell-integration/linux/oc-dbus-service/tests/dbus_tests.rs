@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use oc_dbus_service::socket_client::{parse_menu_items_line, parse_status_line};
 
 #[test]

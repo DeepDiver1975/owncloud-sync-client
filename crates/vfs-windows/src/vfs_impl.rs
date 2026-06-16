@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! `VfsWindows` — the public struct implementing `vfs_core::Vfs` on Windows.
 
 use std::sync::Arc;

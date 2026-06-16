@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use camino::Utf8Path;
 use sync_engine::propagate::download::{propagate_download, DownloadRequest};
 use sync_engine::report::HttpEvent;

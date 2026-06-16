@@ -5,7 +5,7 @@
 ### Next-generation [ownCloud Infinite Scale](https://owncloud.dev/) sync, rebuilt from the ground up in Rust.
 
 [![CI](https://github.com/deepdiver1975/owncloud-sync-client/actions/workflows/ci.yml/badge.svg)](https://github.com/deepdiver1975/owncloud-sync-client/actions/workflows/ci.yml)
-[![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](#-license)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](#-license)
 [![Rust](https://img.shields.io/badge/rust-2021_edition-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![Platforms](https://img.shields.io/badge/platforms-Linux_·_macOS_·_Windows-success.svg)](#-platform-support)
 
@@ -121,4 +121,4 @@ A Cargo workspace of focused crates:
 
 ## 📄 License
 
-Licensed under **GPL-2.0-or-later** (see the `license` field in [`Cargo.toml`](Cargo.toml)).
+Licensed under the **Apache License, Version 2.0** (see [`LICENSE`](LICENSE)).

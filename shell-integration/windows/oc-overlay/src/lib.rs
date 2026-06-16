@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! oc-overlay: IShellIconOverlayIdentifier COM DLL for ownCloud sync status.
 //!
 //! Exports five COM objects — one per sync state — each identified by a

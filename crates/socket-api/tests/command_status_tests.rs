@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use camino::Utf8PathBuf;
 use socket_api::commands::status::{handle_retrieve_file_status, handle_retrieve_folder_status};
 use socket_api::status_resolver::StatusResolver;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! Exhaustive unit tests for the reconcile() pure function.
 
 use camino::Utf8PathBuf;

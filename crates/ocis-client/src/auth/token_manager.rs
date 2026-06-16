@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 // crates/ocis-client/src/auth/token_manager.rs
 use std::sync::Arc;
 use tokio::sync::RwLock;

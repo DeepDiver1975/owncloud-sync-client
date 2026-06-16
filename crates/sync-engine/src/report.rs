@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

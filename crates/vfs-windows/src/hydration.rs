@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! Hydration, dehydration, virtual-status query, and VfsStatus mapping.
 
 use camino::Utf8Path;

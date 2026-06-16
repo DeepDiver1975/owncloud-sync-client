@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! Integration tests for vfs-macos.
 //!
 //! All tests in this file require a macOS system with the FileProvider

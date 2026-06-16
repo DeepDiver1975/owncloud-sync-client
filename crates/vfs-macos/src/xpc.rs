@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! Low-level XPC connection wrapper.
 //!
 //! All `unsafe` blocks carry a one-line safety comment explaining the invariant.
