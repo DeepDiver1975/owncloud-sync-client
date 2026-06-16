@@ -7,16 +7,40 @@ use url::Url;
 use crate::error::{Result, SyncError};
 
 /// Remove a file from the local filesystem.
+///
+/// A path that is already gone is treated as success: a delete instruction may
+/// race with a recursive parent-directory delete, and the desired end state
+/// (path absent) already holds.
 pub async fn delete_local(path: &Utf8Path) -> Result<()> {
-    tokio::fs::remove_file(path).await?;
-    Ok(())
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
 }
 
-/// Send a WebDAV DELETE for `url`.
-pub async fn delete_remote(url: &Url) -> Result<()> {
+/// Recursively remove a directory from the local filesystem.
+///
+/// As with [`delete_local`], an already-absent directory is treated as success.
+pub async fn delete_local_dir(path: &Utf8Path) -> Result<()> {
+    match tokio::fs::remove_dir_all(path).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Send a WebDAV DELETE for `url`. For collections this removes the resource
+/// recursively, server-side.
+///
+/// A `404 Not Found` is treated as success: the resource is already gone, which
+/// is the desired end state (e.g. a child whose parent collection was deleted
+/// first).
+pub async fn delete_remote(url: &Url, bearer_token: &str) -> Result<()> {
     let client = ocis_client::build_http_client();
     let resp = client
         .delete(url.as_str())
+        .bearer_auth(bearer_token)
         .send()
         .await
         .map_err(|e| SyncError::Http {
@@ -25,7 +49,7 @@ pub async fn delete_remote(url: &Url) -> Result<()> {
         })?;
 
     let status = resp.status().as_u16();
-    if status != 204 && status != 200 {
+    if status != 204 && status != 200 && status != 404 {
         return Err(SyncError::Http {
             status,
             message: format!("DELETE failed: {}", resp.status()),
