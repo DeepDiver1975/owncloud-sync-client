@@ -26,6 +26,10 @@ path = "tests/tray.rs"
 name = "delete"
 path = "tests/delete.rs"
 
+[[test]]
+name = "edit"
+path = "tests/edit.rs"
+
 [dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }
