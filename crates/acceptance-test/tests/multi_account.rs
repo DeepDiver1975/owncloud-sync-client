@@ -131,6 +131,51 @@ async fn test_add_multiple_accounts() {
         "admin's file must not appear in the Alice space"
     );
 
+    // --- Assert independent down-sync: a server-side file in each account's
+    // space must appear in that account's local dir, and only there. ---
+    let admin_down = "管理员 down file.txt";
+    let alice_down = "爱丽丝 down?file.txt";
+    admin_ocis
+        .put(admin_down, b"admin down body")
+        .await
+        .expect("server put admin down file");
+    alice_ocis
+        .put(alice_down, b"alice down body")
+        .await
+        .expect("server put alice down file");
+
+    // Each file must land in its owner's local dir...
+    poll_until(
+        || {
+            let p = admin_handle.personal_sync_dir.join(admin_down);
+            async move { p.exists() }
+        },
+        Duration::from_secs(30),
+        Duration::from_secs(1),
+    )
+    .await
+    .expect("admin file did not down-sync to admin local dir");
+    poll_until(
+        || {
+            let p = alice_handle.personal_sync_dir.join(alice_down);
+            async move { p.exists() }
+        },
+        Duration::from_secs(30),
+        Duration::from_secs(1),
+    )
+    .await
+    .expect("alice file did not down-sync to Alice local dir");
+
+    // ...and must NOT cross into the other account's local dir.
+    assert!(
+        !alice_handle.personal_sync_dir.join(admin_down).exists(),
+        "admin's down file must not appear in the Alice local dir"
+    );
+    assert!(
+        !admin_handle.personal_sync_dir.join(alice_down).exists(),
+        "Alice's down file must not appear in the admin local dir"
+    );
+
     // Cleanup (best-effort).
     let _ = provisioner.delete_user(&alice.id).await;
 }
