@@ -15,6 +15,22 @@ use crate::ocis_client::OcisClient;
 use crate::playwright::complete_oidc_login;
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent, SpaceSelection};
 
+/// Per-account results from a successful account-setup flow.
+///
+/// Returned by [`TestEnvironment::add_account_as`] so multi-account tests can
+/// address each account independently without relying on the single-account
+/// scalar fields that [`TestEnvironment::add_account`] populates.
+#[derive(Debug, Clone)]
+pub struct AccountHandle {
+    pub account_id: uuid::Uuid,
+    pub personal_folder_id: uuid::Uuid,
+    /// oCIS names the personal space after the user (e.g. "Alice").
+    pub personal_space_name: String,
+    /// Local root of this account's personal space:
+    /// `sync_dir/<username>/<personal_space_name>`.
+    pub personal_sync_dir: PathBuf,
+}
+
 const OCIS_URL: &str = "https://127.0.0.1:9200";
 
 fn compose_file() -> PathBuf {
@@ -131,10 +147,16 @@ impl TestEnvironment {
         })
     }
 
-    /// Runs the full account-setup flow via daemon IPC.
-    /// The GUI is running in the background; IPC commands reach the daemon through
-    /// the same socket the GUI uses, exercising the same daemon code path.
-    pub async fn add_account(&mut self) -> Result<String> {
+    /// Credential- and root-path-parameterized account-setup flow shared by
+    /// [`Self::add_account`] (admin, rooted at `sync_dir`) and
+    /// [`Self::add_account_as`] (arbitrary user, rooted at `sync_dir/<username>`).
+    /// Drives the same daemon IPC path the GUI uses.
+    async fn add_account_inner(
+        &mut self,
+        username: &str,
+        password: &str,
+        root_path: PathBuf,
+    ) -> Result<(AccountHandle, String)> {
         // 1. Send AddAccount to the daemon.
         self.daemon_ipc
             .send(DaemonCommand::AddAccount {
@@ -166,8 +188,8 @@ impl TestEnvironment {
             })
             .ok_or_else(|| anyhow!("could not extract callback port from redirect_uri"))?;
 
-        // 4. Complete OIDC login in headless browser.
-        let callback_title = complete_oidc_login(&auth_url, callback_port, "admin", "admin")
+        // 4. Complete OIDC login in headless browser as the requested user.
+        let callback_title = complete_oidc_login(&auth_url, callback_port, username, password)
             .await
             .context("Playwright OIDC login failed")?;
 
@@ -185,7 +207,6 @@ impl TestEnvironment {
             DaemonEvent::AccountAddCompleted { account_id, .. } => account_id,
             _ => unreachable!(),
         };
-        self.account_id = Some(account_id);
 
         // 6. List spaces.
         self.daemon_ipc
@@ -210,13 +231,10 @@ impl TestEnvironment {
             .iter()
             .find(|s| s.drive_type == "personal")
             .ok_or_else(|| anyhow!("no personal space in SpacesListed"))?;
+        let personal_space_name = personal.name.clone();
 
-        // oCIS names the personal space after the user (e.g. "Admin"); remember
-        // it so the test can locate the folder in config and on disk.
-        self.personal_space_name = personal.name.clone();
-
-        // 7. Set account folders — personal space as a sub-folder of sync_dir.
-        let root = self.sync_dir.path().to_string_lossy().into_owned();
+        // 7. Set account folders — personal space under the requested root.
+        let root = root_path.to_string_lossy().into_owned();
         self.daemon_ipc
             .send(DaemonCommand::SetAccountFolders {
                 account_id,
@@ -238,11 +256,45 @@ impl TestEnvironment {
             )
             .await
             .ok_or_else(|| anyhow!("AccountFolderAdded not received"))?;
-        if let DaemonEvent::AccountFolderAdded { folder_id, .. } = folder_added {
-            self.personal_folder_id = Some(folder_id);
-        }
+        let personal_folder_id = match folder_added {
+            DaemonEvent::AccountFolderAdded { folder_id, .. } => folder_id,
+            _ => unreachable!(),
+        };
 
-        Ok(callback_title)
+        let handle = AccountHandle {
+            account_id,
+            personal_folder_id,
+            personal_sync_dir: root_path.join(&personal_space_name),
+            personal_space_name,
+        };
+        Ok((handle, callback_title))
+    }
+
+    /// Runs the full account-setup flow for the bootstrap `admin` user, rooted
+    /// directly at `sync_dir` (so `personal_sync_dir()` stays
+    /// `sync_dir/<space>`), and stores the results into the single-account
+    /// scalar fields used by existing tests. Returns the OIDC callback-page
+    /// title. Backward-compatible with all existing callers.
+    pub async fn add_account(&mut self) -> Result<String> {
+        let root = self.sync_dir.path().to_path_buf();
+        let (handle, title) = self.add_account_inner("admin", "admin", root).await?;
+        self.account_id = Some(handle.account_id);
+        self.personal_folder_id = Some(handle.personal_folder_id);
+        self.personal_space_name = handle.personal_space_name;
+        Ok(title)
+    }
+
+    /// Runs the full account-setup flow for an arbitrary user, rooting the
+    /// account at `sync_dir/<username>/` so multiple accounts never share a
+    /// local path. Does **not** touch the single-account scalar fields. Returns
+    /// the [`AccountHandle`] and the OIDC callback-page title.
+    pub async fn add_account_as(
+        &mut self,
+        username: &str,
+        password: &str,
+    ) -> Result<(AccountHandle, String)> {
+        let root = self.sync_dir.path().join(username);
+        self.add_account_inner(username, password, root).await
     }
 
     /// Returns the bare `host:port` string expected by `DaemonCommand::AddAccount`.
