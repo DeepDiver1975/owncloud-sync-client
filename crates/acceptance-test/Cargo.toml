@@ -42,6 +42,10 @@ path = "tests/pause_resume.rs"
 name = "multi_account"
 path = "tests/multi_account.rs"
 
+[[test]]
+name = "remove_one_of_two"
+path = "tests/remove_one_of_two.rs"
+
 [dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }
