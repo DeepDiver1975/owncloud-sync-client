@@ -94,9 +94,12 @@ Four workflow files; build logic lives in one reusable workflow.
    - Marked `--prerelease`, title `ownCloud Sync (alpha)`, body noting it is an
      auto-updated bleeding-edge build pointing at commit `<shortsha>`, dated via a
      passed-in timestamp.
-   - The release stays attached to the moving `alpha` tag so download URLs
-     (`/releases/download/alpha/...`) are stable. Result: one visible prerelease on the
-     Releases page, full build history under Tags.
+   - The release stays attached to the moving `alpha` tag so the **release page**
+     (`/releases/tag/alpha`) is a stable bookmark. Asset filenames carry the shortsha
+     (single naming scheme shared with tagged releases), so individual asset download
+     URLs change each build — users grab the current assets from the stable release
+     page. Result: one visible prerelease on the Releases page, full build history under
+     Tags.
 
 ## Error handling & edge cases
 
