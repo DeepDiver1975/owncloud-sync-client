@@ -232,13 +232,13 @@ impl SpaceProvisioner {
     }
 
     /// Fetch the set of `unifiedRoleDefinition` ids the server currently exposes,
-    /// via `GET /v1beta1/roleManagement/permissions/roleDefinitions`. The role
-    /// endpoints live under `v1beta1`, not `v1.0`, and the response wraps the
-    /// array in a `value` field.
+    /// via `GET /graph/v1beta1/roleManagement/permissions/roleDefinitions`. The
+    /// role endpoints live under the Graph mount's `v1beta1` namespace (not
+    /// `v1.0`), and the response wraps the array in a `value` field.
     async fn available_role_ids(&self) -> Result<Vec<String>> {
         let url = self
             .base_url
-            .join("/v1beta1/roleManagement/permissions/roleDefinitions")
+            .join("/graph/v1beta1/roleManagement/permissions/roleDefinitions")
             .context("invalid roleDefinitions URL")?;
         let resp: RoleDefinitionsResponse = self
             .client
@@ -256,7 +256,8 @@ impl SpaceProvisioner {
     }
 
     /// Assign the built-in role `role_id` (see [`role_ids`]) to user `user_id` on
-    /// the space `space_id`, via `POST /v1beta1/drives/{space_id}/root/invite`.
+    /// the space `space_id`, via
+    /// `POST /graph/v1beta1/drives/{space_id}/root/invite`.
     ///
     /// The role id is first checked against the server's enabled role
     /// definitions; if it is not present, returns [`RoleAssignment::Unavailable`]
@@ -277,7 +278,7 @@ impl SpaceProvisioner {
         }
         let url = self
             .base_url
-            .join(&format!("/v1beta1/drives/{space_id}/root/invite"))
+            .join(&format!("/graph/v1beta1/drives/{space_id}/root/invite"))
             .context("invalid invite URL")?;
         let body = json!({
             "recipients": [
