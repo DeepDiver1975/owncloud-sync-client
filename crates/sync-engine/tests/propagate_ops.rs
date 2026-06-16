@@ -3,7 +3,7 @@
 
 use sync_engine::propagate::ops::{delete_remote, mkdir_remote, rename_remote};
 use url::Url;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -12,13 +12,30 @@ async fn delete_remote_sends_delete() {
 
     Mock::given(method("DELETE"))
         .and(path("/dav/spaces/space1/old.txt"))
+        .and(header("authorization", "Bearer test-token"))
         .respond_with(ResponseTemplate::new(204))
         .expect(1)
         .mount(&server)
         .await;
 
     let url = Url::parse(&format!("{}/dav/spaces/space1/old.txt", server.uri())).unwrap();
-    delete_remote(&url).await.unwrap();
+    delete_remote(&url, "test-token").await.unwrap();
+    server.verify().await;
+}
+
+#[tokio::test]
+async fn delete_remote_treats_404_as_success() {
+    let server = MockServer::start().await;
+
+    Mock::given(method("DELETE"))
+        .and(path("/dav/spaces/space1/gone.txt"))
+        .respond_with(ResponseTemplate::new(404))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let url = Url::parse(&format!("{}/dav/spaces/space1/gone.txt", server.uri())).unwrap();
+    delete_remote(&url, "test-token").await.unwrap();
     server.verify().await;
 }
 

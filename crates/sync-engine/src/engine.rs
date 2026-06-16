@@ -214,6 +214,42 @@ impl SyncEngine {
                         s.set_file_status(rel_path, FileStatus::Error(e.to_string()));
                     }
                 },
+                SyncInstruction::DeleteRemote => {
+                    use crate::propagate::ops::delete_remote;
+                    // DELETE on a collection removes it recursively server-side;
+                    // any child file-delete instructions then 404 (tolerated).
+                    match delete_remote(&remote_url, &bearer_token).await {
+                        Ok(()) => {
+                            let _ = self.cfg.db.delete_entry(rel_path.as_str()).await;
+                            let mut s = write_lock(&self.state);
+                            s.clear_file_status(rel_path.as_str());
+                        }
+                        Err(e) => {
+                            tracing::warn!("DELETE (dir) failed for {rel_path}: {e}");
+                            had_error = true;
+                            error_messages.push(e.to_string());
+                            let mut s = write_lock(&self.state);
+                            s.set_file_status(rel_path, FileStatus::Error(e.to_string()));
+                        }
+                    }
+                }
+                SyncInstruction::DeleteLocal => {
+                    use crate::propagate::ops::delete_local_dir;
+                    match delete_local_dir(&local_path).await {
+                        Ok(()) => {
+                            let _ = self.cfg.db.delete_entry(rel_path.as_str()).await;
+                            let mut s = write_lock(&self.state);
+                            s.clear_file_status(rel_path.as_str());
+                        }
+                        Err(e) => {
+                            tracing::warn!("local rmdir failed for {rel_path}: {e}");
+                            had_error = true;
+                            error_messages.push(e.to_string());
+                            let mut s = write_lock(&self.state);
+                            s.set_file_status(rel_path, FileStatus::Error(e.to_string()));
+                        }
+                    }
+                }
                 _ => {
                     tracing::warn!("unhandled dir instruction {:?} for {rel_path}", instruction);
                 }
@@ -388,10 +424,45 @@ impl SyncEngine {
                 }
 
                 SyncInstruction::DeleteLocal => {
-                    tracing::warn!("DeleteLocal not yet implemented for path {:?}", rel_path);
+                    join_set.spawn(async move {
+                        let _permit = sem.acquire().await.unwrap();
+                        let task_http: Vec<HttpEvent> = Vec::new();
+                        match crate::propagate::ops::delete_local(&local_path).await {
+                            Ok(()) => {
+                                let _ = db.delete_entry(rel_clone.as_str()).await;
+                                let mut s = write_lock(&state);
+                                s.clear_file_status(rel_clone.as_str());
+                                (task_http, Ok(()))
+                            }
+                            Err(e) => {
+                                let mut s = write_lock(&state);
+                                s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
+                                (task_http, Err(e))
+                            }
+                        }
+                    });
                 }
                 SyncInstruction::DeleteRemote => {
-                    tracing::warn!("DeleteRemote not yet implemented for path {:?}", rel_path);
+                    let bearer_token_del = bearer_token.clone();
+                    join_set.spawn(async move {
+                        let _permit = sem.acquire().await.unwrap();
+                        let task_http: Vec<HttpEvent> = Vec::new();
+                        match crate::propagate::ops::delete_remote(&remote_url, &bearer_token_del)
+                            .await
+                        {
+                            Ok(()) => {
+                                let _ = db.delete_entry(rel_clone.as_str()).await;
+                                let mut s = write_lock(&state);
+                                s.clear_file_status(rel_clone.as_str());
+                                (task_http, Ok(()))
+                            }
+                            Err(e) => {
+                                let mut s = write_lock(&state);
+                                s.set_file_status(rel_clone, FileStatus::Error(e.to_string()));
+                                (task_http, Err(e))
+                            }
+                        }
+                    });
                 }
                 _ => {}
             }

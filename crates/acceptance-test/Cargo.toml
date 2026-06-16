@@ -22,6 +22,22 @@ path = "tests/sync.rs"
 name = "tray"
 path = "tests/tray.rs"
 
+[[test]]
+name = "delete"
+path = "tests/delete.rs"
+
+[[test]]
+name = "edit"
+path = "tests/edit.rs"
+
+[[test]]
+name = "move_rename"
+path = "tests/move_rename.rs"
+
+[[test]]
+name = "pause_resume"
+path = "tests/pause_resume.rs"
+
 [dependencies]
 tokio = { workspace = true }
 reqwest = { workspace = true }

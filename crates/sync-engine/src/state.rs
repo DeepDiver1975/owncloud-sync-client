@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 ownCloud Sync Contributors
 
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -49,6 +49,11 @@ impl SyncState {
 
     pub fn set_file_status(&mut self, path: Utf8PathBuf, status: FileStatus) {
         self.file_statuses.insert(path, status);
+    }
+
+    /// Drop any tracked status for `path` (e.g. after the path is deleted).
+    pub fn clear_file_status(&mut self, path: &str) {
+        self.file_statuses.remove(Utf8Path::new(path));
     }
 
     pub fn record_error(&mut self, error: SyncError) {

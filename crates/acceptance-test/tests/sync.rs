@@ -3,28 +3,14 @@
 
 use std::time::Duration;
 
-use acceptance_test::{fixture::TestEnvironment, poll::poll_until};
+use acceptance_test::fixture::TestEnvironment;
+use acceptance_test::poll::poll_until;
+use acceptance_test::testutil::{env_with_account, skip_if_no_acceptance};
 use daemon::gui_ipc::protocol::DaemonEvent;
 use sync_engine::SyncReport;
 use uuid::Uuid;
 
-fn skip_if_no_acceptance() -> bool {
-    if std::env::var("OCIS_ACCEPTANCE").is_err() {
-        eprintln!("Skipping: OCIS_ACCEPTANCE not set");
-        return true;
-    }
-    false
-}
-
-async fn env_with_account() -> TestEnvironment {
-    let mut env = TestEnvironment::start()
-        .await
-        .expect("TestEnvironment::start");
-    env.add_account().await.expect("add_account");
-    env
-}
-
-async fn env_after_initial_sync() -> (TestEnvironment, SyncReport) {
+async fn env_after_initial_sync_with_report() -> (TestEnvironment, SyncReport) {
     let mut env = env_with_account().await;
     let event = env
         .daemon_ipc
@@ -84,7 +70,7 @@ async fn test_upload_new_file() {
     if skip_if_no_acceptance() {
         return;
     }
-    let (env, _report) = env_after_initial_sync().await;
+    let (env, _report) = env_after_initial_sync_with_report().await;
 
     let local_path = env.personal_sync_dir().join("upload_new.txt");
     std::fs::write(&local_path, b"new content").expect("write local file");
@@ -219,7 +205,7 @@ async fn test_initial_sync_empty_remote() {
     if skip_if_no_acceptance() {
         return;
     }
-    let (env, report) = env_after_initial_sync().await;
+    let (env, report) = env_after_initial_sync_with_report().await;
     // oCIS personal spaces are never truly empty — the server pre-seeds default folders.
     // Assert that every discovered remote entry was downloaded (none skipped/ignored).
     assert_eq!(
@@ -308,7 +294,7 @@ async fn test_upload_new_directory() {
     if skip_if_no_acceptance() {
         return;
     }
-    let (env, _) = env_after_initial_sync().await;
+    let (env, _) = env_after_initial_sync_with_report().await;
 
     let dir_name = format!("test-new-dir-{}", Uuid::new_v4().simple());
     let local_dir = env.personal_sync_dir().join(&dir_name);
@@ -333,7 +319,7 @@ async fn test_upload_file_in_new_subdirectory() {
     if skip_if_no_acceptance() {
         return;
     }
-    let (env, _) = env_after_initial_sync().await;
+    let (env, _) = env_after_initial_sync_with_report().await;
 
     let dir_name = format!("test-subdir-{}", Uuid::new_v4().simple());
     let local_dir = env.personal_sync_dir().join(&dir_name);
@@ -358,7 +344,7 @@ async fn test_watch_driven_upload() {
     if skip_if_no_acceptance() {
         return;
     }
-    let (env, _) = env_after_initial_sync().await;
+    let (env, _) = env_after_initial_sync_with_report().await;
 
     let local_path = env.personal_sync_dir().join("watched.txt");
     std::fs::write(&local_path, b"watched content").expect("write watched.txt");
