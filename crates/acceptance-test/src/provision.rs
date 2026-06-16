@@ -127,16 +127,33 @@ pub struct ProvisionedSpace {
     pub name: String,
 }
 
+/// Built-in oCIS `unifiedRoleDefinition` ids for project-space sharing.
+///
+/// Roles are matched by these **stable** ids, not by `displayName`: oCIS display
+/// names collide (`SpaceViewer` and `Viewer` are both "Can view"; several editor
+/// variants are "Can edit") and are localized, so a name match is ambiguous. The
+/// ids are defined in `owncloud/ocis` `services/graph/pkg/unifiedrole/roles.go`.
+pub mod role_ids {
+    /// Space Viewer — read-only on a project space.
+    pub const SPACE_VIEWER: &str = "a8d5fe5e-96e3-418d-825b-534dbdf22b99";
+    /// Space Editor — read + write on a project space.
+    pub const SPACE_EDITOR: &str = "58c63c02-1d89-4572-916a-870abc5a1b7d";
+    /// Manager — read + write + manage members.
+    pub const MANAGER: &str = "312c0871-5ef7-4b3a-85b6-0e4074c64049";
+    /// Secure Viewer — download-disabled viewer; often disabled in stock oCIS.
+    pub const SECURE_VIEWER: &str = "aa97fe03-7980-45ac-9e50-b325749fd7e6";
+}
+
 /// Outcome of [`SpaceProvisioner::assign_role`].
 ///
-/// A requested role may simply not exist in this oCIS configuration (the most
-/// likely case is `Secure Viewer`). That is an environment property, not a test
-/// failure, so it is reported as a value the caller can skip-and-log on.
+/// A requested role may simply not be enabled in this oCIS configuration (the
+/// most likely case is Secure Viewer). That is an environment property, not a
+/// test failure, so it is reported as a value the caller can skip-and-log on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoleAssignment {
-    /// The role was found by display name and assigned to the user.
+    /// The role id was present in the server's role definitions and assigned.
     Assigned,
-    /// No role definition with the requested display name exists on this server.
+    /// No role definition with the requested id is enabled on this server.
     Unavailable,
 }
 
@@ -154,11 +171,16 @@ struct CreatedDrive {
     name: String,
 }
 
+/// The roleDefinitions endpoint wraps the array in a `value` field.
+#[derive(Deserialize)]
+struct RoleDefinitionsResponse {
+    #[serde(default)]
+    value: Vec<RoleDefinition>,
+}
+
 #[derive(Deserialize)]
 struct RoleDefinition {
     id: String,
-    #[serde(rename = "displayName", default)]
-    display_name: String,
 }
 
 impl SpaceProvisioner {
@@ -209,16 +231,16 @@ impl SpaceProvisioner {
         })
     }
 
-    /// Resolve a `unifiedRoleDefinition` id by its `displayName` via
-    /// `GET /graph/v1.0/roleManagement/permissions/roleDefinitions`. Returns
-    /// `None` when no role with that display name exists on this server.
-    pub async fn resolve_role_id(&self, display_name: &str) -> Result<Option<String>> {
+    /// Fetch the set of `unifiedRoleDefinition` ids the server currently exposes,
+    /// via `GET /v1beta1/roleManagement/permissions/roleDefinitions`. The role
+    /// endpoints live under `v1beta1`, not `v1.0`, and the response wraps the
+    /// array in a `value` field.
+    async fn available_role_ids(&self) -> Result<Vec<String>> {
         let url = self
             .base_url
-            .join("/graph/v1.0/roleManagement/permissions/roleDefinitions")
+            .join("/v1beta1/roleManagement/permissions/roleDefinitions")
             .context("invalid roleDefinitions URL")?;
-        // oCIS returns a bare JSON array of role definitions here.
-        let defs: Vec<RoleDefinition> = self
+        let resp: RoleDefinitionsResponse = self
             .client
             .get(url)
             .basic_auth(&self.admin_user, Some(&self.admin_pass))
@@ -230,29 +252,32 @@ impl SpaceProvisioner {
             .json()
             .await
             .context("roleDefinitions response was not valid JSON")?;
-        Ok(defs
-            .into_iter()
-            .find(|d| d.display_name == display_name)
-            .map(|d| d.id))
+        Ok(resp.value.into_iter().map(|d| d.id).collect())
     }
 
-    /// Assign the role named `role_display_name` to user `user_id` on the space
-    /// `space_id`, via `POST /graph/v1.0/drives/{space_id}/root/invite`.
+    /// Assign the built-in role `role_id` (see [`role_ids`]) to user `user_id` on
+    /// the space `space_id`, via `POST /v1beta1/drives/{space_id}/root/invite`.
     ///
-    /// Returns [`RoleAssignment::Unavailable`] (without erroring) when the role
-    /// display name does not resolve, so the caller can skip-and-log.
+    /// The role id is first checked against the server's enabled role
+    /// definitions; if it is not present, returns [`RoleAssignment::Unavailable`]
+    /// (without erroring) so the caller can skip-and-log.
     pub async fn assign_role(
         &self,
         space_id: &str,
         user_id: &str,
-        role_display_name: &str,
+        role_id: &str,
     ) -> Result<RoleAssignment> {
-        let Some(role_id) = self.resolve_role_id(role_display_name).await? else {
+        if !self
+            .available_role_ids()
+            .await?
+            .iter()
+            .any(|id| id == role_id)
+        {
             return Ok(RoleAssignment::Unavailable);
-        };
+        }
         let url = self
             .base_url
-            .join(&format!("/graph/v1.0/drives/{space_id}/root/invite"))
+            .join(&format!("/v1beta1/drives/{space_id}/root/invite"))
             .context("invalid invite URL")?;
         let body = json!({
             "recipients": [

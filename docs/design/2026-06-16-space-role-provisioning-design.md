@@ -91,6 +91,20 @@ Constructed exactly like `UserProvisioner`: insecure reqwest client + bootstrap
 > harness/environment finding — stop and report it (it blocks the whole effort),
 > as with the user-creation note in the multi-user plan.
 
+> **Correction (applied during PR #72 CI fix — supersedes the two bullets above):**
+> The role endpoints proved to be under **`/v1beta1/`**, not `/v1.0/`, and the
+> roleDefinitions response wraps the array in a `value` field. More importantly,
+> **roles are matched by their stable built-in UUID, not by `displayName`**:
+> oCIS display names collide (`SpaceViewer` and `Viewer` are both "Can view";
+> several editor variants are "Can edit") and are localized, so a name match is
+> ambiguous. The implementation exposes the built-in ids as
+> `provision::role_ids::{SPACE_VIEWER, SPACE_EDITOR, MANAGER, SECURE_VIEWER}` and
+> `assign_role` takes a role id, checking it against the server's enabled
+> definitions (`GET /v1beta1/roleManagement/permissions/roleDefinitions`) so an
+> unavailable role still degrades to `RoleAssignment::Unavailable` (skip-and-log).
+> The invite call is `POST /v1beta1/drives/{driveId}/root/invite`. Space creation
+> (`POST /graph/v1.0/drives`) remains under `v1.0`.
+
 ## Fixture: `add_account_on_space()`
 
 A sibling to `add_account_as`. It reuses the same account-setup IPC flow but, at

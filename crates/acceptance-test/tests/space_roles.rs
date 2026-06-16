@@ -19,7 +19,7 @@ use std::time::Duration;
 use acceptance_test::fixture::TestEnvironment;
 use acceptance_test::ocis_client::OcisClient;
 use acceptance_test::poll::poll_until;
-use acceptance_test::provision::{RoleAssignment, SpaceProvisioner, UserProvisioner};
+use acceptance_test::provision::{role_ids, RoleAssignment, SpaceProvisioner, UserProvisioner};
 use acceptance_test::testutil::skip_if_no_acceptance;
 
 /// Everything a role scenario needs after setup: the live environment (held to
@@ -28,7 +28,9 @@ use acceptance_test::testutil::skip_if_no_acceptance;
 /// and the local sync dir of the user's project space.
 struct RoleScenario {
     /// Held only to keep the daemon/GUI alive via `Drop` for the test's
-    /// duration; never read directly (hence the dead-code warning).
+    /// duration; never read directly. CI runs clippy with `-D warnings`, so the
+    /// otherwise-unread field is explicitly allowed rather than left to warn.
+    #[allow(dead_code)]
     env: TestEnvironment,
     user_provisioner: UserProvisioner,
     user_id: String,
@@ -36,11 +38,11 @@ struct RoleScenario {
     user_sync_dir: std::path::PathBuf,
 }
 
-/// Shared setup: provision a uniquely-named user + project space, assign
-/// `role_display_name`, and (if the role exists) add the user's account on that
-/// space. Returns `None` when the role is unavailable on this oCIS, so the
-/// caller can skip-and-log.
-async fn setup_role_scenario(role_label: &str, role_display_name: &str) -> Option<RoleScenario> {
+/// Shared setup: provision a uniquely-named user + project space, assign the
+/// built-in role `role_id`, and (if the role is enabled) add the user's account
+/// on that space. Returns `None` when the role is unavailable on this oCIS, so
+/// the caller can skip-and-log.
+async fn setup_role_scenario(role_label: &str, role_id: &str) -> Option<RoleScenario> {
     let mut env = TestEnvironment::start()
         .await
         .expect("TestEnvironment::start");
@@ -68,12 +70,12 @@ async fn setup_role_scenario(role_label: &str, role_display_name: &str) -> Optio
 
     // Assign the role; bail out (skip) if this oCIS lacks the role definition.
     let assignment = space_provisioner
-        .assign_role(&space.id, &user.id, role_display_name)
+        .assign_role(&space.id, &user.id, role_id)
         .await
         .expect("assign_role");
     if assignment == RoleAssignment::Unavailable {
         eprintln!(
-            "SKIP: role {role_display_name:?} is unavailable in this oCIS config; \
+            "SKIP: role {role_id} is unavailable in this oCIS config; \
              scenario {role_label} not run"
         );
         let _ = user_provisioner.delete_user(&user.id).await;
@@ -107,7 +109,7 @@ async fn test_space_editor_round_trip() {
     if skip_if_no_acceptance() {
         return;
     }
-    let scenario = setup_role_scenario("editor", "Space Editor")
+    let scenario = setup_role_scenario("editor", role_ids::SPACE_EDITOR)
         .await
         .expect("Space Editor role must exist in a stock oCIS");
     assert_round_trip(&scenario).await;
@@ -123,7 +125,7 @@ async fn test_space_manager_round_trip() {
     if skip_if_no_acceptance() {
         return;
     }
-    let scenario = setup_role_scenario("manager", "Space Manager")
+    let scenario = setup_role_scenario("manager", role_ids::MANAGER)
         .await
         .expect("Space Manager role must exist in a stock oCIS");
     assert_round_trip(&scenario).await;
@@ -139,7 +141,7 @@ async fn test_space_viewer_read_only() {
     if skip_if_no_acceptance() {
         return;
     }
-    let scenario = setup_role_scenario("viewer", "Space Viewer")
+    let scenario = setup_role_scenario("viewer", role_ids::SPACE_VIEWER)
         .await
         .expect("Space Viewer role must exist in a stock oCIS");
     assert_read_only(&scenario).await;
@@ -155,7 +157,7 @@ async fn test_secure_viewer_read_only() {
     if skip_if_no_acceptance() {
         return;
     }
-    let Some(scenario) = setup_role_scenario("secureviewer", "Secure Viewer").await else {
+    let Some(scenario) = setup_role_scenario("secureviewer", role_ids::SECURE_VIEWER).await else {
         return; // role unavailable on this oCIS — logged in setup_role_scenario
     };
     assert_read_only(&scenario).await;
