@@ -7,31 +7,8 @@
 
 use std::time::Duration;
 
-use acceptance_test::{fixture::TestEnvironment, poll::poll_until};
-use daemon::gui_ipc::protocol::DaemonEvent;
-
-fn skip_if_no_acceptance() -> bool {
-    if std::env::var("OCIS_ACCEPTANCE").is_err() {
-        eprintln!("Skipping: OCIS_ACCEPTANCE not set");
-        return true;
-    }
-    false
-}
-
-async fn env_after_initial_sync() -> TestEnvironment {
-    let mut env = TestEnvironment::start()
-        .await
-        .expect("TestEnvironment::start");
-    env.add_account().await.expect("add_account");
-    env.daemon_ipc
-        .wait_for(
-            |e| matches!(e, DaemonEvent::SyncFinished { errors, .. } if errors.is_empty()),
-            Duration::from_secs(60),
-        )
-        .await
-        .expect("initial SyncFinished not received");
-    env
-}
+use acceptance_test::poll::poll_until;
+use acceptance_test::testutil::{env_after_initial_sync, skip_if_no_acceptance};
 
 #[tokio::test]
 async fn test_delete_file_and_folder_bidirectional() {

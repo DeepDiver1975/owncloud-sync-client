@@ -7,16 +7,10 @@
 
 use std::time::Duration;
 
-use acceptance_test::{fixture::TestEnvironment, poll::poll_until};
+use acceptance_test::fixture::TestEnvironment;
+use acceptance_test::poll::poll_until;
+use acceptance_test::testutil::skip_if_no_acceptance;
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
-
-fn skip_if_no_acceptance() -> bool {
-    if std::env::var("OCIS_ACCEPTANCE").is_err() {
-        eprintln!("Skipping: OCIS_ACCEPTANCE not set");
-        return true;
-    }
-    false
-}
 
 #[tokio::test]
 async fn test_pause_blocks_then_resume_flushes() {
