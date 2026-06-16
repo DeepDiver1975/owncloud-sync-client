@@ -35,6 +35,9 @@ pub struct TestEnvironment {
     /// `folder_id` of the personal-space sync folder, captured from the
     /// `AccountFolderAdded` event during `add_account()`. `None` until then.
     pub personal_folder_id: Option<uuid::Uuid>,
+    /// `account_id` captured from the `AccountAddCompleted` event during
+    /// `add_account()`. `None` until then.
+    pub account_id: Option<uuid::Uuid>,
     daemon: Child,
     gui: Child,
 }
@@ -122,6 +125,7 @@ impl TestEnvironment {
             // Populated by add_account() once the personal space is discovered.
             personal_space_name: String::new(),
             personal_folder_id: None,
+            account_id: None,
             daemon,
             gui,
         })
@@ -181,6 +185,7 @@ impl TestEnvironment {
             DaemonEvent::AccountAddCompleted { account_id, .. } => account_id,
             _ => unreachable!(),
         };
+        self.account_id = Some(account_id);
 
         // 6. List spaces.
         self.daemon_ipc
@@ -262,6 +267,24 @@ impl TestEnvironment {
     pub fn personal_folder_id(&self) -> uuid::Uuid {
         self.personal_folder_id
             .expect("personal_folder_id not set — call add_account() first")
+    }
+
+    /// Returns the `account_id` captured during `add_account()`.
+    /// Panics if called before a successful `add_account()`.
+    pub fn account_id(&self) -> uuid::Uuid {
+        self.account_id
+            .expect("account_id not set — call add_account() first")
+    }
+
+    /// Opens a fresh GUI-IPC connection to the running daemon. The daemon sends
+    /// an `AccountSnapshot` to every new subscriber, so this is the way to read
+    /// the daemon's *persisted* account list after a mutation (e.g. to confirm a
+    /// `RemoveAccount` actually took effect, not just that an event was broadcast).
+    pub async fn connect_fresh_ipc(&self) -> Result<DaemonIpcClient> {
+        let socket_path = socket_path_for(self.config_dir.path());
+        DaemonIpcClient::connect(&socket_path)
+            .await
+            .context("failed to open fresh GUI-IPC connection")
     }
 
     /// Reads daemon stdout until a `OIDC_AUTH_URL=<url>` line is found, then returns the URL.

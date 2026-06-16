@@ -141,6 +141,11 @@ async fn test_upload_changed_file() {
     }
 }
 
+/// Migrated from owncloud/client test/gui/tst_syncing (conflict scenario):
+/// a file changed concurrently on both ends resolves by keeping both copies.
+/// Behaviour-only (Tier 3): the old test's "Not Synced tab" / conflict-warnings
+/// GUI assertion has no equivalent surface in the new client and is dropped
+/// (recorded in the gap registry).
 #[tokio::test]
 async fn test_conflict_resolution() {
     if skip_if_no_acceptance() {
