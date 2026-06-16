@@ -22,15 +22,13 @@ use acceptance_test::poll::poll_until;
 use acceptance_test::provision::{RoleAssignment, SpaceProvisioner, UserProvisioner};
 use acceptance_test::testutil::skip_if_no_acceptance;
 
-/// Shared setup: provision a uniquely-named user + project space, assign
-/// `role_display_name`, and (if the role exists) add the user's account on that
-/// space. Returns `None` when the role is unavailable on this oCIS, so the
-/// caller can skip-and-log.
-///
-/// On success returns the live `TestEnvironment`, the provisioner (for cleanup),
-/// the provisioned user, an admin `OcisClient` scoped to the project space, and
-/// the user's `AccountHandle`.
+/// Everything a role scenario needs after setup: the live environment (held to
+/// keep the daemon/GUI alive), the user provisioner and user id for cleanup, an
+/// admin `OcisClient` scoped to the project space for server-side assertions,
+/// and the local sync dir of the user's project space.
 struct RoleScenario {
+    /// Held only to keep the daemon/GUI alive via `Drop` for the test's
+    /// duration; never read directly (hence the dead-code warning).
     env: TestEnvironment,
     user_provisioner: UserProvisioner,
     user_id: String,
@@ -38,6 +36,10 @@ struct RoleScenario {
     user_sync_dir: std::path::PathBuf,
 }
 
+/// Shared setup: provision a uniquely-named user + project space, assign
+/// `role_display_name`, and (if the role exists) add the user's account on that
+/// space. Returns `None` when the role is unavailable on this oCIS, so the
+/// caller can skip-and-log.
 async fn setup_role_scenario(role_label: &str, role_display_name: &str) -> Option<RoleScenario> {
     let mut env = TestEnvironment::start()
         .await
