@@ -562,16 +562,11 @@ async fn test_move_and_rename_bidirectional() {
     std::fs::write(nested_dir.join("移动 up file.txt"), b"move me up").expect("write nested file");
 
     // Wait for the nested file to reach the server before moving it.
+    // Borrow `env`/`up_src_rel` in a plain `async` block (not `async move`) so the
+    // closure stays re-callable (`poll_until` needs `F: Fn`) and `env`/`up_src_rel`
+    // remain usable afterwards — matches the pattern in `sync.rs`.
     poll_until(
-        || {
-            let path = up_src_rel.clone();
-            async move {
-                env.ocis_client
-                    .exists(&path)
-                    .await
-                    .unwrap_or(false)
-            }
-        },
+        || async { env.ocis_client.exists(&up_src_rel).await.unwrap_or(false) },
         Duration::from_secs(30),
         Duration::from_secs(1),
     )
@@ -727,13 +722,25 @@ async fn test_pause_blocks_then_resume_flushes() {
         .await
         .expect("send PauseFolder");
 
+    // Confirm the daemon has applied the pause before we create the file, so the
+    // negative assertion below reflects suppression — not a send-vs-processed race.
+    // The daemon broadcasts AccountStateChanged{account_id: <folder_id>, state:"paused"}.
+    env.daemon_ipc
+        .wait_for(
+            |e| matches!(e, DaemonEvent::AccountStateChanged { account_id, state } if *account_id == folder_id && state == "paused"),
+            Duration::from_secs(10),
+        )
+        .await
+        .expect("paused state not confirmed");
+
     // Create a local file while paused.
     std::fs::write(sync_dir.join(name), b"written while paused").expect("write local file");
 
-    // For a bounded window, the file must NOT appear on the server.
+    // For a bounded window (~3 daemon poll cycles at poll_interval_secs=5), the
+    // file must NOT appear on the server.
     let appeared_while_paused = poll_until(
         || async { env.ocis_client.exists(name).await.unwrap_or(false) },
-        Duration::from_secs(8),
+        Duration::from_secs(15),
         Duration::from_secs(1),
     )
     .await
