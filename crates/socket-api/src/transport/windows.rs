@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 #![cfg(target_os = "windows")]
 
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};

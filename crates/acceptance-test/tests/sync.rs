@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use std::time::Duration;
 
 use acceptance_test::{fixture::TestEnvironment, poll::poll_until};

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 pub mod error;
 pub mod messages;
 // xpc contains macOS-only code but is always compiled so the crate builds on Linux.

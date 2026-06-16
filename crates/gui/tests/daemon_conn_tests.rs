@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use gui::daemon_conn::DaemonConnection;
 use uuid::Uuid;

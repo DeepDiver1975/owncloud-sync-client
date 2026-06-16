@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 // crates/ocis-client/src/webdav/mod.rs
 pub mod propfind;
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 // crates/sync-db/tests/db_tests.rs
 use sync_db::{ErrorBlacklistEntry, JournalEntry, SyncJournalDb, UploadInfo};
 use tempfile::tempdir;

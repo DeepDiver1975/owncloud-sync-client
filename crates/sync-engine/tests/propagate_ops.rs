@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use sync_engine::propagate::ops::{delete_remote, mkdir_remote, rename_remote};
 use url::Url;
 use wiremock::matchers::{method, path};

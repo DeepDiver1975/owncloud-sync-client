@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! registration.rs — DllRegisterServer / DllUnregisterServer for overlays.
 //!
 //! Writes (or deletes) keys under:

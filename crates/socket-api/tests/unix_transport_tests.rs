@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 #[cfg(unix)]
 mod unix_tests {
     use socket_api::transport::unix::UnixTransport;

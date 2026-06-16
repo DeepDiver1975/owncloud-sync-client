@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 pub mod error;
 // util is pure Rust — not cfg-gated so its unit tests run on all platforms.
 pub mod util;

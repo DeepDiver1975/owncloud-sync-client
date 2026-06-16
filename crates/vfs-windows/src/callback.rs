@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! Hydration callback registration and dispatch.
 //!
 //! Windows calls into our process via the `CF_CALLBACK_TYPE_FETCH_DATA`

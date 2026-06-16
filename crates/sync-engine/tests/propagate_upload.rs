@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use std::io::Write;
 use sync_engine::propagate::upload::{propagate_upload, UploadRequest};
 use sync_engine::report::HttpEvent;

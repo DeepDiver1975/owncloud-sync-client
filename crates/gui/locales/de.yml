@@ -60,7 +60,7 @@ about_version_prefix: "Version %{version}. Weitere Informationen finden Sie unte
 about_issues_prefix: "Bekannte Probleme und Hilfe finden Sie unter:"
 about_contributors: "Von %{contributors}"
 about_copyright: "Copyright ownCloud GmbH (A Kiteworks Company)"
-about_license: "Verbreitet unter der GNU General Public License v2"
+about_license: "Verbreitet unter der Apache-Lizenz, Version 2.0"
 
 # main
 account_not_found: "Konto nicht gefunden"

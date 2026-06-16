@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 #[cfg(test)]
 mod tests {
     use crate::i18n::translate_key_for_test;

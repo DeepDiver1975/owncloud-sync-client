@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 // crates/ocis-client/tests/tus_tests.rs
 use std::collections::HashMap;
 use std::sync::Arc;

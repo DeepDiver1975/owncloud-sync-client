@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use objc2::ClassType;
 use objc2_app_kit::{NSApplication, NSImage};
 use objc2_foundation::{MainThreadMarker, NSData};

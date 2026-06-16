@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use camino::Utf8PathBuf;
 use std::sync::Arc;
 use sync_engine::state::{FileStatus, FolderStatus, SyncState};

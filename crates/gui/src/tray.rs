@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use crate::app::Message;
 
 /// Fully-resolved labels for a tray menu rebuild.

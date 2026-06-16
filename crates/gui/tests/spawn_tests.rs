@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use gui::spawn::{wait_for_socket, SpawnError};
 use std::path::Path;
 

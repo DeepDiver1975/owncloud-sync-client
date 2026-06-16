@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use serde_json::Value;
 
 const PLACEHOLDER_ICON_BASE64: &str =

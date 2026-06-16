@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 /// Convert a UTF-8 string to a null-terminated wide (UTF-16) Vec<u16>.
 ///
 /// The trailing `\0` is appended so the result can be passed to Win32 APIs

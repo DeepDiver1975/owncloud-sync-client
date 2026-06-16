@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use socket_api::error::SocketApiError;
 use socket_api::protocol::{format_response, parse_command, Command};
 

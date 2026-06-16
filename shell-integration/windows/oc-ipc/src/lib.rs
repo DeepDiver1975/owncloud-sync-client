@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! oc-ipc: Named pipe client for the ownCloud sync daemon socket API.
 //!
 //! Connects to \\.\pipe\ownCloud-{USERNAME} and exchanges line-oriented

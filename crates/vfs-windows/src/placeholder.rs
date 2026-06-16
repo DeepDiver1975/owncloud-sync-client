@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! Placeholder creation and update via CfCreatePlaceholders / CfUpdatePlaceholder.
 
 use camino::Utf8Path;

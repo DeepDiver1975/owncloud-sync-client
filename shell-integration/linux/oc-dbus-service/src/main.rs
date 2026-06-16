@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use oc_dbus_service::dbus_service::OwnCloudFileManager;
 use oc_dbus_service::socket_client::{Broadcast, SocketClient};
 

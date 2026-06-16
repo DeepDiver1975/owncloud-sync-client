@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 // crates/ocis-client/tests/token_manager_tests.rs
 use std::time::{SystemTime, UNIX_EPOCH};
 

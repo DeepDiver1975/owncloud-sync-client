@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 //! AT-SPI2 client wrapper for GUI automation in acceptance tests.
 //!
 //! Provides [`AtSpiClient`] which connects to the AT-SPI2 D-Bus accessibility bus and

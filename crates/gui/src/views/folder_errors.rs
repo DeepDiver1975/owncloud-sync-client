@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use iced::{
     widget::{button, column, container, text, Column},
     Element, Length,

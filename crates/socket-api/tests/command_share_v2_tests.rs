@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use socket_api::commands::share::{handle_copy_private_link, handle_share};
 use socket_api::commands::v2::handle_v2_get_client_icon;
 

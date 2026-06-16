@@ -19,7 +19,7 @@ members = [
 edition = "2021"
 version = "0.1.0"
 authors = ["ownCloud Sync Contributors"]
-license = "GPL-2.0-or-later"
+license = "Apache-2.0"
 
 [workspace.dependencies]
 # async runtime

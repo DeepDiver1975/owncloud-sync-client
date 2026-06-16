@@ -48,7 +48,7 @@ wiremock     = "0.6"
 [package.metadata.deb]
 name = "owncloud-sync"
 maintainer = "ownCloud Sync Contributors <desktop@owncloud.com>"
-copyright = "2024-2026 ownCloud Sync Contributors"
+copyright = "2026 ownCloud Sync Contributors"
 license-file = ["../../packaging/linux/debian/copyright", "0"]
 extended-description = """\
 Syncs files between your computer and an ownCloud Infinite Scale server. \

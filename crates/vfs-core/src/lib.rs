@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 ownCloud Sync Contributors
+
 use async_trait::async_trait;
 use camino::{Utf8Path, Utf8PathBuf};
 use serde::{Deserialize, Serialize};
