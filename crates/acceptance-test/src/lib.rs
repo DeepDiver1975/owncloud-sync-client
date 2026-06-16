@@ -7,4 +7,5 @@ pub mod fixture;
 pub mod ocis_client;
 pub mod playwright;
 pub mod poll;
+pub mod provision;
 pub mod testutil;
