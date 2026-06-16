@@ -1,0 +1,98 @@
+name: Alpha Release
+
+# On each merge to main: build the three packages, push an immutable
+# alpha-<shortsha> history tag, force-move the rolling `alpha` tag, and refresh
+# the single `alpha` pre-release in place (delete stale assets, upload new ones).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize publishes so two quick merges can't race on the force-moved tag or
+# the clobbered release assets — the later run queues behind the earlier one.
+concurrency:
+  group: alpha-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Compute version label
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.label.outputs.short_sha }}
+      version_label: ${{ steps.label.outputs.version_label }}
+    steps:
+      - id: label
+        run: |
+          SHORT="${GITHUB_SHA::7}"
+          echo "short_sha=$SHORT" >> "$GITHUB_OUTPUT"
+          echo "version_label=0.1.0-alpha.$SHORT" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    uses: ./.github/workflows/build-packages.yml
+    with:
+      version_label: ${{ needs.prepare.outputs.version_label }}
+
+  publish-alpha:
+    name: Publish rolling alpha release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+          path: dist/
+
+      - name: Push immutable history tag
+        run: |
+          TAG="alpha-${SHORT_SHA}"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            echo "History tag ${TAG} already exists — skipping."
+          else
+            git tag "${TAG}" "${GITHUB_SHA}"
+            git push origin "${TAG}"
+          fi
+
+      - name: Force-move rolling alpha tag
+        run: |
+          git tag -f alpha "${GITHUB_SHA}"
+          git push -f origin alpha
+
+      - name: Publish / refresh the alpha pre-release
+        run: |
+          BUILT_AT="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          NOTES="Auto-updated bleeding-edge build from \`main\`.
+          Commit: \`${SHORT_SHA}\` · Built: ${BUILT_AT}
+
+          > These packages are unsigned alpha builds for testing only."
+          if gh release view alpha >/dev/null 2>&1; then
+            echo "Updating existing alpha release — removing stale assets."
+            for asset in $(gh release view alpha --json assets --jq '.assets[].name'); do
+              gh release delete-asset alpha "$asset" --yes
+            done
+            gh release upload alpha dist/*.deb dist/*.pkg dist/*.msi --clobber
+            gh release edit alpha \
+              --prerelease \
+              --title "ownCloud Sync (alpha)" \
+              --notes "${NOTES}"
+          else
+            echo "Creating alpha release for the first time."
+            gh release create alpha \
+              dist/*.deb dist/*.pkg dist/*.msi \
+              --prerelease \
+              --title "ownCloud Sync (alpha)" \
+              --notes "${NOTES}"
+          fi
