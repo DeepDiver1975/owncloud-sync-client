@@ -20,6 +20,11 @@ use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent, SpaceSelection};
 /// Returned by [`TestEnvironment::add_account_as`] so multi-account tests can
 /// address each account independently without relying on the single-account
 /// scalar fields that [`TestEnvironment::add_account`] populates.
+///
+/// The `personal_*` field names are retained for API compatibility, but they
+/// hold whichever space was selected during setup — for accounts created via
+/// [`TestEnvironment::add_account_on_space`] that is a project space, not the
+/// personal one.
 #[derive(Debug, Clone)]
 pub struct AccountHandle {
     pub account_id: uuid::Uuid,
@@ -29,6 +34,15 @@ pub struct AccountHandle {
     /// Local root of this account's personal space:
     /// `sync_dir/<username>/<personal_space_name>`.
     pub personal_sync_dir: PathBuf,
+}
+
+/// Which space `add_account_inner` selects for `SetAccountFolders`.
+enum SpaceChoice {
+    /// Select the user's personal space (`drive_type == "personal"`).
+    Personal,
+    /// Select a project space by its (unique) name as it appears in
+    /// `SpacesListed`.
+    Named(String),
 }
 
 const OCIS_URL: &str = "https://127.0.0.1:9200";
@@ -156,6 +170,7 @@ impl TestEnvironment {
         username: &str,
         password: &str,
         root_path: PathBuf,
+        space: SpaceChoice,
     ) -> Result<(AccountHandle, String)> {
         // 1. Send AddAccount to the daemon.
         self.daemon_ipc
@@ -227,21 +242,27 @@ impl TestEnvironment {
             DaemonEvent::SpacesListed { spaces, .. } => spaces,
             _ => unreachable!(),
         };
-        let personal = spaces
-            .iter()
-            .find(|s| s.drive_type == "personal")
-            .ok_or_else(|| anyhow!("no personal space in SpacesListed"))?;
-        let personal_space_name = personal.name.clone();
+        let selected = match &space {
+            SpaceChoice::Personal => spaces
+                .iter()
+                .find(|s| s.drive_type == "personal")
+                .ok_or_else(|| anyhow!("no personal space in SpacesListed"))?,
+            SpaceChoice::Named(name) => spaces
+                .iter()
+                .find(|s| &s.name == name)
+                .ok_or_else(|| anyhow!("space {name:?} not in SpacesListed: {spaces:?}"))?,
+        };
+        let selected_space_name = selected.name.clone();
 
-        // 7. Set account folders — personal space under the requested root.
+        // 7. Set account folders — selected space under the requested root.
         let root = root_path.to_string_lossy().into_owned();
         self.daemon_ipc
             .send(DaemonCommand::SetAccountFolders {
                 account_id,
                 root_path: root,
                 spaces: vec![SpaceSelection {
-                    space_id: personal.id.clone(),
-                    display_name: personal.name.clone(),
+                    space_id: selected.id.clone(),
+                    display_name: selected.name.clone(),
                 }],
             })
             .await
@@ -264,8 +285,8 @@ impl TestEnvironment {
         let handle = AccountHandle {
             account_id,
             personal_folder_id,
-            personal_sync_dir: root_path.join(&personal_space_name),
-            personal_space_name,
+            personal_sync_dir: root_path.join(&selected_space_name),
+            personal_space_name: selected_space_name,
         };
         Ok((handle, callback_title))
     }
@@ -277,7 +298,9 @@ impl TestEnvironment {
     /// title. Backward-compatible with all existing callers.
     pub async fn add_account(&mut self) -> Result<String> {
         let root = self.sync_dir.path().to_path_buf();
-        let (handle, title) = self.add_account_inner("admin", "admin", root).await?;
+        let (handle, title) = self
+            .add_account_inner("admin", "admin", root, SpaceChoice::Personal)
+            .await?;
         self.account_id = Some(handle.account_id);
         self.personal_folder_id = Some(handle.personal_folder_id);
         self.personal_space_name = handle.personal_space_name;
@@ -294,7 +317,31 @@ impl TestEnvironment {
         password: &str,
     ) -> Result<(AccountHandle, String)> {
         let root = self.sync_dir.path().join(username);
-        self.add_account_inner(username, password, root).await
+        self.add_account_inner(username, password, root, SpaceChoice::Personal)
+            .await
+    }
+
+    /// Runs the full account-setup flow for an arbitrary user, selecting a named
+    /// **project space** (instead of personal) for sync. Roots the account at
+    /// `sync_dir/<username>/` so accounts never share a local path; the returned
+    /// [`AccountHandle`]'s `personal_sync_dir` points at the project space's
+    /// local root (`sync_dir/<username>/<space_name>`). The space must already
+    /// be shared with the user (e.g. via `SpaceProvisioner::assign_role`) or it
+    /// will not appear in `SpacesListed` and this errors.
+    pub async fn add_account_on_space(
+        &mut self,
+        username: &str,
+        password: &str,
+        space_name: &str,
+    ) -> Result<(AccountHandle, String)> {
+        let root = self.sync_dir.path().join(username);
+        self.add_account_inner(
+            username,
+            password,
+            root,
+            SpaceChoice::Named(space_name.to_owned()),
+        )
+        .await
     }
 
     /// Returns the bare `host:port` string expected by `DaemonCommand::AddAccount`.

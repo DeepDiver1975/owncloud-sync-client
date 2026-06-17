@@ -57,6 +57,28 @@ impl OcisClient {
         })
     }
 
+    /// Like [`Self::from_credentials`], but targets a specific space by id
+    /// instead of auto-selecting the personal drive. Used for server-side
+    /// assertions against a shared project space. Does not call the Graph API —
+    /// the caller already knows the space id (e.g. from `SpaceProvisioner`).
+    pub async fn from_credentials_on_space(
+        base_url: Url,
+        username: &str,
+        password: &str,
+        space_id: &str,
+    ) -> Result<Self> {
+        let client = Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()?;
+        Ok(Self {
+            client,
+            base_url,
+            space_id: space_id.to_owned(),
+            username: username.to_owned(),
+            password: password.to_owned(),
+        })
+    }
+
     pub(crate) fn webdav_url(&self, path: &str) -> Result<Url> {
         // Build the URL by pushing path segments so each component is
         // percent-encoded. `Url::join` would treat characters like `?` in a

@@ -236,7 +236,7 @@ GUI-surface assertion and recording it in the gap registry:
 | Toolbar tab inventory (Add Account / Activity / Settings / Quit) + About dialog | `tst_checkAlltabs` | GUI structure differs. |
 | Connection-wizard-visible-after-removal assertion | `tst_removeAccountConnection` (remove only account) | Behaviour migratable; GUI assertion dropped. |
 | Linux VFS placeholders | `tst_vfs` (all) | Linux uses full-download fallback. |
-| Read-only / viewer permission enforcement on the client | `tst_spaces` (viewer/downloader cannot edit) | Needs confirmation whether enforced client-side. |
+| Read-only / viewer permission enforcement on the client | `tst_spaces` (viewer/downloader cannot edit) | Confirmed NOT enforced client-side: the client attempts the upload and the server rejects it. `tst_spaces` editable scenarios migrate the server-observable behaviour (see 2026-06-16-space-role-provisioning-design.md). |
 | Selective-sync UI / manual space pick / path-suffix-on-collision | `tst_addAccount` (manual space, suffix), `tst_syncing` (unselect folders) | Ties to deferred space-selection. |
 
 ### Harness / tooling gaps (🔧)
