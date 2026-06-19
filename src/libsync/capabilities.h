@@ -178,6 +178,15 @@ public:
     bool isValid() const;
 
     /**
+     * Whether this is a classic ownCloud (oc10) server.
+     *
+     * Classic servers have valid capabilities but do not advertise Spaces
+     * support (no graph API). oCIS / Infinite Scale servers report
+     * spaces.enabled == true.
+     */
+    bool isClassicServer() const;
+
+    /**
      * Returns the checksum types the server understands.
      *
      * When the client uses one of these checksum algorithms in

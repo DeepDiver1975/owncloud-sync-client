@@ -283,8 +283,9 @@ void OAuthPageController::handleOauthResult(OAuth::Result result, const QString 
             return;
         }
 
-        // Finally, get the capabilities so we can block oc10 accounts. Checking for spaces support is not
-        // great and this should be refined, but for now it's effective.
+        // Finally, get the capabilities. Both oCIS (spaces) and classic oc10 (no spaces) servers are
+        // accepted as long as the capabilities are valid; classic servers are represented by a synthetic
+        // space (see GraphApi::SpacesManager). OAuth has already proven a working IdP at this point.
         FetchCapabilitiesAdapter fetchCapabilities(_accessManager, _results.token, userInfoUrl);
         FetchCapabilitiesResult capabilitiesResult = fetchCapabilities.getResult();
         if (!capabilitiesResult.success()) {
@@ -293,7 +294,7 @@ void OAuthPageController::handleOauthResult(OAuth::Result result, const QString 
             handleError(tr("Unable to retrieve capabilities from server."));
             break;
         }
-        if (!capabilitiesResult.capabilities.spacesSupport().enabled) {
+        if (!capabilitiesResult.capabilities.isValid()) {
             handleError(tr("The server is not supported by this client."));
             break;
         } else

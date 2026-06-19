@@ -243,9 +243,9 @@ Account *AccountManager::loadAccountHelper(QSettings &settings)
     QVariantMap capsValue = settings.value(capabilitesC()).value<QVariantMap>();
     Capabilities caps(url, capsValue);
     QUuid uid = settings.value(userUUIDC(), QVariant::fromValue(QUuid::createUuid())).toUuid();
-    // if spaces are not enabled, this is an oc10 account = nogo.
-    // if the starting caps are not even valid, forget all of it as well
-    if (!caps.isValid() || !caps.spacesSupport().enabled) {
+    // if the starting caps are not even valid, forget all of it.
+    // both oCIS (spaces) and classic oc10 (no spaces) accounts are accepted as long as the caps are valid.
+    if (!caps.isValid()) {
         // ignore this account and strip it from the config
         qCWarning(lcAccountManager) << "The capabilities for this account " << urlConfig << " are not supported by this client";
         // this should remove all keys in the group which == the account index

@@ -325,16 +325,15 @@ bool Account::hasCapabilities() const
     return _capabilities.isValid();
 }
 
+bool Account::isClassicServer() const
+{
+    return _capabilities.isClassicServer();
+}
+
 void Account::setCapabilities(const Capabilities &caps)
 {
     if (!caps.isValid())
         return;
-
-    // this should not happen:
-    if (!caps.spacesSupport().enabled) {
-        qCWarning(lcAccount) << "trying to set capabilities instance that doesn't support spaces - aborting";
-        return;
-    }
 
     const bool versionChanged =
         caps.status().legacyVersion != _capabilities.status().legacyVersion || caps.status().productversion != _capabilities.status().productversion;

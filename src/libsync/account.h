@@ -185,6 +185,9 @@ public:
 
     bool hasCapabilities() const;
 
+    /// Whether this account talks to a classic ownCloud (oc10) server, see Capabilities::isClassicServer().
+    bool isClassicServer() const;
+
     void setAppProvider(AppProvider &&p);
     const AppProvider &appProvider() const;
 

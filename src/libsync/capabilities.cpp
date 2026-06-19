@@ -73,6 +73,12 @@ bool Capabilities::isValid() const
     return !_capabilities.isEmpty();
 }
 
+bool Capabilities::isClassicServer() const
+{
+    // Classic oc10: capabilities loaded but no Spaces support (no graph API).
+    return isValid() && !_spaces.enabled;
+}
+
 QList<CheckSums::Algorithm> Capabilities::supportedChecksumTypes() const
 {
     // TODO: compute once

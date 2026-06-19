@@ -62,6 +62,12 @@ namespace GraphApi {
     private:
         void refresh();
 
+        /// Classic oc10 has no graph API: synthesize a single space wrapping the account's WebDAV root.
+        /// Idempotent - safe to call again when credentials are re-fetched.
+        void ensureSyntheticSpace();
+        /// Build a minimal but valid OAIDrive describing the classic single WebDAV root.
+        static OpenAPI::OAIDrive buildClassicDrive(Account *account);
+
         QPointer<Account> _account;
         QTimer *_refreshTimer;
         QHash<QString, Space *> _spaces;
