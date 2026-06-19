@@ -13,6 +13,7 @@ use crate::paths::platform_config_dir;
 use crate::vfs_factory::create_vfs;
 use crate::watcher::FolderWatcher;
 use ocis_client::auth::TokenManager;
+use ocis_client::ServerType;
 use sync_db::SyncJournalDb;
 use sync_engine::engine::{EngineConfig, SyncEngine};
 use sync_engine::state::SyncState;
@@ -24,6 +25,36 @@ pub struct ManagedFolder {
     pub engine: Arc<SyncEngine>,
     pub vfs: Arc<dyn Vfs>,
     pub watcher: Option<FolderWatcher>,
+}
+
+/// oCIS uses TUS resumable upload for files ≥ 5 MiB; Classic (oc10) has no TUS
+/// endpoint, so we disable it (always plain PUT).
+fn tus_threshold_for(server_type: ServerType) -> u64 {
+    match server_type {
+        ServerType::Ocis => 5 * 1024 * 1024,
+        ServerType::Classic => u64::MAX,
+    }
+}
+
+/// Build the WebDAV root URL for a folder, falling back to a harmless localhost
+/// URL if the account or its URL is missing/invalid (preserves prior behavior;
+/// sync against the bad root simply fails at request time).
+fn build_space_root(
+    account: Option<&AccountConfig>,
+    server_type: ServerType,
+    space_id: &str,
+    user_id: &str,
+) -> Url {
+    let fallback = || Url::parse("http://localhost/dav/spaces/unknown/").unwrap();
+    let Some(account) = account else {
+        return fallback();
+    };
+    let server_url = match Url::parse(account.url.trim_end_matches('/')) {
+        Ok(u) => u,
+        Err(_) => return fallback(),
+    };
+    ocis_client::webdav_root(&server_url, server_type, space_id, user_id)
+        .unwrap_or_else(|_| fallback())
 }
 
 pub struct FolderManager {
@@ -75,11 +106,9 @@ impl FolderManager {
             let vfs = create_vfs(&fc.vfs_mode, &root)
                 .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
 
-            let server_url = account
-                .map(|a| a.url.trim_end_matches('/'))
-                .unwrap_or("http://localhost");
-            let space_root = Url::parse(&format!("{}/dav/spaces/{}/", server_url, fc.space_id))
-                .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown/").unwrap());
+            let server_type = account.map(|a| a.server_type).unwrap_or_default();
+            let user_id = account.map(|a| a.user_id.as_str()).unwrap_or("");
+            let space_root = build_space_root(account, server_type, &fc.space_id, user_id);
 
             let db_path = db_dir.join(format!("sync-{}.db", fc.id));
             let db = SyncJournalDb::open(&db_path)
@@ -92,6 +121,7 @@ impl FolderManager {
                 space_root,
                 conflict_strategy: ConflictStrategy::KeepBoth,
                 max_parallel_transfers: 4,
+                tus_threshold: tus_threshold_for(server_type),
                 db,
                 token_manager,
             });
@@ -132,9 +162,12 @@ impl FolderManager {
         let vfs = create_vfs(&fc.vfs_mode, &root)
             .map_err(|e| anyhow::anyhow!("vfs init for folder {}: {e}", fc.id))?;
 
-        let server_url = account.url.trim_end_matches('/');
-        let space_root = Url::parse(&format!("{}/dav/spaces/{}/", server_url, fc.space_id))
-            .unwrap_or_else(|_| Url::parse("http://localhost/dav/spaces/unknown/").unwrap());
+        let space_root = build_space_root(
+            Some(account),
+            account.server_type,
+            &fc.space_id,
+            &account.user_id,
+        );
 
         let db_path = db_dir.join(format!("sync-{}.db", fc.id));
         let db = SyncJournalDb::open(&db_path)
@@ -147,6 +180,7 @@ impl FolderManager {
             space_root,
             conflict_strategy: ConflictStrategy::KeepBoth,
             max_parallel_transfers: 4,
+            tus_threshold: tus_threshold_for(account.server_type),
             db,
             token_manager,
         });
@@ -242,6 +276,7 @@ mod tests {
             user_id: String::new(),
             username: "alice".to_string(),
             display_name: "Alice".to_string(),
+            server_type: ocis_client::ServerType::Ocis,
             folder: folders,
             dismissed_spaces: vec![],
         }

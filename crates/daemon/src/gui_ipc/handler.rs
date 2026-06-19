@@ -13,7 +13,7 @@ use ocis_client::GraphClient;
 
 use super::protocol::{DaemonCommand, DaemonEvent, SpaceInfo};
 use super::GuiIpcServer;
-use crate::config::{AppConfig, FolderConfig};
+use crate::config::{AppConfig, FolderConfig, CLASSIC_SPACE_ID};
 use crate::folder_manager::FolderManager;
 use crate::oidc_callback;
 use crate::scheduler::SyncScheduler;
@@ -22,6 +22,16 @@ pub(crate) const OCIS_CLIENT_ID: &str =
     "xdXOt13JKxym1B1QcEncf2XDkLAexMBFwiT9j6EfhhHFJhs2KM9jbjTmf8JBXE69";
 pub(crate) const OCIS_CLIENT_SECRET: &str =
     "UBntmLjC2yYCeHwsyj73Uwo9TAaecAetRwMw0xYcvNL9yRdLSUi0hUAHfvCHFeFh";
+
+/// Static OAuth2 endpoints for ownCloud Classic (oc10) servers running the
+/// OAuth2 app, which (unlike the OpenID Connect app) serve no discovery document.
+fn oc10_oauth2_endpoints(server_url: &str) -> (String, String) {
+    let base = server_url.trim_end_matches('/');
+    (
+        format!("{base}/index.php/apps/oauth2/authorize"),
+        format!("{base}/index.php/apps/oauth2/api/v1/token"),
+    )
+}
 
 #[derive(Debug, PartialEq)]
 pub enum ShouldQuit {
@@ -110,6 +120,11 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
             let config_path_clone = config_path.clone();
             let token_managers_clone = Arc::clone(token_managers);
             tokio::spawn(async move {
+                // Try OIDC discovery first: this covers oCIS and oc10 servers
+                // running the OpenID Connect app. If discovery fails, the server
+                // may still be an oc10 instance running only the legacy OAuth2
+                // app (no discovery document) — confirm it's a real ownCloud host
+                // via status.php and fall back to the static OAuth2 endpoints.
                 let oidc = match OidcAuth::discover(
                     &url,
                     OCIS_CLIENT_ID,
@@ -120,12 +135,48 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                 .await
                 {
                     Ok(o) => o,
-                    Err(e) => {
-                        ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
-                            account_id,
-                            reason: format!("OIDC discovery failed: {e}"),
-                        });
-                        return;
+                    Err(discovery_err) => {
+                        let base = match url::Url::parse(&url) {
+                            Ok(u) => u,
+                            Err(e) => {
+                                ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
+                                    account_id,
+                                    reason: format!("invalid server URL: {e}"),
+                                });
+                                return;
+                            }
+                        };
+                        if let Err(probe_err) =
+                            ocis_client::probe_owncloud_status(&base, insecure).await
+                        {
+                            ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
+                                account_id,
+                                reason: format!(
+                                    "OIDC discovery failed: {discovery_err}; \
+                                     server is not a reachable ownCloud instance: {probe_err}"
+                                ),
+                            });
+                            return;
+                        }
+                        let (auth_ep, token_ep) = oc10_oauth2_endpoints(&url);
+                        match OidcAuth::with_endpoints(
+                            &url,
+                            OCIS_CLIENT_ID,
+                            Some(OCIS_CLIENT_SECRET.to_string()),
+                            &callback_uri,
+                            &auth_ep,
+                            &token_ep,
+                            insecure,
+                        ) {
+                            Ok(o) => o,
+                            Err(e) => {
+                                ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
+                                    account_id,
+                                    reason: format!("oc10 OAuth2 setup failed: {e}"),
+                                });
+                                return;
+                            }
+                        }
                     }
                 };
 
@@ -179,10 +230,10 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
         }
 
         DaemonCommand::ListSpaces { account_id } => {
-            let account_url = {
+            let (account_url, server_type, classic_display_name) = {
                 let cfg = config.lock().await;
                 match cfg.account.iter().find(|a| a.id == account_id) {
-                    Some(a) => a.url.clone(),
+                    Some(a) => (a.url.clone(), a.server_type, a.display_name.clone()),
                     None => {
                         ipc.broadcast(DaemonEvent::AccountSpaceFailed {
                             account_id,
@@ -192,6 +243,20 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                     }
                 }
             };
+
+            // Classic (oc10) has no Graph API and no Spaces — present a single
+            // synthetic space so the existing folder-setup flow works unchanged.
+            if server_type == ocis_client::ServerType::Classic {
+                ipc.broadcast(DaemonEvent::SpacesListed {
+                    account_id,
+                    spaces: vec![SpaceInfo {
+                        id: CLASSIC_SPACE_ID.to_string(),
+                        name: classic_display_name,
+                        drive_type: "personal".to_string(),
+                    }],
+                });
+                return Ok(ShouldQuit::No);
+            }
 
             let tm = token_managers.read().unwrap().get(&account_id).cloned();
             let token_manager = match tm {

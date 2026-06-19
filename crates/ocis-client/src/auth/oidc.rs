@@ -123,6 +123,56 @@ impl OidcAuth {
         Ok(Self { config, http })
     }
 
+    /// Build an [`OidcAuth`] from explicit endpoints, skipping `/.well-known`
+    /// discovery.
+    ///
+    /// ownCloud Classic (oc10) servers that run the OAuth2 app (rather than the
+    /// OpenID Connect app) do not serve a discovery document, but they accept the
+    /// standard authorization-code + PKCE flow at fixed paths. Callers pass those
+    /// fixed endpoints here.
+    pub fn with_endpoints(
+        issuer: &str,
+        client_id: impl Into<String>,
+        client_secret: Option<String>,
+        redirect_uri: impl Into<String>,
+        authorization_endpoint: &str,
+        token_endpoint: &str,
+        insecure: bool,
+    ) -> Result<Self> {
+        let issuer_url: Url = issuer
+            .parse()
+            .map_err(|e: url::ParseError| OcisError::Auth(e.to_string()))?;
+        let redirect_uri_url: Url = redirect_uri
+            .into()
+            .parse()
+            .map_err(|e: url::ParseError| OcisError::Auth(e.to_string()))?;
+        let authorization_endpoint: Url = authorization_endpoint
+            .parse()
+            .map_err(|e: url::ParseError| OcisError::Auth(e.to_string()))?;
+        let token_endpoint: Url = token_endpoint
+            .parse()
+            .map_err(|e: url::ParseError| OcisError::Auth(e.to_string()))?;
+
+        let env_insecure = std::env::var("OCIS_INSECURE")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(false);
+        let http = Client::builder()
+            .danger_accept_invalid_certs(insecure || env_insecure)
+            .build()
+            .map_err(OcisError::Http)?;
+
+        let config = OidcConfig {
+            issuer_url,
+            client_id: client_id.into(),
+            client_secret,
+            redirect_uri: redirect_uri_url,
+            authorization_endpoint,
+            token_endpoint,
+        };
+
+        Ok(Self { config, http })
+    }
+
     /// Build an authorization URL for the PKCE flow.
     ///
     /// Returns `(authorization_url, verifier)`.
@@ -229,5 +279,39 @@ fn token_response_to_set(resp: TokenResponse) -> TokenSet {
         access_token: resp.access_token,
         refresh_token: resp.refresh_token,
         expires_at,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_endpoints_builds_pkce_auth_url() {
+        let oidc = OidcAuth::with_endpoints(
+            "https://oc10.example.com",
+            "client-abc",
+            Some("secret".to_string()),
+            "http://127.0.0.1:1234/callback",
+            "https://oc10.example.com/index.php/apps/oauth2/authorize",
+            "https://oc10.example.com/index.php/apps/oauth2/api/v1/token",
+            false,
+        )
+        .unwrap();
+
+        let (auth_url, _verifier) = oidc.start_pkce_flow().unwrap();
+        assert_eq!(
+            auth_url.path(),
+            "/index.php/apps/oauth2/authorize",
+            "auth URL should target the static oc10 OAuth2 path"
+        );
+        let q: std::collections::HashMap<_, _> = auth_url.query_pairs().into_owned().collect();
+        assert_eq!(q.get("client_id").map(String::as_str), Some("client-abc"));
+        assert_eq!(q.get("response_type").map(String::as_str), Some("code"));
+        assert_eq!(
+            q.get("code_challenge_method").map(String::as_str),
+            Some("S256")
+        );
+        assert!(q.contains_key("code_challenge"));
     }
 }

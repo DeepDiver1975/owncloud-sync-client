@@ -3,7 +3,7 @@
 A Rust reimplementation of the ownCloud desktop sync client targeting oCIS (ownCloud Infinite Scale). The system is a headless sync daemon (`ocsyncd`) and a GUI process (`ocsync`), with shell integrations connecting to the daemon via a text-based socket API.
 
 **Targets:** Windows, macOS, Linux  
-**Server backend:** oCIS only (Spaces, Graph API, OIDC mandatory)  
+**Server backends:** oCIS (Spaces, Graph API) and ownCloud Classic / oc10 (single WebDAV root, no Spaces). Auth is OIDC, plus the legacy oc10 OAuth2 app.  
 **GUI framework:** iced (pure Rust, cross-platform, Elm architecture)  
 **VFS:** Windows CloudFiles API, macOS FileProvider (via Swift + XPC), Linux VFS-off (full download)  
 **Shell integration:** Rust (Windows + Linux), Swift (macOS Finder + FileProvider extensions)
@@ -227,6 +227,10 @@ No virtual files on Linux — all files fully downloaded. `create_placeholder`, 
 
 **Graph API:** `GET /graph/v1.0/me/drives` lists Spaces; WebDAV root per Space is `/dav/spaces/{spaceId}/`.
 
+**Server-type detection (oCIS vs Classic/oc10):** at account-add time the client tries OIDC discovery (`/.well-known/openid-configuration`); on failure it probes `status.php` and, for a confirmed ownCloud host, falls back to the static oc10 OAuth2 endpoints (`/index.php/apps/oauth2/{authorize,api/v1/token}`). After sign-in it queries the OCS capabilities endpoint (`ocs/v1.php/cloud/capabilities`): `spaces.enabled` ⇒ oCIS, otherwise Classic. The result is stored as `AccountConfig.server_type` (`"ocis" | "classic"`, defaulting to `ocis` for legacy configs).
+
+**ownCloud Classic (oc10):** no Graph API and no Spaces. Identity comes from OCS `cloud/user`; the client presents a single synthetic Space and syncs the per-user WebDAV root `/remote.php/dav/files/{userId}/`. Uploads always use plain PUT (no TUS), and the Space poller is not started for Classic accounts. Selective sync and VFS for Classic are deferred.
+
 ---
 
 ## Configuration
@@ -290,7 +294,7 @@ Two App Extensions inside `ocsync.app`:
 
 | Decision | Rationale |
 |---|---|
-| oCIS only | Eliminates Basic Auth, clean Graph API, single WebDAV root per Space |
+| oCIS + oc10 Classic | oCIS uses Graph API + Spaces; oc10 adds a single per-user WebDAV root via OCS detection. Both use OIDC/OAuth2 (no Basic Auth) |
 | User-space only, no system service | No privilege escalation, simpler lifecycle |
 | Daemon + GUI as separate processes | Crash isolation, headless operation, clean testable boundary |
 | iced for GUI | Pure Rust, Elm architecture matches sync state model |

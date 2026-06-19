@@ -2,9 +2,15 @@
 // Copyright 2026 ownCloud Sync Contributors
 
 use anyhow::Result;
+use ocis_client::ServerType;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use uuid::Uuid;
+
+/// Synthetic Space id used for Classic (oc10) accounts, which have no real
+/// Spaces. It only needs to be stable and non-empty for config persistence and
+/// folder dedup; the Classic WebDAV path is derived from the user id, not this.
+pub const CLASSIC_SPACE_ID: &str = "00000000-0000-0000-0000-000000000000";
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AppConfig {
@@ -62,6 +68,10 @@ pub struct AccountConfig {
     pub user_id: String,
     pub username: String,
     pub display_name: String,
+    /// Which backend this account talks to. Defaults to `Ocis` so configs
+    /// written before this field existed keep their original behavior.
+    #[serde(default)]
+    pub server_type: ServerType,
     #[serde(default)]
     pub folder: Vec<FolderConfig>,
     #[serde(default)]
@@ -182,5 +192,30 @@ paused = false
     fn space_poll_interval_secs_defaults() {
         let cfg: AppConfig = toml::from_str("[general]\n").unwrap();
         assert_eq!(cfg.general.space_poll_interval_secs, 300);
+    }
+
+    #[test]
+    fn server_type_defaults_to_ocis_for_legacy_config() {
+        let cfg: AppConfig = toml::from_str(EXAMPLE_TOML).unwrap();
+        assert_eq!(cfg.account[0].server_type, ServerType::Ocis);
+    }
+
+    #[test]
+    fn classic_server_type_round_trips() {
+        const CLASSIC_TOML: &str = r#"
+[[account]]
+id = "11111111-1111-1111-1111-111111111111"
+url = "https://oc10.example.com"
+username = "alice"
+display_name = "Alice"
+server_type = "classic"
+"#;
+        let cfg: AppConfig = toml::from_str(CLASSIC_TOML).unwrap();
+        assert_eq!(cfg.account[0].server_type, ServerType::Classic);
+
+        let file = NamedTempFile::new().unwrap();
+        cfg.save(file.path()).unwrap();
+        let loaded = AppConfig::load(file.path()).unwrap();
+        assert_eq!(cfg, loaded);
     }
 }

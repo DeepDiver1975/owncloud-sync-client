@@ -13,8 +13,9 @@ use uuid::Uuid;
 use crate::config::{AccountConfig, AppConfig};
 use crate::gui_ipc::protocol::DaemonEvent;
 use crate::gui_ipc::GuiIpcServer;
+use ocis_client::auth::oidc::TokenSet;
 use ocis_client::auth::{KeychainStore, OidcAuth, PkceVerifier};
-use ocis_client::GraphClient;
+use ocis_client::{GraphClient, ServerType};
 
 fn render(template: &str, title: &str, message: &str) -> String {
     template
@@ -163,7 +164,8 @@ async fn handle_callback(
         })
     };
 
-    // 2. Call GET /graph/v1.0/me to get user identity.
+    // 2. Detect the server type, then fetch identity accordingly.
+    //    oCIS → Graph GET /me; Classic (oc10) → OCS cloud/user.
     let base_url = match url::Url::parse(&url) {
         Ok(u) => u,
         Err(e) => {
@@ -180,11 +182,14 @@ async fn handle_callback(
         }
     };
     let token_arc = Arc::new(RwLock::new(tokens));
-    let graph = GraphClient::new(base_url, token_arc);
-    let user_info = match graph.get_me().await {
-        Ok(info) => info,
+
+    // A failure here aborts the sign-in with an error page; this closure keeps
+    // the cleanup (HTTP response + keychain/token removal) in one place.
+    let identity = resolve_identity(&base_url, &token_arc).await;
+    let (user_id, display_name, server_type) = match identity {
+        Ok(triple) => triple,
         Err(e) => {
-            let msg = format!("GET /me failed: {e}");
+            let msg = format!("identity lookup failed: {e}");
             send_html_response(
                 &mut stream,
                 "400 Bad Request",
@@ -204,19 +209,19 @@ async fn handle_callback(
         if cfg
             .account
             .iter()
-            .any(|a| a.url == url && a.user_id == user_info.id)
+            .any(|a| a.url == url && a.user_id == user_id)
         {
             Err(anyhow::anyhow!(
-                "account already exists for user '{}' on {url}",
-                user_info.id
+                "account already exists for user '{user_id}' on {url}"
             ))
         } else {
             cfg.account.push(AccountConfig {
                 id: account_id,
                 url: url.clone(),
-                user_id: user_info.id.clone(),
+                user_id: user_id.clone(),
                 username: String::new(),
-                display_name: user_info.display_name.clone(),
+                display_name: display_name.clone(),
+                server_type,
                 folder: vec![],
                 dismissed_spaces: vec![],
             });
@@ -241,8 +246,8 @@ async fn handle_callback(
     // 5. Broadcast AccountAddCompleted.
     ipc.broadcast(DaemonEvent::AccountAddCompleted {
         account_id,
-        user_id: user_info.id,
-        display_name: user_info.display_name,
+        user_id,
+        display_name,
         url,
     });
 
@@ -259,6 +264,37 @@ async fn handle_callback(
     )
     .await;
     Ok(())
+}
+
+/// Detect the server type and fetch the authenticated user's identity.
+///
+/// Returns `(user_id, display_name, server_type)`. For Classic (oc10) the
+/// `user_id` is the OCS id, which forms the legacy WebDAV path
+/// `/remote.php/dav/files/{user_id}/`.
+async fn resolve_identity(
+    base_url: &url::Url,
+    token_arc: &Arc<RwLock<TokenSet>>,
+) -> anyhow::Result<(String, String, ServerType)> {
+    let server_type = ocis_client::detect_server_type(base_url, token_arc)
+        .await
+        .map_err(|e| anyhow::anyhow!("server-type detection failed: {e}"))?;
+
+    match server_type {
+        ServerType::Ocis => {
+            let graph = GraphClient::new(base_url.clone(), Arc::clone(token_arc));
+            let info = graph
+                .get_me()
+                .await
+                .map_err(|e| anyhow::anyhow!("GET /me failed: {e}"))?;
+            Ok((info.id, info.display_name, ServerType::Ocis))
+        }
+        ServerType::Classic => {
+            let (id, display_name) = ocis_client::ocs_user(base_url, token_arc)
+                .await
+                .map_err(|e| anyhow::anyhow!("OCS cloud/user failed: {e}"))?;
+            Ok((id, display_name, ServerType::Classic))
+        }
+    }
 }
 
 fn extract_query_param(request: &str, param: &str) -> Option<String> {

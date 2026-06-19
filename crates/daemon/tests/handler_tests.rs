@@ -14,6 +14,7 @@ use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use daemon::gui_ipc::GuiIpcServer;
 use daemon::scheduler::SyncScheduler;
 use ocis_client::auth::TokenManager;
+use ocis_client::ServerType;
 
 fn make_ctx<'a>(
     ipc: Arc<GuiIpcServer>,
@@ -76,6 +77,7 @@ async fn dismiss_space_adds_to_dismissed_list() {
             user_id: "alice".into(),
             username: "alice".into(),
             display_name: "Alice".into(),
+            server_type: ServerType::Ocis,
             folder: vec![],
             dismissed_spaces: vec![],
         }],
@@ -143,6 +145,7 @@ async fn set_account_folders_no_token_manager_broadcasts_failed() {
             user_id: "alice".into(),
             username: "alice".into(),
             display_name: "Alice".into(),
+            server_type: ServerType::Ocis,
             folder: vec![],
             dismissed_spaces: vec![],
         }],
