@@ -47,7 +47,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
