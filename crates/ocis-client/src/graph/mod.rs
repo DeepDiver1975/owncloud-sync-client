@@ -145,3 +145,59 @@ pub fn webdav_url_for_space(server_url: &Url, space_id: &str) -> Result<Url> {
     let path = format!("dav/spaces/{space_id}/");
     server_url.join(&path).map_err(OcisError::Url)
 }
+
+/// Build the WebDAV root URL for a sync folder, branching on the server type.
+///
+/// - oCIS uses a per-Space root: `{server_url}/dav/spaces/{space_id}/`.
+/// - Classic (oc10) has a single per-user root: `{server_url}/remote.php/dav/files/{user_id}/`
+///   (`space_id` is ignored — Classic accounts use a synthetic sentinel space).
+///
+/// `server_url` is expected without a trailing slash; both forms are tolerated.
+pub fn webdav_root(
+    server_url: &Url,
+    server_type: crate::ServerType,
+    space_id: &str,
+    user_id: &str,
+) -> Result<Url> {
+    // Ensure the base path ends with '/' so `join` appends rather than replacing
+    // the last segment — this preserves sub-path installs like `https://host/owncloud`.
+    let mut base = server_url.clone();
+    if !base.path().ends_with('/') {
+        let with_slash = format!("{}/", base.path());
+        base.set_path(&with_slash);
+    }
+    match server_type {
+        crate::ServerType::Ocis => base
+            .join(&format!("dav/spaces/{space_id}/"))
+            .map_err(OcisError::Url),
+        crate::ServerType::Classic => base
+            .join(&format!("remote.php/dav/files/{user_id}/"))
+            .map_err(OcisError::Url),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ServerType;
+
+    #[test]
+    fn ocis_root_uses_spaces_path() {
+        let base = Url::parse("https://ocis.example.com/").unwrap();
+        let root = webdav_root(&base, ServerType::Ocis, "drive-123", "alice").unwrap();
+        assert_eq!(
+            root.as_str(),
+            "https://ocis.example.com/dav/spaces/drive-123/"
+        );
+    }
+
+    #[test]
+    fn classic_root_uses_legacy_files_path() {
+        let base = Url::parse("https://oc10.example.com/").unwrap();
+        let root = webdav_root(&base, ServerType::Classic, "ignored-sentinel", "alice").unwrap();
+        assert_eq!(
+            root.as_str(),
+            "https://oc10.example.com/remote.php/dav/files/alice/"
+        );
+    }
+}

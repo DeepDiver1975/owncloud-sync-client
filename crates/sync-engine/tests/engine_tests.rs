@@ -111,6 +111,7 @@ async fn engine_downloads_new_remote_file() {
         space_root,
         conflict_strategy: ConflictStrategy::KeepBoth,
         max_parallel_transfers: 3,
+        tus_threshold: 5 * 1024 * 1024,
         db,
         token_manager,
     };
@@ -186,6 +187,7 @@ async fn engine_uploads_new_local_file() {
         space_root,
         conflict_strategy: ConflictStrategy::KeepBoth,
         max_parallel_transfers: 3,
+        tus_threshold: 5 * 1024 * 1024,
         db,
         token_manager,
     };
@@ -249,6 +251,7 @@ async fn engine_creates_remote_dir_on_upload() {
         space_root,
         conflict_strategy: ConflictStrategy::KeepBoth,
         max_parallel_transfers: 2,
+        tus_threshold: 5 * 1024 * 1024,
         db,
         token_manager,
     };

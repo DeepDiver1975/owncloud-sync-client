@@ -33,6 +33,10 @@ pub struct EngineConfig {
     pub space_root: Url,
     pub conflict_strategy: ConflictStrategy,
     pub max_parallel_transfers: usize,
+    /// Minimum file size (bytes) that triggers a TUS resumable upload instead of
+    /// a plain PUT. Set to `u64::MAX` to disable TUS entirely (e.g. for Classic
+    /// oc10 servers, which don't expose a TUS endpoint).
+    pub tus_threshold: u64,
     pub db: SyncJournalDb,
     pub token_manager: Arc<TokenManager>,
 }
@@ -321,6 +325,7 @@ impl SyncEngine {
                 SyncInstruction::Upload => {
                     let bearer_token_ul = bearer_token.clone();
                     let space_root_ul = self.cfg.space_root.clone();
+                    let tus_threshold = self.cfg.tus_threshold;
                     join_set.spawn(async move {
                         let _permit = sem.acquire().await.unwrap();
                         let mut task_http: Vec<HttpEvent> = Vec::new();
@@ -338,7 +343,7 @@ impl SyncEngine {
                             space_root: space_root_ul,
                             size,
                             checksum: None,
-                            tus_threshold: 5 * 1024 * 1024,
+                            tus_threshold,
                             bearer_token: bearer_token_ul,
                         };
                         let result = propagate_upload(req, &mut task_http).await;

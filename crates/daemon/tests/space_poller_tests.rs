@@ -16,6 +16,7 @@ use daemon::space_poller::SpacePoller;
 use ocis_client::auth::oidc::TokenSet;
 use ocis_client::auth::OidcAuth;
 use ocis_client::auth::TokenManager;
+use ocis_client::ServerType;
 
 async fn make_server_with_spaces(spaces_json: &str) -> MockServer {
     let server = MockServer::start().await;
@@ -70,6 +71,7 @@ async fn poller_emits_space_discovered_for_new_space() {
             user_id: "alice".into(),
             username: "alice".into(),
             display_name: "Alice".into(),
+            server_type: ServerType::Ocis,
             folder: vec![],
             dismissed_spaces: vec![],
         }],
@@ -136,6 +138,7 @@ async fn poller_does_not_re_emit_dismissed_space() {
             user_id: "alice".into(),
             username: "alice".into(),
             display_name: "Alice".into(),
+            server_type: ServerType::Ocis,
             folder: vec![],
             dismissed_spaces: vec!["dismissed-space".to_string()],
         }],
@@ -184,6 +187,7 @@ async fn poller_emits_space_removed_for_gone_folder() {
             user_id: "alice".into(),
             username: "alice".into(),
             display_name: "Alice".into(),
+            server_type: ServerType::Ocis,
             folder: vec![FolderConfig {
                 id: folder_id,
                 local_path: "/tmp/ownCloud/OldSpace".into(),

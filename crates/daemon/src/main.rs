@@ -264,6 +264,11 @@ async fn main() -> Result<()> {
         let space_poll_interval = Duration::from_secs(cfg.general.space_poll_interval_secs);
         let tms = token_managers.read().unwrap();
         for account in &cfg.account {
+            // Classic (oc10) accounts have a fixed single root and no Graph API,
+            // so Space polling would only 404 — skip it for them.
+            if account.server_type == ocis_client::ServerType::Classic {
+                continue;
+            }
             if let Some(tm) = tms.get(&account.id) {
                 let poller = SpacePoller::new(
                     account.id,
