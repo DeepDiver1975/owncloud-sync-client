@@ -2,7 +2,7 @@
 // Copyright 2026 ownCloud Sync Contributors
 
 use acceptance_test::fixture::TestEnvironment;
-use acceptance_test::playwright::complete_oidc_login;
+use acceptance_test::playwright::{complete_oidc_login, LoginSelectors};
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent};
 use std::time::Duration;
 
@@ -56,9 +56,15 @@ async fn test_duplicate_account_rejected() {
         })
         .expect("could not extract callback port from redirect_uri");
 
-    complete_oidc_login(&auth_url, callback_port, "admin", "admin")
-        .await
-        .expect("Playwright OIDC login failed for second attempt");
+    complete_oidc_login(
+        &auth_url,
+        callback_port,
+        "admin",
+        "admin",
+        LoginSelectors::OCIS,
+    )
+    .await
+    .expect("Playwright OIDC login failed for second attempt");
 
     // Wait for either AccountAddFailed or AccountAddCompleted — whichever arrives first.
     let event = env

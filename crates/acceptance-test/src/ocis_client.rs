@@ -13,6 +13,16 @@ pub struct OcisClient {
     pub space_id: String,
     username: String,
     password: String,
+    layout: DavLayout,
+}
+
+/// How WebDAV paths are rooted, which differs by backend.
+#[derive(Debug, Clone)]
+enum DavLayout {
+    /// oCIS per-Space root: `dav/spaces/{space_id}/…`.
+    Spaces,
+    /// ownCloud Classic (oc10) per-user root: `remote.php/dav/files/{user_id}/…`.
+    ClassicFiles { user_id: String },
 }
 
 #[derive(Deserialize)]
@@ -54,6 +64,30 @@ impl OcisClient {
             space_id: personal.id,
             username: username.to_owned(),
             password: password.to_owned(),
+            layout: DavLayout::Spaces,
+        })
+    }
+
+    /// Builds a client for server-side assertions against an ownCloud Classic
+    /// (oc10) account. Classic has no Graph API or Spaces — WebDAV is rooted at
+    /// the legacy per-user path `remote.php/dav/files/{user_id}/`, where
+    /// `user_id` is the OCS user id (which for the bootstrap admin is `admin`).
+    /// Basic auth works the same as for oCIS.
+    pub fn from_credentials_oc10(base_url: Url, username: &str, password: &str) -> Result<Self> {
+        let client = Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()?;
+        Ok(Self {
+            client,
+            base_url,
+            // Classic uses a synthetic single space; the id is unused for path
+            // building (the user id roots the WebDAV path instead).
+            space_id: String::new(),
+            username: username.to_owned(),
+            password: password.to_owned(),
+            layout: DavLayout::ClassicFiles {
+                user_id: username.to_owned(),
+            },
         })
     }
 
@@ -76,6 +110,7 @@ impl OcisClient {
             space_id: space_id.to_owned(),
             username: username.to_owned(),
             password: password.to_owned(),
+            layout: DavLayout::Spaces,
         })
     }
 
@@ -90,9 +125,19 @@ impl OcisClient {
             let mut segments = url
                 .path_segments_mut()
                 .map_err(|_| anyhow!("base_url cannot be a base"))?;
-            segments.push("dav");
-            segments.push("spaces");
-            segments.push(&self.space_id);
+            match &self.layout {
+                DavLayout::Spaces => {
+                    segments.push("dav");
+                    segments.push("spaces");
+                    segments.push(&self.space_id);
+                }
+                DavLayout::ClassicFiles { user_id } => {
+                    segments.push("remote.php");
+                    segments.push("dav");
+                    segments.push("files");
+                    segments.push(user_id);
+                }
+            }
             for component in path.trim_start_matches('/').split('/') {
                 segments.push(component);
             }

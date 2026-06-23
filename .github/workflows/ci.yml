@@ -171,3 +171,70 @@ jobs:
       - name: Stop oCIS
         if: always()
         run: docker compose -f tests/docker/compose.yml down
+
+  # ---------------------------------------------------------------------------
+  # Acceptance tests (oc10) — full end-to-end with a real ownCloud Classic
+  # instance (owncloud/server behind a TLS proxy). Runs in parallel with the
+  # oCIS acceptance job; its stack listens on :9201 so the two never collide.
+  # ---------------------------------------------------------------------------
+  acceptance-oc10:
+    name: Acceptance Tests (oc10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config libsecret-1-dev xvfb libxkbcommon-x11-0 mesa-vulkan-drivers gnome-keyring dbus-x11 libgtk-3-dev libayatana-appindicator3-dev libxdo-dev
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright
+          npx playwright install chromium
+          npx playwright install-deps chromium
+
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -screen 0 1280x960x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Start oc10
+        run: docker compose -f tests/docker/compose.oc10.yml up -d
+
+      - name: Wait for oc10 health
+        run: |
+          for i in $(seq 1 60); do
+            curl -fks https://localhost:9201/status.php && break || sleep 2
+          done
+
+      - name: Build ocsyncd and ocsync
+        run: cargo build -p daemon -p gui
+
+      - name: Start gnome-keyring (headless secret service)
+        run: |
+          eval $(dbus-launch --sh-syntax)
+          test -n "$DBUS_SESSION_BUS_ADDRESS" || { echo "dbus-launch failed to produce a bus address"; exit 1; }
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
+          echo "" | gnome-keyring-daemon --unlock --daemonize --components=secrets
+
+      - name: Run oc10 acceptance tests
+        run: |
+          OCIS_ACCEPTANCE=1 OC10_ACCEPTANCE=1 cargo test -p acceptance-test \
+            --test oc10_account_setup --test oc10_sync --test oc10_edit --test oc10_delete \
+            -- --nocapture --test-threads=1
+
+      - name: Stop oc10
+        if: always()
+        run: docker compose -f tests/docker/compose.oc10.yml down

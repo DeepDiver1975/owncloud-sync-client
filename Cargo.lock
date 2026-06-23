@@ -28,6 +28,7 @@ dependencies = [
  "bytes",
  "daemon",
  "nix 0.31.3",
+ "ocis-client",
  "reqwest",
  "serde",
  "serde_json",
@@ -43,18 +44,18 @@ dependencies = [
 
 [[package]]
 name = "accesskit"
-version = "0.24.1"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3b7f7f85a7e5f68090000ed7622545829afd484d210358702ae4cb97dd0c320"
+checksum = "5351dcebb14b579ccab05f288596b2ae097005be7ee50a7c3d4ca9d0d5a66f6a"
 dependencies = [
  "uuid",
 ]
 
 [[package]]
 name = "accesskit_atspi_common"
-version = "0.18.1"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e8c61bee90b42a772d39d06a740207dc71a4e780004ace1db8d99fb1baaa954"
+checksum = "842fd8203e6dfcf531d24f5bac792088edfba7d6b35844fead191603fb32a260"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
@@ -66,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "accesskit_consumer"
-version = "0.36.0"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25e0d7e25d06f4dc21d1774d67146e9e80d6789216cbd4d1e88185b0095dba60"
+checksum = "53cf47daed85312e763fbf85ceca136e0d7abc68e0a7e12abe11f48172bc3b10"
 dependencies = [
  "accesskit",
  "hashbrown 0.16.1",
@@ -76,9 +77,9 @@ dependencies = [
 
 [[package]]
 name = "accesskit_unix"
-version = "0.21.1"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b016ca8db0ea0ea2ceff29a9d6240391492d960716aa471967c00e8cc8cb197c"
+checksum = "90e549dd7c6562b6a2ea807b44726e6241707db054a817dc4c7e2b8d3b39bfac"
 dependencies = [
  "accesskit",
  "accesskit_atspi_common",
