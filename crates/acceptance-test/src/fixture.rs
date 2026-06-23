@@ -12,8 +12,56 @@ use url::Url;
 
 use crate::daemon_ipc::DaemonIpcClient;
 use crate::ocis_client::OcisClient;
-use crate::playwright::complete_oidc_login;
+use crate::playwright::{complete_oidc_login, LoginSelectors};
 use daemon::gui_ipc::protocol::{DaemonCommand, DaemonEvent, SpaceSelection};
+
+/// Which server backend a [`TestEnvironment`] targets. Selects the docker
+/// compose stack, base URL, health endpoint, and web-login selectors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backend {
+    /// oCIS (`owncloud/ocis:latest`) on `https://127.0.0.1:9200`.
+    Ocis,
+    /// ownCloud Classic / oc10 (`owncloud/server:latest` behind a TLS proxy) on
+    /// `https://127.0.0.1:9201`.
+    Oc10,
+}
+
+impl Backend {
+    fn base_url(self) -> &'static str {
+        match self {
+            Backend::Ocis => "https://127.0.0.1:9200",
+            // oc10 is fronted by a TLS proxy whose self-signed cert only carries
+            // a `localhost` SAN, so the host must be `localhost` (not
+            // `127.0.0.1`) for the handshake to succeed. This also matches the
+            // host oc10's OAuth2 app requires in the redirect_uri.
+            Backend::Oc10 => "https://localhost:9201",
+        }
+    }
+
+    fn compose_path(self) -> PathBuf {
+        let file = match self {
+            Backend::Ocis => "compose.yml",
+            Backend::Oc10 => "compose.oc10.yml",
+        };
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../tests/docker/{file}"))
+    }
+
+    /// Health endpoint polled (over HTTPS, certs ignored) until the server is
+    /// ready: oCIS exposes `/health`; oc10 exposes `/status.php`.
+    fn health_path(self) -> &'static str {
+        match self {
+            Backend::Ocis => "/health",
+            Backend::Oc10 => "/status.php",
+        }
+    }
+
+    fn login_selectors(self) -> LoginSelectors {
+        match self {
+            Backend::Ocis => LoginSelectors::OCIS,
+            Backend::Oc10 => LoginSelectors::OC10,
+        }
+    }
+}
 
 /// Per-account results from a successful account-setup flow.
 ///
@@ -45,13 +93,8 @@ enum SpaceChoice {
     Named(String),
 }
 
-const OCIS_URL: &str = "https://127.0.0.1:9200";
-
-fn compose_file() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/docker/compose.yml")
-}
-
 pub struct TestEnvironment {
+    pub backend: Backend,
     pub ocis_url: Url,
     pub sync_dir: TempDir,
     pub config_dir: TempDir,
@@ -73,26 +116,42 @@ pub struct TestEnvironment {
 }
 
 impl TestEnvironment {
+    /// Starts an oCIS-backed environment. Equivalent to
+    /// `start_with(Backend::Ocis)`; kept for the many existing oCIS tests.
     pub async fn start() -> Result<Self> {
+        Self::start_with(Backend::Ocis).await
+    }
+
+    /// Starts an ownCloud Classic (oc10) backed environment.
+    pub async fn start_oc10() -> Result<Self> {
+        Self::start_with(Backend::Oc10).await
+    }
+
+    /// Brings up the docker stack for `backend`, waits for it to become healthy,
+    /// then spawns the daemon and GUI against a fresh temp config. The
+    /// account-setup flow is added later via [`Self::add_account`] et al.
+    pub async fn start_with(backend: Backend) -> Result<Self> {
         if std::env::var("OCIS_ACCEPTANCE").is_err() {
             panic!("Set OCIS_ACCEPTANCE=1 to run acceptance tests");
         }
+
+        let base_url = backend.base_url();
 
         StdCommand::new("docker")
             .args([
                 "compose",
                 "-f",
-                &compose_file().to_string_lossy(),
+                &backend.compose_path().to_string_lossy(),
                 "up",
                 "-d",
                 "--no-recreate",
             ])
             .status()
-            .context("failed to start oCIS via docker compose")?;
+            .with_context(|| format!("failed to start {backend:?} via docker compose"))?;
 
-        wait_ocis_ready(OCIS_URL)
+        wait_server_ready(base_url, backend.health_path())
             .await
-            .context("oCIS did not become healthy")?;
+            .with_context(|| format!("{backend:?} did not become healthy"))?;
 
         let config_dir = TempDir::new()?;
         let sync_dir = TempDir::new()?;
@@ -141,12 +200,22 @@ impl TestEnvironment {
             .spawn()
             .context("failed to spawn ocsync")?;
 
-        let ocis_client = OcisClient::from_credentials(Url::parse(OCIS_URL)?, "admin", "admin")
-            .await
-            .context("failed to create OcisClient")?;
+        let server_url = Url::parse(base_url)?;
+        let ocis_client = match backend {
+            Backend::Ocis => OcisClient::from_credentials(server_url.clone(), "admin", "admin")
+                .await
+                .context("failed to create OcisClient")?,
+            // oc10 has no Graph API; root the assertion client at the legacy
+            // per-user WebDAV path for the bootstrap admin (user id `admin`).
+            Backend::Oc10 => {
+                OcisClient::from_credentials_oc10(server_url.clone(), "admin", "admin")
+                    .context("failed to create oc10 OcisClient")?
+            }
+        };
 
         Ok(Self {
-            ocis_url: Url::parse(OCIS_URL)?,
+            backend,
+            ocis_url: server_url,
             sync_dir,
             config_dir,
             daemon_ipc,
@@ -204,9 +273,15 @@ impl TestEnvironment {
             .ok_or_else(|| anyhow!("could not extract callback port from redirect_uri"))?;
 
         // 4. Complete OIDC login in headless browser as the requested user.
-        let callback_title = complete_oidc_login(&auth_url, callback_port, username, password)
-            .await
-            .context("Playwright OIDC login failed")?;
+        let callback_title = complete_oidc_login(
+            &auth_url,
+            callback_port,
+            username,
+            password,
+            self.backend.login_selectors(),
+        )
+        .await
+        .context("Playwright OIDC login failed")?;
 
         // 5. Wait for daemon to confirm OIDC completed and account saved.
         let completed_event = self
@@ -346,10 +421,14 @@ impl TestEnvironment {
 
     /// Returns the bare `host:port` string expected by `DaemonCommand::AddAccount`.
     pub fn bare_url(&self) -> String {
+        let default_port = match self.backend {
+            Backend::Ocis => 9200,
+            Backend::Oc10 => 9201,
+        };
         format!(
             "{}:{}",
             self.ocis_url.host_str().unwrap_or("127.0.0.1"),
-            self.ocis_url.port().unwrap_or(9200)
+            self.ocis_url.port().unwrap_or(default_port)
         )
     }
 
@@ -447,11 +526,11 @@ fn spawn_daemon(
     Ok((child, lines))
 }
 
-async fn wait_ocis_ready(base_url: &str) -> Result<()> {
+async fn wait_server_ready(base_url: &str, health_path: &str) -> Result<()> {
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
-    let health_url = format!("{base_url}/health");
+    let health_url = format!("{base_url}{health_path}");
     crate::poll::poll_until(
         || {
             let client = client.clone();

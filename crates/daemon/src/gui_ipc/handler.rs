@@ -33,6 +33,26 @@ fn oc10_oauth2_endpoints(server_url: &str) -> (String, String) {
     )
 }
 
+/// OAuth2 redirect/callback URI for ownCloud Classic (oc10) servers.
+///
+/// oc10's OAuth2 app only honours a redirect wildcard for the literal host
+/// `localhost` — its pre-seeded desktop client registers `http://localhost:*`,
+/// and `validateRedirectUri()` compares hostnames byte-for-byte, so a
+/// `127.0.0.1` callback is rejected (and a `127.0.0.1:*` wildcard cannot even be
+/// registered). The legacy C++ desktop client uses `localhost` for exactly this
+/// reason. The callback listener still binds `127.0.0.1` (which `localhost`
+/// resolves to); only this redirect_uri *string* sent to the server must say
+/// `localhost`.
+///
+/// The path is the root `/`, not `/callback`: the wildcard strips only the port,
+/// and `validateRedirectUri()` then compares the pathname, so the request URI
+/// must match the registered `http://localhost:*` (pathname `/`). The callback
+/// HTTP handler keys off the `code` query parameter and ignores the path, so the
+/// root path is fine.
+fn oc10_callback_uri(port: u16) -> String {
+    format!("http://localhost:{port}/")
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ShouldQuit {
     Yes,
@@ -112,6 +132,9 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
             };
             let port = listener.local_addr()?.port();
             let callback_uri = format!("http://127.0.0.1:{port}/callback");
+            // oc10's OAuth2 fallback needs a `localhost` redirect_uri (see
+            // `oc10_callback_uri`); derived from the same bound port.
+            let oc10_callback_uri = oc10_callback_uri(port);
 
             ipc.broadcast(DaemonEvent::AccountAddStarted { account_id });
 
@@ -163,7 +186,7 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
                             &url,
                             OCIS_CLIENT_ID,
                             Some(OCIS_CLIENT_SECRET.to_string()),
-                            &callback_uri,
+                            &oc10_callback_uri,
                             &auth_ep,
                             &token_ep,
                             insecure,
@@ -573,6 +596,20 @@ mod tests {
     use crate::folder_manager::FolderManager;
     use crate::scheduler::SyncScheduler;
     use tempfile::NamedTempFile;
+
+    #[test]
+    fn oc10_callback_uri_uses_localhost_host() {
+        // oc10's OAuth2 app wildcard (`http://localhost:*`) only matches the
+        // literal host `localhost`; a `127.0.0.1` callback would be rejected.
+        let uri = oc10_callback_uri(43210);
+        assert_eq!(uri, "http://localhost:43210/");
+        let parsed = url::Url::parse(&uri).unwrap();
+        assert_eq!(parsed.host_str(), Some("localhost"));
+        assert_eq!(parsed.port(), Some(43210));
+        // Path must be the root `/` to match the registered `http://localhost:*`
+        // (pathname `/`); the callback handler ignores the path.
+        assert_eq!(parsed.path(), "/");
+    }
 
     #[tokio::test]
     async fn trigger_sync_marks_pending() {

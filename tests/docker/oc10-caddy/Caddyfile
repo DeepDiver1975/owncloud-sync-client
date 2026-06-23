@@ -1,0 +1,19 @@
+# TLS terminator for the oc10 acceptance stack.
+#
+# Serves https://localhost:9201 with a self-signed cert from Caddy's internal CA
+# (SAN: localhost) — the sync client runs with insecure=true, so the cert is not
+# validated. The `bind 0.0.0.0` makes Caddy listen on all interfaces (not just
+# the container's loopback), so Docker's published port reaches it, while the
+# site name keeps the cert valid for the `localhost` SNI the client sends.
+# Proxies to the plain-HTTP oc10 backend, preserving a trusted Host header.
+{
+	auto_https disable_redirects
+}
+
+https://localhost:9201 {
+	bind 0.0.0.0
+	tls internal
+	reverse_proxy owncloud:8080 {
+		header_up Host localhost:9201
+	}
+}

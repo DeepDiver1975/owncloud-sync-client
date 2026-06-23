@@ -1,0 +1,42 @@
+# ownCloud Classic (oc10) acceptance-test stack.
+#
+# Boots a stock `owncloud/server` (SQLite, no external DB) with the
+# bundled `oauth2` app enabled, fronted by a Caddy TLS terminator on host port
+# 9201. The sync client's daemon forces `https://` and runs with insecure=true,
+# so a self-signed cert is fine; oc10 itself only speaks plain HTTP on 8080.
+#
+# Port 9201 is deliberately distinct from the oCIS stack's 9200 so both
+# acceptance suites can run concurrently in CI.
+services:
+  owncloud:
+    # Pinned tag (not `latest`) for reproducibility: the suite was verified
+    # against 10.16.3, and login selectors have shifted across oc10 releases.
+    image: owncloud/server:10.16.3
+    environment:
+      # SQLite standalone — no DB/Redis container needed for a throwaway backend.
+      OWNCLOUD_DB_TYPE: sqlite
+      # Requests arrive via the proxy as https://localhost:9201; trust that host
+      # (and the in-network proxy/owncloud hostnames) so oc10 doesn't 4xx them.
+      OWNCLOUD_DOMAIN: localhost:9201
+      OWNCLOUD_TRUSTED_DOMAINS: localhost,localhost:9201,proxy,owncloud,127.0.0.1
+      OWNCLOUD_ADMIN_USERNAME: admin
+      OWNCLOUD_ADMIN_PASSWORD: admin
+      # Enable the OAuth2 app at startup (ships in the image under apps/oauth2).
+      # Its install migration pre-seeds the desktop client id the daemon uses
+      # with redirect `http://localhost:*`, so no oauth2:add-client is needed.
+      OWNCLOUD_APPS_ENABLE: oauth2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/status.php"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+
+  proxy:
+    image: caddy:2
+    depends_on:
+      owncloud:
+        condition: service_healthy
+    volumes:
+      - ./oc10-caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "9201:9201"
