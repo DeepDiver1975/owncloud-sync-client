@@ -143,6 +143,41 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
             let config_path_clone = config_path.clone();
             let token_managers_clone = Arc::clone(token_managers);
             tokio::spawn(async move {
+                // Resolve WebFinger-based deployments first (RFC 7033). On a
+                // multi-tenant base host (e.g. `drive.example.org`) the entered
+                // URL is only a WebFinger endpoint; the actual server lives at a
+                // resolved instance URL (e.g. `abc.drive.example.org`). Querying
+                // discovery/status against the bare base host there returns HTML,
+                // which previously surfaced as "not a reachable ownCloud
+                // instance" (issue #80). Single-instance servers that don't
+                // implement WebFinger fall back to the entered URL unchanged.
+                let parsed_base = match url::Url::parse(&url) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
+                            account_id,
+                            reason: format!("invalid server URL: {e}"),
+                        });
+                        return;
+                    }
+                };
+                let url = match ocis_client::resolve_server_instance(&parsed_base, insecure).await {
+                    // WebFinger pointed at a concrete instance — use it for the
+                    // rest of account setup (and persist it as the account URL).
+                    Ok(Some(instance)) => instance.to_string(),
+                    // No usable WebFinger link — keep the entered URL (the common
+                    // single-instance case).
+                    Ok(None) => url,
+                    // Transport-level failure: the host is genuinely unreachable.
+                    Err(e) => {
+                        ipc_clone.broadcast(DaemonEvent::AccountAddFailed {
+                            account_id,
+                            reason: format!("could not reach server {url}: {e}"),
+                        });
+                        return;
+                    }
+                };
+
                 // Try OIDC discovery first: this covers oCIS and oc10 servers
                 // running the OpenID Connect app. If discovery fails, the server
                 // may still be an oc10 instance running only the legacy OAuth2
