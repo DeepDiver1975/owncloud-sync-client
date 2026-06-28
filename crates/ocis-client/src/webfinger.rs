@@ -345,7 +345,10 @@ mod tests {
     fn webfinger_endpoint_uses_host_root_and_drops_path_query() {
         let base = Url::parse("https://drive.example.org/some/path?foo=bar#frag").unwrap();
         let ep = webfinger_endpoint(&base).unwrap();
-        assert_eq!(ep.as_str(), "https://drive.example.org/.well-known/webfinger");
+        assert_eq!(
+            ep.as_str(),
+            "https://drive.example.org/.well-known/webfinger"
+        );
     }
 
     #[test]
