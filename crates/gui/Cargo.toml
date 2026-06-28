@@ -11,10 +11,10 @@ path = "src/main.rs"
 
 [dependencies]
 iced = { version = "0.14", features = ["tokio", "svg"] }
-rfd = "0.15"
+rfd = "0.17"
 rust-i18n = "4"
 sys-locale = "0.3"
-tray-icon = { version = "0.19", optional = true }
+tray-icon = { version = "0.24", optional = true }
 png = "0.17"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
