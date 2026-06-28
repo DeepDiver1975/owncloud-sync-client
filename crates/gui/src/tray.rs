@@ -20,21 +20,25 @@ pub struct TrayState {
     pub quit: String,
 }
 
-// The tray-icon backend on Linux is driven by a GTK event loop, so the real
-// implementation depends on the `gtk` crate (Linux-only). macOS/Windows have
-// no gtk crate available, so they fall back to the no-op stub below.
-#[cfg(all(feature = "tray-icon", target_os = "linux"))]
-mod inner {
+// Code shared by every platform that builds the real tray backend (currently
+// Linux and macOS). The tray-icon crate exposes the same cross-platform menu
+// API everywhere; only the *driving* of the event loop differs per platform
+// (Linux: a dedicated GTK thread; macOS: the main NSApplication run loop that
+// iced/winit already owns), so the loop integration lives in each `inner`
+// module while the icon/menu construction and the iced event subscription are
+// shared here.
+#[cfg(feature = "tray-icon")]
+mod common {
     use super::TrayState;
     use tray_icon::{
         menu::{Menu, MenuId, MenuItem, PredefinedMenuItem},
-        Icon, TrayIconBuilder,
+        Icon,
     };
 
     // PNG bytes produced by build.rs → $OUT_DIR/owncloud-icon-16.png
     const ICON_PNG: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-16.png"));
 
-    fn load_icon() -> anyhow::Result<Icon> {
+    pub(super) fn load_icon() -> anyhow::Result<Icon> {
         let decoder = png::Decoder::new(std::io::Cursor::new(ICON_PNG));
         let mut reader = decoder.read_info()?;
         let mut buf = vec![0u8; reader.output_buffer_size()];
@@ -47,7 +51,7 @@ mod inner {
     /// place rather than rebuilt. Rebuilding (via `set_menu`) causes the tray
     /// menu to fully repaint and flicker; `set_text`/`set_enabled` on the live
     /// items does not.
-    struct MenuItems {
+    pub(super) struct MenuItems {
         daemon_status: MenuItem,
         open: MenuItem,
         about: MenuItem,
@@ -56,7 +60,7 @@ mod inner {
 
     impl MenuItems {
         /// Apply a new state to the existing items in place.
-        fn apply(&self, state: &TrayState) {
+        pub(super) fn apply(&self, state: &TrayState) {
             self.daemon_status.set_text(&state.daemon_status);
             // Disabled (informational) when running; enabled (clickable to
             // start) when stopped.
@@ -67,7 +71,7 @@ mod inner {
         }
     }
 
-    fn build_menu(state: &TrayState) -> anyhow::Result<(Menu, MenuItems)> {
+    pub(super) fn build_menu(state: &TrayState) -> anyhow::Result<(Menu, MenuItems)> {
         let menu = Menu::new();
         let daemon_status = MenuItem::with_id(
             MenuId::new("daemon_status"),
@@ -95,6 +99,61 @@ mod inner {
             },
         ))
     }
+
+    /// Map tray menu clicks to app messages. Identical on every platform: the
+    /// `tray-icon` crate delivers menu events through a single global
+    /// crossbeam channel (`MenuEvent::receiver()`), independent of which
+    /// thread the tray lives on, so the iced subscription that drains it is
+    /// shared.
+    pub(super) fn tray_events() -> iced::Subscription<super::Message> {
+        use iced::futures::SinkExt;
+        use iced::stream;
+        use iced::Subscription;
+        use tray_icon::menu::MenuEvent;
+
+        // `run` identifies the subscription by the type of the stream builder
+        // (a unique `fn` item here), replacing the explicit id used in 0.13.
+        Subscription::run(|| {
+            stream::channel(
+                8,
+                |mut tx: iced::futures::channel::mpsc::Sender<super::Message>| async move {
+                    loop {
+                        // MenuEvent::receiver() is a crossbeam Receiver; we can't .await it,
+                        // so we poll at 50 ms intervals to stay async-friendly.
+                        match MenuEvent::receiver().try_recv() {
+                            Ok(event) => {
+                                let msg = if event.id == MenuId::new("quit") {
+                                    super::Message::Quit
+                                } else if event.id == MenuId::new("about") {
+                                    super::Message::ShowAbout
+                                } else if event.id == MenuId::new("daemon_status") {
+                                    // Only fires when stopped; the item is disabled (no
+                                    // event) while the daemon is running.
+                                    super::Message::StartDaemon
+                                } else {
+                                    super::Message::ToggleWindow
+                                };
+                                let _ = tx.send(msg).await;
+                            }
+                            Err(_) => {
+                                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                            }
+                        }
+                    }
+                },
+            )
+        })
+    }
+}
+
+// Linux tray backend. tray-icon on Linux is driven by a GTK event loop, so the
+// real implementation depends on the `gtk` crate (Linux-only) and runs the
+// tray on a dedicated GTK thread; iced never touches GTK.
+#[cfg(all(feature = "tray-icon", target_os = "linux"))]
+mod inner {
+    use super::common::{build_menu, load_icon, MenuItems};
+    use super::TrayState;
+    use tray_icon::TrayIconBuilder;
 
     pub struct TrayHandle {
         _gtk_thread: std::thread::JoinHandle<()>,
@@ -173,45 +232,7 @@ mod inner {
         }
 
         pub fn tray_events(&self) -> iced::Subscription<super::Message> {
-            use iced::futures::SinkExt;
-            use iced::stream;
-            use iced::Subscription;
-            use tray_icon::menu::MenuEvent;
-
-            // `run` identifies the subscription by the type of the stream builder
-            // (a unique `fn` item here), replacing the explicit id used in 0.13.
-            Subscription::run(|| {
-                stream::channel(
-                    8,
-                    |mut tx: iced::futures::channel::mpsc::Sender<super::Message>| async move {
-                        loop {
-                            // MenuEvent::receiver() is a crossbeam Receiver; we can't .await it,
-                            // so we poll at 50 ms intervals to stay async-friendly.
-                            match MenuEvent::receiver().try_recv() {
-                                Ok(event) => {
-                                    let msg = if event.id == tray_icon::menu::MenuId::new("quit") {
-                                        super::Message::Quit
-                                    } else if event.id == tray_icon::menu::MenuId::new("about") {
-                                        super::Message::ShowAbout
-                                    } else if event.id
-                                        == tray_icon::menu::MenuId::new("daemon_status")
-                                    {
-                                        // Only fires when stopped; the item is disabled (no
-                                        // event) while the daemon is running.
-                                        super::Message::StartDaemon
-                                    } else {
-                                        super::Message::ToggleWindow
-                                    };
-                                    let _ = tx.send(msg).await;
-                                }
-                                Err(_) => {
-                                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                                }
-                            }
-                        }
-                    },
-                )
-            })
+            super::common::tray_events()
         }
     }
 
@@ -223,7 +244,78 @@ mod inner {
     }
 }
 
-#[cfg(not(all(feature = "tray-icon", target_os = "linux")))]
+// macOS tray backend. Unlike Linux there is no separate GTK loop: on macOS the
+// tray-icon crate wraps an `NSStatusItem`, which MUST be created on the main
+// thread and is driven by the main `NSApplication` run loop. iced/winit already
+// owns that run loop and runs the app's `init`/`update` on the main thread
+// (the same place `macos_icon::set_app_icon` relies on a `MainThreadMarker`),
+// so we build the tray inline during `TrayHandle::build()` (called from
+// `IcedApp::init`) and apply menu updates synchronously from `rebuild_menu`
+// (called from `update`). The `TrayIcon` is `Rc<RefCell<…>>` (`!Send`), which
+// is exactly why it has to stay on the main thread; the iced single-threaded
+// application model keeps `App` (and thus this handle) there.
+#[cfg(all(feature = "tray-icon", target_os = "macos"))]
+mod inner {
+    use super::common::{build_menu, load_icon, MenuItems};
+    use super::TrayState;
+    use tray_icon::{TrayIcon, TrayIconBuilder};
+
+    pub struct TrayHandle {
+        // Kept alive for the lifetime of the handle: dropping the TrayIcon
+        // removes the NSStatusItem from the menu bar. Never sent across
+        // threads — created and used only on the main thread.
+        _icon: TrayIcon,
+        items: MenuItems,
+    }
+
+    impl TrayHandle {
+        pub fn build() -> anyhow::Result<Self> {
+            // Must run on the main thread (NSStatusItem requirement). iced calls
+            // the app init on the main thread, so this holds in practice.
+            let icon = load_icon()?;
+
+            // The daemon has not connected yet at startup, so the initial menu
+            // shows the stopped state. main.rs rebuilds it once the connection
+            // state is known. Labels are resolved against the current i18n
+            // locale (same thread), matching the Linux path.
+            let initial = super::tray_state(false);
+            let (menu, items) = build_menu(&initial)?;
+
+            let icon = TrayIconBuilder::new()
+                .with_icon(icon)
+                .with_menu(Box::new(menu))
+                .with_tooltip("ownCloud Sync")
+                // The bundled asset is the full-color ownCloud logo, not a
+                // monochrome glyph, so it is shown as a regular (non-template)
+                // menu-bar icon — rendering it as a template would collapse it
+                // to a black silhouette. A dedicated monochrome template asset
+                // could later opt into `with_icon_as_template(true)` for
+                // automatic light/dark menu-bar tinting.
+                .with_icon_as_template(false)
+                .build()?;
+
+            Ok(Self { _icon: icon, items })
+        }
+
+        pub fn rebuild_menu(&self, state: TrayState) {
+            // Called from iced `update` (main thread); muda menu mutations on
+            // macOS must happen on the main thread, so apply in place directly.
+            self.items.apply(&state);
+        }
+
+        pub fn tray_events(&self) -> iced::Subscription<super::Message> {
+            super::common::tray_events()
+        }
+    }
+}
+
+// Fallback no-op tray for platforms without a real backend wired up yet
+// (Windows, and any build with the `tray-icon` feature disabled). The app runs
+// without a tray; the window close path falls back to exiting (see app.rs).
+#[cfg(not(all(
+    feature = "tray-icon",
+    any(target_os = "linux", target_os = "macos")
+)))]
 mod inner {
     use super::TrayState;
 
