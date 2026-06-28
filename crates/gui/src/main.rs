@@ -94,7 +94,7 @@ fn load_window_icon() -> Option<iced::window::Icon> {
     const PNG: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/owncloud-icon-32.png"));
     let decoder = png::Decoder::new(std::io::Cursor::new(PNG));
     let mut reader = decoder.read_info().ok()?;
-    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let mut buf = vec![0u8; reader.output_buffer_size()?];
     let info = reader.next_frame(&mut buf).ok()?;
     iced::window::icon::from_rgba(buf[..info.buffer_size()].to_vec(), info.width, info.height).ok()
 }

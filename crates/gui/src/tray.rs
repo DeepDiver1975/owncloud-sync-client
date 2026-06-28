@@ -41,7 +41,10 @@ mod common {
     pub(super) fn load_icon() -> anyhow::Result<Icon> {
         let decoder = png::Decoder::new(std::io::Cursor::new(ICON_PNG));
         let mut reader = decoder.read_info()?;
-        let mut buf = vec![0u8; reader.output_buffer_size()];
+        let buffer_size = reader
+            .output_buffer_size()
+            .ok_or_else(|| anyhow::anyhow!("PNG output buffer size is not representable"))?;
+        let mut buf = vec![0u8; buffer_size];
         let info = reader.next_frame(&mut buf)?;
         let rgba = &buf[..info.buffer_size()];
         Ok(Icon::from_rgba(rgba.to_vec(), info.width, info.height)?)
