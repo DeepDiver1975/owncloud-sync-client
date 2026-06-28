@@ -30,10 +30,16 @@ accesskit = { version = "0.24", optional = true }
 accesskit_unix = { version = "0.21", optional = true, default-features = false, features = ["tokio"] }
 
 # gtk (GTK3) only exists on Linux; the tray-icon backend there needs a
-# running GTK event loop. macOS/Windows use tray-icon's native backends, so
-# gtk must not be pulled in (its atk-sys etc. cannot build off-Linux).
+# running GTK event loop. macOS/Windows use tray-icon's native backends
+# (NSStatusItem / Shell_NotifyIcon), so gtk must NOT be pulled in there (its
+# atk-sys etc. cannot build off-Linux). gtk is a non-optional Linux-only
+# dependency and is referenced only from code gated on `target_os = "linux"`
+# (see src/tray.rs); on other platforms it is simply never compiled. It is
+# kept out of the `tray-icon` feature list so the feature can be enabled on
+# macOS/Windows without trying to resolve a gtk dependency that doesn't exist
+# on those targets.
 [target.'cfg(target_os = "linux")'.dependencies]
-gtk = { version = "0.18", optional = true }
+gtk = "0.18"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5"
@@ -46,7 +52,11 @@ tempfile = "3"
 
 [features]
 default = ["tray-icon"]
-tray-icon = ["dep:tray-icon", "dep:gtk"]
+# `tray-icon` enables the cross-platform tray backend. The Linux backend
+# additionally needs gtk, which is a non-optional Linux-only dependency above
+# (so it is not listed here — listing `dep:gtk` would break feature
+# resolution on macOS/Windows where the gtk dependency is absent).
+tray-icon = ["dep:tray-icon"]
 test-accessibility = ["dep:accesskit", "dep:accesskit_unix"]
 
 [build-dependencies]
