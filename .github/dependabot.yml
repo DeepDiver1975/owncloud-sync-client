@@ -9,6 +9,17 @@ updates:
     reviewers:
       - DeepDiver1975
     groups:
+      # The objc2 ecosystem crates are version-coupled and released in
+      # lockstep, so they must be bumped together — a lone bump (e.g.
+      # objc2-foundation 0.2->0.3) leaves two incompatible copies in the tree
+      # and breaks the macOS build. Group them with no update-types filter so
+      # even breaking 0.x bumps land in a single, reviewable PR. Listed before
+      # cargo-deps because Dependabot assigns each crate to the first matching
+      # group.
+      objc2:
+        patterns:
+          - "objc2"
+          - "objc2-*"
       # Group only non-breaking (minor/patch) bumps so they land in a single
       # PR. Major bumps are excluded and arrive as separate, reviewable PRs,
       # since they routinely carry breaking API changes (e.g. iced 0.13->0.14,
