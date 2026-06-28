@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 ownCloud Sync Contributors
 
-use objc2::ClassType;
+use objc2::AnyThread;
 use objc2_app_kit::{NSApplication, NSImage};
 use objc2_foundation::{MainThreadMarker, NSData};
 
@@ -17,7 +17,7 @@ pub fn set_app_icon() {
             tracing::warn!("set_app_icon called off main thread — skipping");
             return;
         };
-        let data = NSData::dataWithBytes_length(PNG.as_ptr() as *mut std::ffi::c_void, PNG.len());
+        let data = NSData::dataWithBytes_length(PNG.as_ptr() as *const std::ffi::c_void, PNG.len());
         if let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) {
             NSApplication::sharedApplication(mtm).setApplicationIconImage(Some(&image));
         }
