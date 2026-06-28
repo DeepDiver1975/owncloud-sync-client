@@ -117,7 +117,7 @@ fn parse_propfind(
     use quick_xml::reader::Reader;
 
     let mut reader = Reader::from_str(xml);
-    reader.trim_text(true);
+    reader.config_mut().trim_text(true);
 
     let mut files = Vec::new();
     let mut dirs = Vec::new();
@@ -167,7 +167,7 @@ fn parse_propfind(
                 }
             }
             Ok(Event::Text(ref e)) => {
-                let text = e.unescape().unwrap_or_default().into_owned();
+                let text = e.decode().unwrap_or_default().into_owned();
                 if in_href {
                     href = text.clone();
                 }

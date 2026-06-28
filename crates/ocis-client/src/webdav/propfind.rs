@@ -57,7 +57,7 @@ enum Collecting {
 /// Parse a WebDAV PROPFIND multistatus XML body.
 pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
     let mut reader = NsReader::from_str(xml);
-    reader.trim_text(true);
+    reader.config_mut().trim_text(true);
 
     let mut entries: Vec<DavEntry> = Vec::new();
     let mut current: Option<CurrentEntry> = None;
@@ -185,7 +185,7 @@ pub fn parse_propfind_response(xml: &str) -> Result<Vec<DavEntry>> {
                 }
 
                 if let Some(ref mut c) = current {
-                    let text = match e.unescape() {
+                    let text = match e.decode() {
                         Ok(t) => t.trim().to_string(),
                         Err(_) => {
                             buf.clear();
