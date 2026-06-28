@@ -20,6 +20,20 @@ updates:
         patterns:
           - "objc2"
           - "objc2-*"
+      # accesskit and accesskit_unix are released in lockstep from the same
+      # repo (accesskit_unix depends on a matching accesskit), so a lone bump
+      # of one would mismatch the other. Same rationale as objc2 above.
+      accesskit:
+        patterns:
+          - "accesskit"
+          - "accesskit*"
+      # atspi and atspi-common (used by the accessibility acceptance tests)
+      # are version-coupled 0.x crates from the same repo and must move
+      # together. Same rationale as objc2 above.
+      atspi:
+        patterns:
+          - "atspi"
+          - "atspi-*"
       # Group only non-breaking (minor/patch) bumps so they land in a single
       # PR. Major bumps are excluded and arrive as separate, reviewable PRs,
       # since they routinely carry breaking API changes (e.g. iced 0.13->0.14,
