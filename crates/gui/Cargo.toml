@@ -15,7 +15,7 @@ rfd = "0.17"
 rust-i18n = "4"
 sys-locale = "0.3"
 tray-icon = { version = "0.24", optional = true }
-png = "0.17"
+png = "0.18"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true }
 uuid = { workspace = true }
@@ -62,4 +62,4 @@ test-accessibility = ["dep:accesskit", "dep:accesskit_unix"]
 [build-dependencies]
 resvg = "0.45"
 tiny-skia = "0.11"
-png = "0.17"
+png = "0.18"
