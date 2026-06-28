@@ -4113,7 +4113,7 @@ dependencies = [
  "chrono",
  "getrandom 0.4.2",
  "keyring",
- "quick-xml 0.31.0",
+ "quick-xml",
  "reqwest",
  "serde",
  "serde_json",
@@ -4560,16 +4560,6 @@ name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
-
-[[package]]
-name = "quick-xml"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1004a344b30a54e2ee58d66a71b32d2db2feb0a31f9a2d302bf0536f15de2a33"
-dependencies = [
- "memchr",
- "serde",
-]
 
 [[package]]
 name = "quick-xml"
@@ -5955,7 +5945,7 @@ dependencies = [
  "camino",
  "ocis-client",
  "percent-encoding",
- "quick-xml 0.31.0",
+ "quick-xml",
  "reqwest",
  "serde",
  "serde_json",
@@ -7034,7 +7024,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c324a910fd86ebdc364a3e61ec1f11737d3b1d6c273c0239ee8ff4bc0d24b4a"
 dependencies = [
  "proc-macro2",
- "quick-xml 0.39.2",
+ "quick-xml",
  "quote",
 ]
 
@@ -8184,7 +8174,7 @@ version = "5.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8067892e940ed1727dea64690378601603b31d62dfde019a5335fbb7c0e0ed9"
 dependencies = [
- "quick-xml 0.39.2",
+ "quick-xml",
  "serde",
  "zbus_names 4.3.2",
  "zvariant 5.12.0",
