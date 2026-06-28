@@ -312,10 +312,7 @@ mod inner {
 // Fallback no-op tray for platforms without a real backend wired up yet
 // (Windows, and any build with the `tray-icon` feature disabled). The app runs
 // without a tray; the window close path falls back to exiting (see app.rs).
-#[cfg(not(all(
-    feature = "tray-icon",
-    any(target_os = "linux", target_os = "macos")
-)))]
+#[cfg(not(all(feature = "tray-icon", any(target_os = "linux", target_os = "macos"))))]
 mod inner {
     use super::TrayState;
 
