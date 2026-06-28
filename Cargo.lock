@@ -23,8 +23,8 @@ name = "acceptance-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "atspi",
- "atspi-common",
+ "atspi 0.30.0",
+ "atspi-common 0.14.0",
  "bytes",
  "daemon",
  "nix 0.31.3",
@@ -59,7 +59,7 @@ checksum = "842fd8203e6dfcf531d24f5bac792088edfba7d6b35844fead191603fb32a260"
 dependencies = [
  "accesskit",
  "accesskit_consumer",
- "atspi-common",
+ "atspi-common 0.13.0",
  "phf",
  "serde",
  "zvariant 5.12.0",
@@ -83,7 +83,7 @@ checksum = "90e549dd7c6562b6a2ea807b44726e6241707db054a817dc4c7e2b8d3b39bfac"
 dependencies = [
  "accesskit",
  "accesskit_atspi_common",
- "atspi",
+ "atspi 0.29.0",
  "futures-lite 2.6.1",
  "serde",
  "tokio",
@@ -474,9 +474,19 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c77886257be21c9cd89a4ae7e64860c6f0eefca799bb79127913052bd0eefb3d"
 dependencies = [
- "atspi-common",
+ "atspi-common 0.13.0",
+ "atspi-proxies 0.13.0",
+]
+
+[[package]]
+name = "atspi"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bf601cccedfffec598ec2db1f9d6745885458bccc0e8916d7023f017c94b3d0"
+dependencies = [
+ "atspi-common 0.14.0",
  "atspi-connection",
- "atspi-proxies",
+ "atspi-proxies 0.14.0",
  "zbus 5.16.0",
 ]
 
@@ -497,13 +507,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "atspi-connection"
-version = "0.13.0"
+name = "atspi-common"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43b28a59b7c709ce0f1196405e6eacee35424dad07b4b005c0f9e417d8c2116f"
+checksum = "f8a79bed3f5b408ce3152f36e07327a845e6ed5d7e2821a89264037dbcc11daf"
 dependencies = [
- "atspi-common",
- "atspi-proxies",
+ "enumflags2",
+ "serde",
+ "static_assertions",
+ "zbus 5.16.0",
+ "zbus-lockstep",
+ "zbus-lockstep-macros",
+ "zbus_names 4.3.2",
+ "zvariant 5.12.0",
+]
+
+[[package]]
+name = "atspi-connection"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fab8e4f574f5a7d3af280b38eff25fb6f47a537dac9ae39ce152f52b19fb10b"
+dependencies = [
+ "atspi-common 0.14.0",
+ "atspi-proxies 0.14.0",
  "futures-lite 2.6.1",
  "zbus 5.16.0",
 ]
@@ -514,7 +540,18 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2230e48787ed3eb4088996eab66a32ca20c0b67bbd4fd6cdfe79f04f1f04c9fc"
 dependencies = [
- "atspi-common",
+ "atspi-common 0.13.0",
+ "serde",
+ "zbus 5.16.0",
+]
+
+[[package]]
+name = "atspi-proxies"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53403acd3ab2fdb5914f6558da22e540fc07656fce5510f8c02be0e6ef68413e"
+dependencies = [
+ "atspi-common 0.14.0",
  "serde",
  "zbus 5.16.0",
 ]
@@ -1281,7 +1318,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1404,7 +1441,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3420,7 +3457,7 @@ dependencies = [
  "once_cell",
  "png 0.18.1",
  "thiserror 2.0.18",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3570,7 +3607,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3689,7 +3726,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -5032,7 +5069,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5550,7 +5587,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5989,10 +6026,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand 2.4.1",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6431,7 +6468,7 @@ dependencies = [
  "once_cell",
  "png 0.18.1",
  "thiserror 2.0.18",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6474,7 +6511,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset 0.9.1",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7240,7 +7277,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
