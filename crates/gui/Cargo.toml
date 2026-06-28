@@ -27,7 +27,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 daemon = { path = "../daemon" }
 accesskit = { version = "0.24", optional = true }
-accesskit_unix = { version = "0.21", optional = true, default-features = false, features = ["tokio"] }
+accesskit_unix = { version = "0.22", optional = true, default-features = false, features = ["tokio"] }
 
 # gtk (GTK3) only exists on Linux; the tray-icon backend there needs a
 # running GTK event loop. macOS/Windows use tray-icon's native backends
