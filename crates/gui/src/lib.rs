@@ -18,6 +18,8 @@ pub mod views;
 
 #[cfg(target_os = "macos")]
 pub mod macos_icon;
+#[cfg(target_os = "macos")]
+pub mod macos_menu;
 
 #[cfg(test)]
 mod i18n_tests;

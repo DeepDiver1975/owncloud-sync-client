@@ -174,7 +174,7 @@ impl IcedApp {
         // before it resolves must not launch a second connection.
         let init_task = spawn_and_connect(0);
         #[cfg(target_os = "macos")]
-        let init_task = Task::batch([init_task, Task::done(Message::ApplyAppIcon)]);
+        let init_task = Task::batch([init_task, Task::done(Message::ApplyMacosChrome)]);
 
         (
             Self {

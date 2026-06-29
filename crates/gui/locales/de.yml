@@ -72,6 +72,15 @@ tray_quit: "Beenden"
 tray_daemon_running: "Dienst läuft"
 tray_daemon_stopped: "Dienst gestoppt"
 
+# macos menu
+menu_edit: "Bearbeiten"
+menu_about: "Über ownCloud"
+menu_quit: "ownCloud beenden"
+menu_cut: "Ausschneiden"
+menu_copy: "Kopieren"
+menu_paste: "Einfügen"
+menu_select_all: "Alles auswählen"
+
 # nav
 nav_sync_status: "Synchronisierungsstatus"
 nav_add_account: "+ Konto hinzufügen"
