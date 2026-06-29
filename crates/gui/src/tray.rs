@@ -103,6 +103,31 @@ mod common {
         ))
     }
 
+    /// Map a tray menu-item id to the app [`Message`](super::Message) it should
+    /// dispatch. Pure and side-effect free so it can be unit-tested without a
+    /// live tray or event loop (see the `tests` module below).
+    ///
+    /// Mirrors the menu built in [`build_menu`]:
+    /// - `quit` → [`Message::Quit`](super::Message::Quit)
+    /// - `about` → [`Message::ShowAbout`](super::Message::ShowAbout)
+    /// - `daemon_status` → [`Message::StartDaemon`](super::Message::StartDaemon)
+    ///   (only fires when the daemon is stopped; the item is disabled — and so
+    ///   emits no event — while it is running, so a plain id→message mapping is
+    ///   correct)
+    /// - anything else (currently the `open` item) →
+    ///   [`Message::ToggleWindow`](super::Message::ToggleWindow)
+    pub(super) fn message_for_menu_id(id: &MenuId) -> super::Message {
+        if *id == MenuId::new("quit") {
+            super::Message::Quit
+        } else if *id == MenuId::new("about") {
+            super::Message::ShowAbout
+        } else if *id == MenuId::new("daemon_status") {
+            super::Message::StartDaemon
+        } else {
+            super::Message::ToggleWindow
+        }
+    }
+
     /// Map tray menu clicks to app messages. Identical on every platform: the
     /// `tray-icon` crate delivers menu events through a single global
     /// crossbeam channel (`MenuEvent::receiver()`), independent of which
@@ -125,18 +150,7 @@ mod common {
                         // so we poll at 50 ms intervals to stay async-friendly.
                         match MenuEvent::receiver().try_recv() {
                             Ok(event) => {
-                                let msg = if event.id == MenuId::new("quit") {
-                                    super::Message::Quit
-                                } else if event.id == MenuId::new("about") {
-                                    super::Message::ShowAbout
-                                } else if event.id == MenuId::new("daemon_status") {
-                                    // Only fires when stopped; the item is disabled (no
-                                    // event) while the daemon is running.
-                                    super::Message::StartDaemon
-                                } else {
-                                    super::Message::ToggleWindow
-                                };
-                                let _ = tx.send(msg).await;
+                                let _ = tx.send(message_for_menu_id(&event.id)).await;
                             }
                             Err(_) => {
                                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -146,6 +160,68 @@ mod common {
                 },
             )
         })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::message_for_menu_id;
+        use super::MenuId;
+        use crate::app::Message;
+
+        // `Message` does not derive `PartialEq`, so we assert the mapped variant
+        // with `matches!` rather than `assert_eq!`.
+
+        #[test]
+        fn quit_id_maps_to_quit() {
+            assert!(matches!(
+                message_for_menu_id(&MenuId::new("quit")),
+                Message::Quit
+            ));
+        }
+
+        #[test]
+        fn about_id_maps_to_show_about() {
+            assert!(matches!(
+                message_for_menu_id(&MenuId::new("about")),
+                Message::ShowAbout
+            ));
+        }
+
+        #[test]
+        fn daemon_status_id_maps_to_start_daemon() {
+            assert!(matches!(
+                message_for_menu_id(&MenuId::new("daemon_status")),
+                Message::StartDaemon
+            ));
+        }
+
+        #[test]
+        fn open_id_maps_to_toggle_window() {
+            assert!(matches!(
+                message_for_menu_id(&MenuId::new("open")),
+                Message::ToggleWindow
+            ));
+        }
+
+        #[test]
+        fn unknown_id_maps_to_toggle_window() {
+            assert!(matches!(
+                message_for_menu_id(&MenuId::new("some_unknown_id")),
+                Message::ToggleWindow
+            ));
+        }
+
+        // In-process injection of a synthetic `MenuEvent` into the global
+        // `MenuEvent::receiver()` channel is NOT feasible with tray-icon 0.24
+        // (muda 0.19): the channel sender (`MENU_CHANNEL.0`) is a private
+        // static and the only way to push onto it, `MenuEvent::send`, is
+        // `pub(crate)` — so external crates can read the receiver but cannot
+        // write to it. There is therefore no way to drive a real event through
+        // the subscription from a unit test without a live tray and platform
+        // event loop. We instead test the dispatch logic directly via the
+        // extracted, pure `message_for_menu_id`, which `tray_events()` calls for
+        // every received event, so the mapping covered here is the exact mapping
+        // used at runtime.
     }
 }
 
