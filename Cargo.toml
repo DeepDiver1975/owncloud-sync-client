@@ -40,7 +40,7 @@ thiserror = "2"
 # auth
 keyring = { version = "2.3", features = ["linux-secret-service-rt-tokio-crypto-rust"] }
 # XML parsing
-quick-xml = { version = "0.39", features = ["serialize"] }
+quick-xml = { version = "0.40", features = ["serialize"] }
 # URL
 url = { version = "2.5", features = ["serde"] }
 # testing
