@@ -20,12 +20,13 @@ fn build_icon(out_dir: &str) {
         .unwrap_or_else(|e| panic!("failed to parse SVG: {e}"));
 
     for size in [16u32, 32, 128] {
-        let mut pixmap = tiny_skia::Pixmap::new(size, size).expect("failed to allocate pixmap");
+        let mut pixmap =
+            resvg::tiny_skia::Pixmap::new(size, size).expect("failed to allocate pixmap");
         let scale = f32::min(
             size as f32 / tree.size().width(),
             size as f32 / tree.size().height(),
         );
-        let transform = tiny_skia::Transform::from_scale(scale, scale);
+        let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
         resvg::render(&tree, transform, &mut pixmap.as_mut());
 
         let out_path = std::path::Path::new(out_dir).join(format!("owncloud-icon-{size}.png"));
