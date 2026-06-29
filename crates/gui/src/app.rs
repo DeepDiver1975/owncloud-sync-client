@@ -106,8 +106,12 @@ pub enum Message {
     OpenUrl(String),
     DaemonConnected(Option<(DaemonConnection, EventRxCarrier)>),
     LanguageChanged(crate::model::Language),
+    /// Apply macOS app chrome after launch: set the `.Regular` activation
+    /// policy (Dock icon + menu bar, #84), install the main menu (#83), then set
+    /// the app icon LAST — `setActivationPolicy` resets `applicationIconImage`,
+    /// so the icon must come after the policy change.
     #[cfg(target_os = "macos")]
-    ApplyAppIcon,
+    ApplyMacosChrome,
 }
 
 /// Rebuild the tray menu to reflect the current daemon-running state.
@@ -431,7 +435,11 @@ pub fn update(app: &mut App, message: Message) -> iced::Task<Message> {
         Message::DaemonConnected(_) => iced::Task::none(),
 
         #[cfg(target_os = "macos")]
-        Message::ApplyAppIcon => {
+        Message::ApplyMacosChrome => {
+            // Order matters: setActivationPolicy resets applicationIconImage, so
+            // (a) set the policy, (b) install the menu, (c) set the icon LAST.
+            crate::macos_menu::set_regular_activation_policy();
+            crate::macos_menu::install_main_menu();
             crate::macos_icon::set_app_icon();
             iced::Task::none()
         }

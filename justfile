@@ -190,7 +190,6 @@ package-macos:
       <key>CFBundleName</key><string>ownCloud Sync</string>
       <key>CFBundleVersion</key><string>0.1.0</string>
       <key>CFBundleExecutable</key><string>ocsync</string>
-      <key>LSUIElement</key><true/>
     </dict></plist>
     PLIST
     pkgbuild \

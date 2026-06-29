@@ -72,6 +72,15 @@ tray_quit: "退出"
 tray_daemon_running: "守护进程运行中"
 tray_daemon_stopped: "守护进程已停止"
 
+# macos menu
+menu_edit: "编辑"
+menu_about: "关于 ownCloud"
+menu_quit: "退出 ownCloud"
+menu_cut: "剪切"
+menu_copy: "复制"
+menu_paste: "粘贴"
+menu_select_all: "全选"
+
 # nav
 nav_sync_status: "同步状态"
 nav_add_account: "+ 添加账户"
