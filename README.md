@@ -21,7 +21,7 @@ A modern desktop sync client that keeps your local folders in lockstep with **ow
 |---|---|
 | 🔄 **Real-time sync** | Bidirectional sync driven by a filesystem watcher plus a periodic remote poll |
 | 🗂️ **Multi-account & multi-space** | Connect several oCIS accounts and pick exactly which Spaces to sync, discovered at runtime |
-| 👻 **Virtual files** | Windows CloudFiles placeholders, macOS FileProvider, full-download fallback on Linux |
+| 👻 **Virtual files** | Windows CloudFiles placeholders and full-download fallback on Linux; macOS FileProvider is planned (not yet wired in the alpha) |
 | ⚔️ **Conflict resolution** | `KeepBoth` (default), `KeepRemote`, or `KeepLocal` strategies |
 | ⏯️ **Per-folder control** | Pause and resume individual folders with live sync progress |
 | 🐚 **Shell integration** | COM overlays & context menus (Windows), Finder badges (macOS), D-Bus + Nautilus/Dolphin menus (Linux) |
@@ -116,7 +116,7 @@ A Cargo workspace of focused crates:
 | Platform | Virtual files | Shell integration |
 |---|---|---|
 | **Linux** | Full download (`vfs-off`) | D-Bus service + Nautilus / Dolphin menus |
-| **macOS** | FileProvider extension | Finder badges & toolbar items |
+| **macOS** | FileProvider extension ⏳ *planned — not yet wired in the alpha* | Finder badges & toolbar items |
 | **Windows** | CloudFiles API placeholders | COM overlay icons & context menus |
 
 ## 📄 License
