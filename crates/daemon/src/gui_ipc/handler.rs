@@ -396,6 +396,31 @@ pub async fn handle_command(cmd: DaemonCommand, ctx: &mut HandleContext<'_>) -> 
             };
 
             for space_sel in spaces {
+                // SECURITY (path traversal — PRESENT TODAY, not hypothetical):
+                // `space_sel.display_name` is fully server-controlled (the oCIS space
+                // `name` from the Graph drives JSON) and is joined into a filesystem path
+                // for `create_dir_all`. `Path::join` *discards the base* when the joined
+                // component is absolute, and `..` is resolved by the OS at the syscall, so
+                // a malicious/compromised server could set a name like `/etc/...` or
+                // `../../../home/<user>/.config/autostart/x` to create directories OUTSIDE
+                // the chosen root — and the escaped path would then be persisted as
+                // FolderConfig.local_path and used as the sync engine's local_root, so
+                // down-sync would write server content into the escaped directory
+                // (arbitrary file write). The input is now validated here: the name must
+                // be a single normal path segment (rejects empty, `.`, `..`, absolute
+                // paths, separators, and Windows prefixes/roots).
+                let name = &space_sel.display_name;
+                let mut comps = std::path::Path::new(name).components();
+                let safe = matches!(comps.next(), Some(std::path::Component::Normal(_)))
+                    && comps.next().is_none();
+                if !safe {
+                    ipc.broadcast(DaemonEvent::AccountSpaceFailed {
+                        account_id,
+                        reason: format!("rejected unsafe space name '{name}'"),
+                    });
+                    continue;
+                }
+
                 let sub_path = std::path::Path::new(&root_path).join(&space_sel.display_name);
                 if let Err(e) = tokio::fs::create_dir_all(&sub_path).await {
                     ipc.broadcast(DaemonEvent::AccountSpaceFailed {
