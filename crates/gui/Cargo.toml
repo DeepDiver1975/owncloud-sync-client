@@ -60,5 +60,5 @@ tray-icon = ["dep:tray-icon"]
 test-accessibility = ["dep:accesskit", "dep:accesskit_unix"]
 
 [build-dependencies]
-resvg = "0.47"
+resvg = "0.48"
 png = "0.18"
