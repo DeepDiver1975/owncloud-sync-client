@@ -39,7 +39,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -62,7 +62,7 @@ dependencies = [
  "atspi-common 0.13.0",
  "phf",
  "serde",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
 ]
 
 [[package]]
@@ -88,7 +88,7 @@ dependencies = [
  "serde",
  "tokio",
  "tokio-stream",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -152,7 +152,7 @@ dependencies = [
  "ndk-context",
  "ndk-sys",
  "num_enum",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -444,9 +444,9 @@ checksum = "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
 
 [[package]]
 name = "async-trait"
-version = "0.1.91"
+version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae36dc4177970ef04fde5178d3e2429882def40e57a451f919c098f72baa6cec"
+checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -510,7 +510,7 @@ dependencies = [
  "atspi-common 0.14.0",
  "atspi-connection",
  "atspi-proxies 0.14.0",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -522,11 +522,11 @@ dependencies = [
  "enumflags2",
  "serde",
  "static_assertions",
- "zbus 5.18.0",
+ "zbus 5.19.0",
  "zbus-lockstep",
  "zbus-lockstep-macros",
  "zbus_names 4.3.4",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
 ]
 
 [[package]]
@@ -538,11 +538,11 @@ dependencies = [
  "enumflags2",
  "serde",
  "static_assertions",
- "zbus 5.18.0",
+ "zbus 5.19.0",
  "zbus-lockstep",
  "zbus-lockstep-macros",
  "zbus_names 4.3.4",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
 ]
 
 [[package]]
@@ -554,7 +554,7 @@ dependencies = [
  "atspi-common 0.14.0",
  "atspi-proxies 0.14.0",
  "futures-lite 2.6.1",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -565,7 +565,7 @@ checksum = "2230e48787ed3eb4088996eab66a32ca20c0b67bbd4fd6cdfe79f04f1f04c9fc"
 dependencies = [
  "atspi-common 0.13.0",
  "serde",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -576,7 +576,7 @@ checksum = "53403acd3ab2fdb5914f6558da22e540fc07656fce5510f8c02be0e6ef68413e"
 dependencies = [
  "atspi-common 0.14.0",
  "serde",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -955,7 +955,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd63e33452ffdafd39924c4f05a5dd1e94db646c779c6bd59148a3d95fff5ad4"
 dependencies = [
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "x11rb",
 ]
 
@@ -1256,7 +1256,7 @@ dependencies = [
  "sync-db",
  "sync-engine",
  "tempfile",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tokio-util",
  "toml 1.1.4+spec-1.1.0",
@@ -2337,7 +2337,7 @@ dependencies = [
  "serde",
  "sys-locale",
  "tempfile",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "toml 1.1.4+spec-1.1.0",
  "tracing",
@@ -2668,7 +2668,7 @@ dependencies = [
  "iced_runtime",
  "iced_widget",
  "iced_winit",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2685,7 +2685,7 @@ dependencies = [
  "num-traits",
  "rustc-hash 2.1.2",
  "smol_str",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "web-time",
 ]
 
@@ -2730,7 +2730,7 @@ dependencies = [
  "log",
  "raw-window-handle",
  "rustc-hash 2.1.2",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "unicode-segmentation",
 ]
 
@@ -2754,7 +2754,7 @@ dependencies = [
  "iced_tiny_skia",
  "iced_wgpu",
  "log",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2767,7 +2767,7 @@ dependencies = [
  "iced_core",
  "iced_futures",
  "raw-window-handle",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -2805,7 +2805,7 @@ dependencies = [
  "log",
  "resvg 0.45.1",
  "rustc-hash 2.1.2",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "wgpu",
 ]
 
@@ -2819,7 +2819,7 @@ dependencies = [
  "log",
  "num-traits",
  "rustc-hash 2.1.2",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "unicode-segmentation",
 ]
 
@@ -2834,7 +2834,7 @@ dependencies = [
  "log",
  "mundy",
  "rustc-hash 2.1.2",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tracing",
  "wasm-bindgen-futures",
  "web-sys",
@@ -3086,7 +3086,7 @@ dependencies = [
  "jni-sys 0.4.1",
  "log",
  "simd_cesu8",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "walkdir",
  "windows-link",
 ]
@@ -3569,7 +3569,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "once_cell",
  "png 0.18.1",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "windows-sys 0.61.2",
 ]
 
@@ -3595,7 +3595,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "windows 0.62.2",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -3620,7 +3620,7 @@ dependencies = [
  "once_cell",
  "rustc-hash 1.1.0",
  "spirv",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "unicode-ident",
 ]
 
@@ -4216,11 +4216,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "zbus 5.18.0",
+ "zbus 5.19.0",
 ]
 
 [[package]]
@@ -4237,7 +4237,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tokio-test",
  "tracing",
@@ -4713,7 +4713,7 @@ dependencies = [
  "rustc-hash 2.1.2",
  "rustls",
  "socket2 0.6.3",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "web-time",
@@ -4735,7 +4735,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tinyvec",
  "tracing",
  "web-time",
@@ -4917,7 +4917,7 @@ checksum = "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac"
 dependencies = [
  "getrandom 0.2.17",
  "libredox",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -5688,7 +5688,7 @@ dependencies = [
  "log",
  "memmap2",
  "rustix 1.1.4",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "wayland-backend",
  "wayland-client",
  "wayland-csd-frame",
@@ -5731,7 +5731,7 @@ dependencies = [
  "serde_json",
  "sync-engine",
  "tempfile",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "uuid",
@@ -5860,7 +5860,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "smallvec",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -5945,7 +5945,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tracing",
  "uuid",
  "whoami",
@@ -5984,7 +5984,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tracing",
  "uuid",
  "whoami",
@@ -6010,7 +6010,7 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "sqlx-core",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tracing",
  "url",
  "uuid",
@@ -6132,7 +6132,7 @@ dependencies = [
  "serde",
  "sqlx",
  "tempfile",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "uuid",
 ]
@@ -6151,7 +6151,7 @@ dependencies = [
  "serde_json",
  "sync-db",
  "tempfile",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "tracing",
  "url",
@@ -6242,11 +6242,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.19"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09a43598840e33d5b0331f38c5e30d13bb11c11210a4b58f0d9b18a5a5eefcd9"
+checksum = "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f"
 dependencies = [
- "thiserror-impl 2.0.19",
+ "thiserror-impl 2.0.20",
 ]
 
 [[package]]
@@ -6262,9 +6262,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.19"
+version = "2.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43cbfe0cf76104d42a574802844187e84a305e531ed54455f11fbde0f10541cd"
+checksum = "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6684,7 +6684,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "once_cell",
  "png 0.18.1",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "windows-sys 0.61.2",
 ]
 
@@ -6858,7 +6858,7 @@ version = "0.48.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "977d0a4abdef933f424a99fe09f95576e089b90aebc6f016a3bc813762493e91"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "data-url",
  "flate2",
  "fontdb 0.24.0",
@@ -6930,7 +6930,7 @@ dependencies = [
  "camino",
  "serde",
  "serde_millis",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
 ]
 
@@ -6943,7 +6943,7 @@ dependencies = [
  "libc",
  "serde",
  "serde_json",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "vfs-core",
 ]
@@ -6965,7 +6965,7 @@ dependencies = [
  "async-trait",
  "camino",
  "tempfile",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "tokio",
  "vfs-core",
  "windows 0.62.2",
@@ -7331,7 +7331,7 @@ dependencies = [
  "raw-window-handle",
  "rustc-hash 1.1.0",
  "smallvec",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "wgpu-core-deps-apple",
  "wgpu-core-deps-emscripten",
  "wgpu-core-deps-windows-linux-android",
@@ -7407,7 +7407,7 @@ dependencies = [
  "raw-window-handle",
  "renderdoc-sys",
  "smallvec",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "wasm-bindgen",
  "web-sys",
  "wgpu-types",
@@ -7425,7 +7425,7 @@ dependencies = [
  "bytemuck",
  "js-sys",
  "log",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
  "web-sys",
 ]
 
@@ -7481,7 +7481,7 @@ dependencies = [
  "clipboard_wayland",
  "clipboard_x11",
  "raw-window-handle",
- "thiserror 2.0.19",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -8165,9 +8165,9 @@ dependencies = [
 
 [[package]]
 name = "zbus"
-version = "5.18.0"
+version = "5.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe18fb60dc696039e738717b76eaea21e7a4489bbb1885020b43c94236d7e98a"
+checksum = "5db4be7c075cb421e4b7ee645541604239bd243ba7c357511f4ff3a74b555907"
 dependencies = [
  "async-broadcast 0.7.2",
  "async-executor",
@@ -8194,9 +8194,9 @@ dependencies = [
  "uuid",
  "windows-sys 0.61.2",
  "winnow 1.0.2",
- "zbus_macros 5.18.0",
+ "zbus_macros 5.19.0",
  "zbus_names 4.3.4",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
 ]
 
 [[package]]
@@ -8206,7 +8206,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6998de05217a084b7578728a9443d04ea4cd80f2a0839b8d78770b76ccd45863"
 dependencies = [
  "zbus_xml",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
 ]
 
 [[package]]
@@ -8220,7 +8220,7 @@ dependencies = [
  "syn 2.0.117",
  "zbus-lockstep",
  "zbus_xml",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
 ]
 
 [[package]]
@@ -8239,17 +8239,17 @@ dependencies = [
 
 [[package]]
 name = "zbus_macros"
-version = "5.18.0"
+version = "5.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe96480bed92df2b442a1a30df364e12d08eed03aeb061f2b8dc6afb2be91119"
+checksum = "2990635d09ade6df1868f72f8cac69a876a90981e8bd3c40b1be413f8dc88f40"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
- "syn 2.0.117",
+ "syn 3.0.2",
  "zbus_names 4.3.4",
- "zvariant 5.13.1",
- "zvariant_utils 3.5.0",
+ "zvariant 5.14.0",
+ "zvariant_utils 4.1.0",
 ]
 
 [[package]]
@@ -8271,7 +8271,7 @@ checksum = "d8bf88b4a3ff53e883001e0e0115b297a9d53c31b9c1edd2bfdd853e3428624e"
 dependencies = [
  "serde",
  "winnow 1.0.2",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
 ]
 
 [[package]]
@@ -8283,7 +8283,16 @@ dependencies = [
  "quick-xml 0.39.4",
  "serde",
  "zbus_names 4.3.4",
- "zvariant 5.13.1",
+ "zvariant 5.14.0",
+]
+
+[[package]]
+name = "zcheapstr"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1afec51604565183aeb5c54c20aeab286120d4e4460f7f76e3e8bb8c0d99473"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -8424,16 +8433,17 @@ dependencies = [
 
 [[package]]
 name = "zvariant"
-version = "5.13.1"
+version = "5.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bee2a0bcd2a907786a456fff45aaaaf54c9ba5f50b71ae9ec1a4edd200c94911"
+checksum = "b5e28c25bd8bb8da5a1f3e7065d0c156b9ee9a7973adf78b0e35eaefdf3b1b5c"
 dependencies = [
  "endi",
  "enumflags2",
  "serde",
  "winnow 1.0.2",
- "zvariant_derive 5.13.1",
- "zvariant_utils 3.5.0",
+ "zcheapstr",
+ "zvariant_derive 5.14.0",
+ "zvariant_utils 4.1.0",
 ]
 
 [[package]]
@@ -8451,15 +8461,15 @@ dependencies = [
 
 [[package]]
 name = "zvariant_derive"
-version = "5.13.1"
+version = "5.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38a708216a18780796770bfe3f4739c7c83a3e8f789b755534bbbc06e4e23e12"
+checksum = "d496a145685283b67e232bd9e47377f6b60ad9d51e3601b23867f77c42477f96"
 dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
- "syn 2.0.117",
- "zvariant_utils 3.5.0",
+ "syn 3.0.2",
+ "zvariant_utils 4.1.0",
 ]
 
 [[package]]
@@ -8475,13 +8485,13 @@ dependencies = [
 
 [[package]]
 name = "zvariant_utils"
-version = "3.5.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90cb9383f9b45290407a1258b202d3f8f01db719eb60b4e4055c6375af4fc7c7"
+checksum = "6b84ebb462416c27cdb97f2e7f5f0ccc844da1fe2ecc7121e1b690b41318bf42"
 dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "syn 2.0.117",
+ "syn 3.0.2",
  "winnow 1.0.2",
 ]
